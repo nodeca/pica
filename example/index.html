@@ -1,0 +1,93 @@
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+<script src="../dist/pica.js"></script>
+<script src="./image-encoded.js"></script>
+<script> // performance.now polyfill
+  (function() {
+  if(window.performance && window.performance.now) return;
+  if(!window.performance) window.performance = {};
+  var methods = ['webkitNow', 'msNow', 'mozNow'];
+  for(var i = 0; i < methods.length; i++) {
+    if(window.performance[methods[i]]) {
+      window.performance.now = window.performance[methods[i]];
+      return;
+    }
+  }
+  if(Date.now) {
+    window.performance.now = function() { return Date.now(); };
+    return;
+  }
+  window.performance.now = function() { return +(new Date()); };
+  })();
+</script>
+
+
+<style>
+  #src {
+    border: 5px solid #ddd;
+    max-width: 500px;
+  }
+  #dst, #dst-cvs {
+    border: 5px solid #ddd;
+  }
+</style>
+
+
+<p>
+  Original (<span id="src-info"></span>):<br>
+  <canvas id='src'></canvas>
+</p>
+
+<p>
+  Resized via canvas (<span id="dst-cvs-info"></span>):<br>
+  <canvas id='dst-cvs' width='300px'></canvas>
+</p>
+
+<p>
+  Resized via lanczos3 (<span id="dst-info"></span>):<br>
+  <canvas id='dst' width='300px'></canvas>
+</p>
+
+<script>
+var img = new Image();
+
+img.src = imageEncoded;
+
+img.onload = function () {
+  var src, dst, ctx, start;
+
+  // Draw original
+
+  src = $('#src')[0];
+  src.width = img.width;
+  src.height = img.height;
+
+  $('#src-info').text('' + img.width + ' x ' + img.height);
+
+  ctx = src.getContext("2d")
+  ctx.drawImage(img, 0, 0);
+
+  // Resize via canvas
+
+  dst = $('#dst-cvs')[0];
+  dst.height = src.height * dst.width / src.width;
+
+  start = performance.now();
+
+  ctx = dst.getContext("2d")
+  ctx.drawImage(img, 0, 0, dst.width, dst.height);
+
+
+  $('#dst-cvs-info').text((performance.now() - start).toFixed(2) + 'ms');
+
+  // Resize with pica
+
+  var dst = $('#dst')[0];
+  dst.height = src.height * dst.width / src.width;
+
+  start = performance.now();
+
+  window.pica.resizeCanvas(src, dst, 3, function (err) {
+    $('#dst-info').text((performance.now() - start).toFixed(2) + 'ms');
+  });
+};
+</script>
