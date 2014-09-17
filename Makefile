@@ -23,7 +23,7 @@ help:
 
 
 lint:
-	jshint . --show-non-errors
+	eslint ./
 
 
 test: lint

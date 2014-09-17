@@ -1,26 +1,38 @@
 {
-  "name"            : "pica",
-  "description"     : "Image resize for browser. Fast implementation of high quality filters.",
-  "version"         : "0.0.0",
-  "keywords"        : ["resize", "scale", "image", "lanczos", "bicubic"],
-  "homepage"        : "https://github.com/nodeca/pica",
-
-  "contributors"    : [ "Andrei Tuputcyn (https://github.com/andr83)",
-                        "Vitaly Puzrin (https://github.com/puzrin)" ],
-
-  "bugs"            : { "url": "https://github.com/nodeca/pica/issues" },
-  "license"         : { "type": "MIT", "url": "https://github.com/nodeca/pica/blob/master/LICENSE" },
-  "repository"      : { "type": "git", "url": "git://github.com/nodeca/pica.git" },
-
-  "main"            : "./index.js",
-
-  "dependencies"    : {
-                        "webworkify": "0.1.0"
+  "name": "pica",
+  "description": "Image resize for browser. Fast implementation of high quality filters.",
+  "version": "0.0.0",
+  "keywords": [
+    "resize",
+    "scale",
+    "image",
+    "lanczos",
+    "bicubic"
+  ],
+  "homepage": "https://github.com/nodeca/pica",
+  "contributors": [
+    "Andrei Tuputcyn (https://github.com/andr83)",
+    "Vitaly Puzrin (https://github.com/puzrin)"
+  ],
+  "bugs": {
+    "url": "https://github.com/nodeca/pica/issues"
   },
-
-  "devDependencies" : {
-                        "browserify": "*",
-                        "uglify-js":  "*",
-                        "jshint":     "*"
-                      }
+  "license": {
+    "type": "MIT",
+    "url": "https://github.com/nodeca/pica/blob/master/LICENSE"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/nodeca/pica.git"
+  },
+  "main": "./index.js",
+  "dependencies": {
+    "webworkify": "0.1.0"
+  },
+  "devDependencies": {
+    "browserify": "*",
+    "eslint": "0.8.0",
+    "eslint-plugin-nodeca": "^1.0.0",
+    "uglify-js": "*"
+  }
 }
