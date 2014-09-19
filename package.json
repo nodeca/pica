@@ -33,6 +33,9 @@
     "browserify": "*",
     "eslint": "0.8.0",
     "eslint-plugin-nodeca": "^1.0.0",
-    "uglify-js": "*"
+    "uglify-js": "*",
+    "canvas": "1.1.x",
+    "benchmark": "1.0.x",
+    "ansi": "0.3.x"
   }
 }
