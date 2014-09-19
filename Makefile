@@ -34,7 +34,7 @@ browserify:
 	rm -rf ./dist
 	mkdir dist
 	# Browserify
-	( echo -n "/* ${NPM_PACKAGE} ${NPM_VERSION} ${GITHUB_PROJ} */" ; \
+	( printf "/* ${NPM_PACKAGE} ${NPM_VERSION} ${GITHUB_PROJ} */" ; \
 		browserify -r ./ -s pica \
 		) > dist/pica.js
 	# Minify
