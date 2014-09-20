@@ -1,6 +1,7 @@
 'use strict';
 
 /*global window:true*/
+/*eslint space-infix-ops:0*/
 
 // Feature detect
 var WORKER = (typeof window !== 'undefined') && ('Worker' in window);
@@ -41,15 +42,15 @@ function resizeBuffer(src, width, height, toWidth, toHeight, method, callback) {
 
     wr.postMessage({
       src: src,
-      width: width,
-      height: height,
-      toWidth: toWidth,
-      toHeight: toHeight,
+      width: width|0,
+      height: height|0,
+      toWidth: toWidth|0,
+      toHeight: toHeight|0,
       method: method
     });
 
   } else {
-    resize(src, width, height, toWidth, toHeight, method, callback);
+    resize(src, width|0, height|0, toWidth|0, toHeight|0, method, callback);
   }
 }
 
@@ -67,9 +68,9 @@ function resizeCanvas(from, to, method, callback) {
     method = 3;
   }
 
-  var src = from.getContext('2d').getImageData(0, 0, w, h).data;
+  var src = from.getContext('2d').getImageData(0, 0, w|0, h|0).data;
 
-  resizeBuffer(src, w, h, w2, h2, method, function (err, output) {
+  resizeBuffer(src, w|0, h|0, w2|0, h2|0, method, function (err, output) {
     if (err) {
       callback(err);
       return;
@@ -77,7 +78,7 @@ function resizeCanvas(from, to, method, callback) {
 
     var ctxTo = to.getContext('2d');
 
-    var imageData = ctxTo.getImageData(0, 0, w2, h2);
+    var imageData = ctxTo.getImageData(0, 0, w2|0, h2|0);
 
     imageData.data.set(output);
     ctxTo.putImageData(imageData, 0, 0);
