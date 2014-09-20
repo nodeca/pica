@@ -3,7 +3,6 @@
 
 'use strict';
 
-var LEVEL = 6;
 
 var Canvas    = require('canvas');
 var Image     = Canvas.Image;
@@ -48,10 +47,13 @@ fs.readdirSync(SAMPLES_DIRECTORY).sort().forEach(function (sample) {
   var ctx = canvas.getContext('2d');
   ctx.drawImage(image, 0, 0, image.width, image.height);
 
-  content.buffer = ctx.getImageData(0, 0, image.width, image.height);
+  content.buffer = ctx.getImageData(0, 0, image.width, image.height).data;
+  content.width  = image.width;
+  content.height = image.height;
+  content.scale  = 0.15;
 
-  var title  = util.format('(%d bytes raw / [%dx%d] bytes compressed)',
-                           content.buffer.data.length, image.width, image.height);
+  var title  = util.format('(%d bytes raw / [%dx%d]px)',
+                           content.buffer.length, image.width, image.height);
 
 
   function onComplete() {
@@ -86,12 +88,12 @@ fs.readdirSync(SAMPLES_DIRECTORY).sort().forEach(function (sample) {
 
       fn: function (deferred) {
         if (impl.code.async) {
-          impl.code.run(content, LEVEL, function() {
+          impl.code.run(content, function() {
             deferred.resolve();
             return;
           });
         } else {
-          impl.code.run(content, LEVEL);
+          impl.code.run(content);
           return;
         }
       }
