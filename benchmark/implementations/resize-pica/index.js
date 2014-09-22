@@ -1,6 +1,6 @@
 'use strict'
 
-var pica = require('../../../index.js');
+var pica = require('../../../');
 
 exports.run = function(data, level) {
   var out_result;
