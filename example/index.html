@@ -1,93 +1,62 @@
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
-<script src="../dist/pica.js"></script>
-<script src="./image-encoded.js"></script>
-<script> // performance.now polyfill
-  (function() {
-  if(window.performance && window.performance.now) return;
-  if(!window.performance) window.performance = {};
-  var methods = ['webkitNow', 'msNow', 'mozNow'];
-  for(var i = 0; i < methods.length; i++) {
-    if(window.performance[methods[i]]) {
-      window.performance.now = window.performance[methods[i]];
-      return;
-    }
-  }
-  if(Date.now) {
-    window.performance.now = function() { return Date.now(); };
-    return;
-  }
-  window.performance.now = function() { return +(new Date()); };
-  })();
-</script>
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/lodash.js/2.4.1/lodash.min.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.2.0/js/bootstrap.min.js"></script>
+    <link rel="stylesheet" href="http://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.2.0/css/bootstrap.min.css">
 
+    <link rel="stylesheet" href="./index.css">
+    <script src="../dist/pica.js"></script>
+    <script src="./image-encoded.js"></script>
+  </head>
 
-<style>
-  #src {
-    border: 5px solid #ddd;
-    max-width: 500px;
-  }
-  #dst, #dst-cvs {
-    border: 5px solid #ddd;
-  }
-</style>
+  <body>
+    <div class="container">
+      <h1>Pica demo</h1>
+      <p>High quality image resize in browser.
+         Click on resized images to reload, or click on original to upload new image</p>
+      <hr>
+      <div class="row">
 
+        <div class="col-sm-4">
+          <h3>pica resize</h3>
+          <div class="canvas-containter">
+            <div class="canvas-info"><span id="dst-info"></span></div>
+            <canvas id="dst-pica" class="img-responsive"></canvas>
+            <div class="canvas-tip">click to reload</div>
+          </div>
+          <div class="pica-options">
+            <span>Quality (filter):</span>
+            <input id="pica-quality" type="range" value=3 name="points" min="0" max="3">
+          </div>
 
-<p>
-  Original (<span id="src-info"></span>):<br>
-  <canvas id='src'></canvas>
-</p>
+          <hr>
+          <h3>canvas resize</h3>
+          <div class="canvas-containter">
+            <div class="canvas-info"><span id="dst-cvs-info"></span></div>
+            <canvas id="dst-cvs" class="img-responsive"></canvas>
+            <div class="canvas-tip">click to reload</div>
+          </div>
+       </div>
 
-<p>
-  Resized via canvas (<span id="dst-cvs-info"></span>):<br>
-  <canvas id='dst-cvs' width='300px'></canvas>
-</p>
+        <div class="col-sm-8">
+          <h3>original <button id='upload-btn' class="btn btn-default btn-xs">Upload</button></h3>
+          <div class="canvas-containter">
+            <div class="canvas-info"><span id="src-info"></span></div>
+            <canvas id="src" class="img-responsive"></canvas>
+            <div class="canvas-tip">click to upload new image</div>
+          </div>
+        </div>
 
-<p>
-  Resized via lanczos3 (<span id="dst-info"></span>):<br>
-  <canvas id='dst' width='300px'></canvas>
-</p>
+      </div>
+    </div>
 
-<script>
-var img = new Image();
+    <input id="upload" type="file" style="position: absolute; left: -2000px">
 
-img.src = imageEncoded;
+    <div class="gh-ribbon"><a href="https://github.com/nodeca/ndoc">Fork me on GitHub</a></div>
 
-img.onload = function () {
-  var src, dst, ctx, start;
+    <script src="./index.js"></script>
 
-  // Draw original
-
-  src = $('#src')[0];
-  src.width = img.width;
-  src.height = img.height;
-
-  $('#src-info').text('' + img.width + ' x ' + img.height);
-
-  ctx = src.getContext("2d")
-  ctx.drawImage(img, 0, 0);
-
-  // Resize via canvas
-
-  dst = $('#dst-cvs')[0];
-  dst.height = src.height * dst.width / src.width;
-
-  start = performance.now();
-
-  ctx = dst.getContext("2d")
-  ctx.drawImage(img, 0, 0, dst.width, dst.height);
-
-
-  $('#dst-cvs-info').text((performance.now() - start).toFixed(2) + 'ms');
-
-  // Resize with pica
-
-  var dst = $('#dst')[0];
-  dst.height = src.height * dst.width / src.width;
-
-  start = performance.now();
-
-  window.pica.resizeCanvas(src, dst, 3, function (err) {
-    $('#dst-info').text((performance.now() - start).toFixed(2) + 'ms');
-  });
-};
-</script>
+  </body>
+</html>
