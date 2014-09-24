@@ -1,23 +1,27 @@
-_In progress. Coming soon._
-
-
-pica - fast client side image processor
-=======================================
+pica - high quality image resize in browser
+===========================================
 
 [![Build Status](https://travis-ci.org/nodeca/pica.svg?branch=master)](https://travis-ci.org/nodeca/pica)
 [![NPM version](https://img.shields.io/npm/v/pica.svg)](https://www.npmjs.org/package/pica)
 
 `pica` is one more experiment with high speed javascript, from authors of
-[paco](https://github.com/nodeca/pako).
+[paco](https://github.com/nodeca/pako). It does high quality images resize
+in browser as fast as possible.
 
-If you need to resize image in modern browser (for example, to save traffic
-prior server upload), you will note, that canvas uses low quality interpolation
-algorythms. We could not find modern javascript implementation with good
-quality, fast speed and low memory requirements in the same time. That's why we
-did `pica`.
+If you need to resize image in modern browser, you will note, that canvas uses
+low quality interpolation algorythms. That's why we did `pica`.
 
-`pica` is modular, and provides simple wrappers in top level API. But if you
-need something special, use sourses from `./lib` folder directly.
+- It's not as fast as canvas, but still reasonable fast. With Lanczos filter and
+  window=3, and huge image 5000x3000px resize takes ~1s on desktop and ~3s on
+  mobile.
+- If you browser supports Webworkers, pica automatically use it to avoid
+  interface freeze.
+
+Why it's useful:
+
+- reduce upload size for big images - save time and traffic
+- save server resources for image processing
+
 
 Install
 -------
@@ -30,7 +34,7 @@ npm install pica
 
 bower:
 
-```
+```bash
 bower install pica
 ```
 
@@ -38,35 +42,46 @@ bower install pica
 API
 ---
 
-### resizeBuffer(src, width, height, toWidth, toHeight, method, callback)
+### resizeBuffer(options, callback)
 
 Async resize Uint8Array with RGBA image.
 
-- __src__ - Uint8Array with source data
-- __width__ - src image width
-- __heigh__ - src image height
-- __toWidth__ - output width
-- __toHeigh__ - output height
-- __method__ - lanczos3 by default
-  - String: "_haming1_", "_lanczos2_" or "_lanczos3_" (first is fastest,
-    last has the best quality)
-  - or Number 1, 2 or 3.
-- __callback(err, output)__ - function to call after resize complete
-  - __err__ - error if happened
+- __options:__
+  - __src__ - Uint8Array with source data.
+  - __width__ - src image width.
+  - __heigh__ - src image height.
+  - __toWidth__ - output width.
+  - __toHeigh__ - output height.
+  - __quality__ - 0..3. Default - `3` (lanczos, win=3).
+  - __alpha__ - use alpha channel. Default - `false`.
+- __callback(err, output)__ - function to call after resize complete:
+  - __err__ - error if happened.
   - __output__ - Uint8Array with resized RGBA image data.
 
-### resizeCanvas(from, to, method, callback)
+### resizeCanvas(options, callback)
 
 Resize image from one canvas to another. Sizes are taken from canvas.
 
-- __from__ - source canvas
-- __to__ - destination canvas
-- __method__ - lanczos3 by default
-  - String: "_haming1_", "_lanczos2_" or "_lanczos3_" (first is fastest,
-    last has the best quality)
-  - or Number 1, 2 or 3.
-- __callback(err)__ - function to call after resize complete
+- __from__ - source canvas.
+- __to__ - destination canvas.
+- __options__ - quality (number) or object:
+  - __quality__ - 0..3. Default - `3` (lanczos, win=3).
+  - __alpha__ - use alpha channel. Default - `false`.
+- __callback(err)__ - function to call after resize complete:
   - __err__ - error if happened
+
+
+### What is quality
+
+Pica has presets, to vary speed/quality ratio. To simplify interface, you can
+select this presets with `quality` option param:
+
+- 0 - Box filter, window 0.5px
+- 1 - Hamming filter, window 1.0px
+- 2 - Lanczos filter, window 2.0px
+- 3 - Lanczos filter, window 3.0px
+
+
 
 
 References
@@ -86,11 +101,11 @@ You can find this links useful:
 Authors
 -------
 
-- Andrey Tupitsin [@anrd83](https://github.com/andr83)
+- Loïc Faure-Lacroix [@llacroix](https://github.com/llacroix)
 - Vitaly Puzrin [@puzrin](https://github.com/puzrin)
 
 
 Licence
 -------
 
-MIT
+[MIT](https://github.com/nodeca/pica/blob/master/LICENSE)

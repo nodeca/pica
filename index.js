@@ -23,15 +23,20 @@ function isFunction(obj) { return _class(obj) === '[object Function]'; }
 
 // RGBA buffer async resize
 //
-function resizeBuffer(src, width, height, toWidth, toHeight, method, callback) {
+function resizeBuffer(options, callback) {
   var wr;
 
-  if (isFunction(method)) {
-    callback = method;
-    method = 3;
-  }
+  var _opts = {
+    src:      options.src,
+    width:    options.width|0,
+    height:   options.height|0,
+    toWidth:  options.toWidth|0,
+    toHeight: options.toHeight|0,
+    quality:  options.quality || 3,
+    alpha:    options.alpha || false
+  };
 
-  if (WORKER) {
+  if (WORKER & exports.WW) {
     // TODO: rewrite to allocate worker only once
     wr = require('webworkify')(resizeWorker);
 
@@ -40,37 +45,42 @@ function resizeBuffer(src, width, height, toWidth, toHeight, method, callback) {
       wr.terminate();
     };
 
-    wr.postMessage({
-      src: src,
-      width: width|0,
-      height: height|0,
-      toWidth: toWidth|0,
-      toHeight: toHeight|0,
-      method: method
-    });
+    wr.postMessage(_opts);
 
   } else {
-    resize(src, width|0, height|0, toWidth|0, toHeight|0, method, callback);
+    resize(_opts, callback);
   }
 }
 
 
 // Canvas async resize
 //
-function resizeCanvas(from, to, method, callback) {
+function resizeCanvas(from, to, options, callback) {
   var w = from.width,
       h = from.height,
       w2 = to.width,
       h2 = to.height;
 
-  if (isFunction(method)) {
-    callback = method;
-    method = 3;
+  if (isFunction(options)) {
+    callback = options;
+    options = {};
   }
 
-  var src = from.getContext('2d').getImageData(0, 0, w|0, h|0).data;
+  if (!isNaN(options)) {
+    options = { quality: options, alpha: false };
+  }
 
-  resizeBuffer(src, w|0, h|0, w2|0, h2|0, method, function (err, output) {
+  var _opts = {
+    src:      from.getContext('2d').getImageData(0, 0, w, h).data,
+    width:    from.width,
+    height:   from.height,
+    toWidth:  to.width,
+    toHeight: to.height,
+    quality:  options.quality || 3,
+    alpha:    options.alpha || false
+  };
+
+  resizeBuffer(_opts, function (err, output) {
     if (err) {
       callback(err);
       return;
@@ -78,7 +88,7 @@ function resizeCanvas(from, to, method, callback) {
 
     var ctxTo = to.getContext('2d');
 
-    var imageData = ctxTo.getImageData(0, 0, w2|0, h2|0);
+    var imageData = ctxTo.getImageData(0, 0, w2, h2);
 
     imageData.data.set(output);
     ctxTo.putImageData(imageData, 0, 0);
@@ -90,3 +100,4 @@ function resizeCanvas(from, to, method, callback) {
 
 exports.resizeBuffer = resizeBuffer;
 exports.resizeCanvas = resizeCanvas;
+exports.WW = true;

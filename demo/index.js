@@ -86,7 +86,7 @@ var updateResized = _.debounce(function () {
 // Init
 //
 var img = new Image();
-var quality = $('#pica-quality').val();
+var quality = Number($('#pica-quality').val());
 
 img.src = imageEncoded;
 
@@ -100,7 +100,7 @@ $('#dst-pica').on('click', updateResized);
 $('#dst-cvs').on('click', updateResized);
 
 $('#pica-quality').on('change', function () {
-  quality = $('#pica-quality').val();
+  quality = Number($('#pica-quality').val());
   updateResized();
 });
 
