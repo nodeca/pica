@@ -33,14 +33,17 @@ function updateOrig() {
   src.width = img.width;
   src.height = img.height;
 
-  $('#src-info').text('' + img.width + ' x ' + img.height);
+  $('#src-info').text(_.template('<%= w %> x <%= h %>', {
+    w: img.width,
+    h: img.height
+  }));
 
-  ctx = src.getContext("2d")
+  ctx = src.getContext("2d");
   ctx.drawImage(img, 0, 0);
 }
 
 var updateResized = _.debounce(function () {
-  var dst, ctx, width, start;
+  var dst, ctx, width, start, time;
 
   width = $('.pica-options').width();
 
@@ -54,10 +57,12 @@ var updateResized = _.debounce(function () {
 
   ctx = dst.getContext("2d")
   ctx.drawImage(img, 0, 0, dst.width, dst.height);
+  time = (performance.now() - start).toFixed(2);
 
-
-  $('#dst-cvs-info').text(_.template('<%= time %>ms', {
-    time: (performance.now() - start).toFixed(2)
+  $('#dst-cvs-info').text(_.template('<%= time %>ms, <%= w %> x <%= h %>', {
+    time: time,
+    w: dst.width,
+    h: dst.height
   }));
 
   // Resize with pica
@@ -69,8 +74,9 @@ var updateResized = _.debounce(function () {
   start = performance.now();
 
   window.pica.resizeCanvas($('#src')[0], dst, quality, function (err) {
+    time = (performance.now() - start).toFixed(2);
     $('#dst-info').text(_.template('<%= time %>ms, <%= info %>', {
-      time: (performance.now() - start).toFixed(2),
+      time: time,
       info: qualityInfo[quality]
     }));
   });
