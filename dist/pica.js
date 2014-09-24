@@ -33,8 +33,8 @@ function resizeBuffer(options, callback) {
     height:   options.height|0,
     toWidth:  options.toWidth|0,
     toHeight: options.toHeight|0,
-    quality:  options.quality || 3,
-    alpha:    options.alpha || false
+    quality:  options.quality,
+    alpha:    options.alpha
   };
 
   if (WORKER & exports.WW) {
@@ -77,8 +77,8 @@ function resizeCanvas(from, to, options, callback) {
     height:   from.height,
     toWidth:  to.width,
     toHeight: to.height,
-    quality:  options.quality || 3,
-    alpha:    options.alpha || false
+    quality:  options.quality,
+    alpha:    options.alpha
   };
 
   resizeBuffer(_opts, function (err, output) {
@@ -366,7 +366,7 @@ function resize(options) {
   var srcH  = options.height;
   var destW = options.toWidth;
   var destH = options.toHeight;
-  var quality = options.quality || 3;
+  var quality = options.quality === undefined ? 3 : options.quality;
   var alpha = options.alpha || false;
 
   if (srcW < 1 || srcH < 1 || destW < 1 || destH < 1) { return []; }

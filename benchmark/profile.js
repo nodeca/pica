@@ -20,5 +20,11 @@ ctx.drawImage(image, 0, 0, image.width, image.height);
 
 var data = ctx.getImageData(0, 0, image.width, image.height).data;
 
-pica.resizeBuffer(data, image.width, image.height, 300, 225, 3, function() {
-});
+pica.resizeBuffer({
+  src: data,
+  width: image.width,
+  hieght: image.height,
+  toWidth: 300,
+  toHeight: 225,
+  quality: 3
+}, function() {});

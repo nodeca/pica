@@ -8,6 +8,8 @@ pica - high quality image resize in browser
 [paco](https://github.com/nodeca/pako). It does high quality images resize
 in browser as fast as possible.
 
+[__demo__](http://nodeca.github.io/pica/demo/)
+
 If you need to resize image in modern browser, you will note, that canvas uses
 low quality interpolation algorythms. That's why we did `pica`.
 
