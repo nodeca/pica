@@ -1,4 +1,5 @@
 benchmark/
+demo/
 test/
 .*
 Makefile

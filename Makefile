@@ -44,21 +44,11 @@ browserify:
 
 
 gh-pages:
-	@if test -z ${REMOTE_REPO} ; then \
-		echo 'Remote repo URL not found' >&2 ; \
-		exit 128 ; \
+	if [ "git branch --list gh-pages" ]; then \
+		git branch -D gh-pages ; \
 		fi
-	$(MAKE) doc && \
-		cp -r ./doc ${TMP_PATH} && \
-		touch ${TMP_PATH}/.nojekyll
-	cd ${TMP_PATH} && \
-		git init && \
-		git add . && \
-		git commit -q -m 'Recreated docs'
-	cd ${TMP_PATH} && \
-		git remote add remote ${REMOTE_REPO} && \
-		git push --force remote +master:gh-pages
-	rm -rf ${TMP_PATH}
+	git branch gh-pages
+	git push origin gh-pages -f
 
 
 publish:
