@@ -1,17 +1,17 @@
 {
   "name": "pica",
-  "description": "Image resize for browser. Fast implementation of high quality filters.",
-  "version": "0.0.0",
+  "description": "High quality image resize in browser.",
+  "version": "1.0.0",
   "keywords": [
     "resize",
     "scale",
     "image",
     "lanczos",
-    "bicubic"
+    "canvas"
   ],
   "homepage": "https://github.com/nodeca/pica",
   "contributors": [
-    "Andrei Tuputcyn (https://github.com/andr83)",
+    "Loïc Faure-Lacroix (lamerstar@gmail.com)",
     "Vitaly Puzrin (https://github.com/puzrin)"
   ],
   "bugs": {

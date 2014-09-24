@@ -3,11 +3,11 @@
   "main": "dist/pica.js",
   "homepage": "https://github.com/nodeca/pica",
   "authors": [
-    "Andrei Tuputcyn <Andrew.Tupitsin@gmail.com>",
+    "Loïc Faure-Lacroix <lamerstar@gmail.com>",
     "Vitaly Puzrin <vitaly@rcdesign.ru>"
   ],
-  "description": "Image resize for browser. Fast implementation of high quality filters.",
-  "keywords": ["resize", "scale", "image", "lanczos", "bicubic"],
+  "description": "High quality image resize in browser.",
+  "keywords": ["resize", "scale", "image", "lanczos", "canvas"],
   "license": "MIT",
   "ignore": [
     "**/.*",
@@ -18,6 +18,6 @@
     "index*",
     "lib",
     "benchmark",
-    "coverage"
+    "demo"
   ]
 }
