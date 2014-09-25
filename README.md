@@ -56,6 +56,8 @@ Async resize Uint8Array with RGBA image.
   - __toHeigh__ - output height.
   - __quality__ - 0..3. Default - `3` (lanczos, win=3).
   - __alpha__ - use alpha channel. Default - `false`.
+  - __dest__ - Optional. Output buffer to write data. Help to avoid data copy
+    if no WebWorkers available. Callback will return result buffer anyway.
 - __callback(err, output)__ - function to call after resize complete:
   - __err__ - error if happened.
   - __output__ - Uint8Array with resized RGBA image data.

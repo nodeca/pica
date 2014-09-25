@@ -28,6 +28,7 @@ function resizeBuffer(options, callback) {
 
   var _opts = {
     src:      options.src,
+    dest:     options.dest,
     width:    options.width|0,
     height:   options.height|0,
     toWidth:  options.toWidth|0,
@@ -41,7 +42,24 @@ function resizeBuffer(options, callback) {
     wr = require('webworkify')(resizeWorker);
 
     wr.onmessage = function(ev) {
-      callback(ev.data.err, ev.data.output);
+      var i, l,
+          dest = options.dest,
+          output = ev.data.output;
+
+      // If we got output buffer by reference, we should copy data,
+      // because WW returns independent instance
+      if (dest) {
+        // IE ImageData can return old-style CanvasPixelArray
+        // without .set() method. Copy manually for such case.
+        if (dest.set) {
+          dest.set(output);
+        } else {
+          for (i = 0, l = output.length; i < l; i++) {
+            dest[i] = output[i];
+          }
+        }
+      }
+      callback(ev.data.err, output);
       wr.terminate();
     };
 
@@ -70,8 +88,12 @@ function resizeCanvas(from, to, options, callback) {
     options = { quality: options, alpha: false };
   }
 
+  var ctxTo = to.getContext('2d');
+  var imageDataTo = ctxTo.getImageData(0, 0, w2, h2);
+
   var _opts = {
     src:      from.getContext('2d').getImageData(0, 0, w, h).data,
+    dest:     imageDataTo.data,
     width:    from.width,
     height:   from.height,
     toWidth:  to.width,
@@ -80,19 +102,13 @@ function resizeCanvas(from, to, options, callback) {
     alpha:    options.alpha
   };
 
-  resizeBuffer(_opts, function (err, output) {
+  resizeBuffer(_opts, function (err/*, output*/) {
     if (err) {
       callback(err);
       return;
     }
 
-    var ctxTo = to.getContext('2d');
-
-    var imageData = ctxTo.getImageData(0, 0, w2, h2);
-
-    imageData.data.set(output);
-    ctxTo.putImageData(imageData, 0, 0);
-
+    ctxTo.putImageData(imageDataTo, 0, 0);
     callback();
   });
 }
