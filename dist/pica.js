@@ -29,6 +29,7 @@ function resizeBuffer(options, callback) {
 
   var _opts = {
     src:      options.src,
+    dest:     options.dest,
     width:    options.width|0,
     height:   options.height|0,
     toWidth:  options.toWidth|0,
@@ -42,7 +43,24 @@ function resizeBuffer(options, callback) {
     wr = require('webworkify')(resizeWorker);
 
     wr.onmessage = function(ev) {
-      callback(ev.data.err, ev.data.output);
+      var i, l,
+          dest = options.dest,
+          output = ev.data.output;
+
+      // If we got output buffer by reference, we should copy data,
+      // because WW returns independent instance
+      if (dest) {
+        // IE ImageData can return old-style CanvasPixelArray
+        // without .set() method. Copy manually for such case.
+        if (dest.set) {
+          dest.set(output);
+        } else {
+          for (i = 0, l = output.length; i < l; i++) {
+            dest[i] = output[i];
+          }
+        }
+      }
+      callback(ev.data.err, output);
       wr.terminate();
     };
 
@@ -71,8 +89,12 @@ function resizeCanvas(from, to, options, callback) {
     options = { quality: options, alpha: false };
   }
 
+  var ctxTo = to.getContext('2d');
+  var imageDataTo = ctxTo.getImageData(0, 0, w2, h2);
+
   var _opts = {
     src:      from.getContext('2d').getImageData(0, 0, w, h).data,
+    dest:     imageDataTo.data,
     width:    from.width,
     height:   from.height,
     toWidth:  to.width,
@@ -81,19 +103,13 @@ function resizeCanvas(from, to, options, callback) {
     alpha:    options.alpha
   };
 
-  resizeBuffer(_opts, function (err, output) {
+  resizeBuffer(_opts, function (err/*, output*/) {
     if (err) {
       callback(err);
       return;
     }
 
-    var ctxTo = to.getContext('2d');
-
-    var imageData = ctxTo.getImageData(0, 0, w2, h2);
-
-    imageData.data.set(output);
-    ctxTo.putImageData(imageData, 0, 0);
-
+    ctxTo.putImageData(imageDataTo, 0, 0);
     callback();
   });
 }
@@ -153,7 +169,7 @@ var FILTER_INFO = [
   }
 ];
 
-function clamp8(i) { return i < 0 ? 0 : (i > 255 ? 255 : i); }
+function clampTo8(i) { return i < 0 ? 0 : (i > 255 ? 255 : i); }
 
 function toFixedPoint(num) { return Math.floor(num * FIXED_FRAC_VAL); }
 
@@ -275,7 +291,7 @@ function convolveHorizontally(src, dest, srcW, srcH, destW, destH, filters) {
       filterShift     = filters[filterPtr++];
       filterSize      = filters[filterPtr++];
 
-      srcPtr = srcOffset + (filterShift * 4);
+      srcPtr = (srcOffset + (filterShift * 4))|0;
 
       r = g = b = a = 0;
 
@@ -284,19 +300,19 @@ function convolveHorizontally(src, dest, srcW, srcH, destW, destH, filters) {
         filterVal = filters[filterPtr++];
 
         // TODO: adressing via ..,[srcPtr+1],[srcPtr+2],...,srcPtr+=4
-        // gives 25% boost node 0.11, but cause deopts in node 0.10
-        r += filterVal * src[srcPtr++];
-        g += filterVal * src[srcPtr++];
-        b += filterVal * src[srcPtr++];
-        a += filterVal * src[srcPtr++];
+        // gives 25% boost in node 0.11, but cause deopts in node 0.10
+        r = (r + filterVal * src[srcPtr++])|0;
+        g = (g + filterVal * src[srcPtr++])|0;
+        b = (b + filterVal * src[srcPtr++])|0;
+        a = (a + filterVal * src[srcPtr++])|0;
       }
 
       // Bring this value back in range. All of the filter scaling factors
       // are in fixed point with FIXED_FRAC_BITS bits of fractional part.
-      dest[destOffset++] = clamp8(r >> FIXED_FRAC_BITS);
-      dest[destOffset++] = clamp8(g >> FIXED_FRAC_BITS);
-      dest[destOffset++] = clamp8(b >> FIXED_FRAC_BITS);
-      dest[destOffset++] = clamp8(a >> FIXED_FRAC_BITS);
+      dest[destOffset++] = clampTo8((r|0) >> FIXED_FRAC_BITS);
+      dest[destOffset++] = clampTo8((g|0) >> FIXED_FRAC_BITS);
+      dest[destOffset++] = clampTo8((b|0) >> FIXED_FRAC_BITS);
+      dest[destOffset++] = clampTo8((a|0) >> FIXED_FRAC_BITS);
     }
 
     srcOffset += srcW * 4;
@@ -307,7 +323,7 @@ function convolveHorizontally(src, dest, srcW, srcH, destW, destH, filters) {
 function convolveVertically(src, dest, srcW, srcH, destW, destH, filters, withAlpha) {
   var r, g, b, a;
   var filterPtr, filterShift, filterSize;
-  var srcPtr, srcX, destY, filterVal, max_color;
+  var srcPtr, srcX, destY, filterVal;
   var srcOffset = 0, destOffset = 0;
 
   // For each row
@@ -320,7 +336,7 @@ function convolveVertically(src, dest, srcW, srcH, destW, destH, filters, withAl
       filterShift     = filters[filterPtr++];
       filterSize      = filters[filterPtr++];
 
-      srcPtr = srcOffset + (filterShift * destW * 4);
+      srcPtr = (srcOffset + (filterShift * destW * 4))|0;
 
       r = g = b = a = 0;
 
@@ -328,26 +344,27 @@ function convolveVertically(src, dest, srcW, srcH, destW, destH, filters, withAl
       for (; filterSize > 0; filterSize--) {
         filterVal = filters[filterPtr++];
 
-        r += filterVal * src[srcPtr++];
-        g += filterVal * src[srcPtr++];
-        b += filterVal * src[srcPtr++];
-        if (withAlpha) { a += filterVal * src[srcPtr]; }
+        r = (r + filterVal * src[srcPtr++])|0;
+        g = (g + filterVal * src[srcPtr++])|0;
+        b = (b + filterVal * src[srcPtr++])|0;
+        if (withAlpha) { a = (a + filterVal * src[srcPtr])|0; }
         srcPtr += destW * 4 - 3;
       }
 
       // Bring this value back in range. All of the filter scaling factors
       // are in fixed point with FIXED_FRAC_BITS bits of fractional part.
-      dest[destOffset++] = clamp8(r >> FIXED_FRAC_BITS);
-      dest[destOffset++] = clamp8(g >> FIXED_FRAC_BITS);
-      dest[destOffset++] = clamp8(b >> FIXED_FRAC_BITS);
+      dest[destOffset++] = clampTo8((r|0) >> FIXED_FRAC_BITS);
+      dest[destOffset++] = clampTo8((g|0) >> FIXED_FRAC_BITS);
+      dest[destOffset++] = clampTo8((b|0) >> FIXED_FRAC_BITS);
       if (withAlpha) {
         // Fix alpha channel if become wrong due rounding errors.
         // It can't be smaller than any color channel.
         // Operate with unshifted values for simplicity
-        max_color = Math.max(r, g, b);
-        if (a < max_color) { a = max_color; }
+        if (a < r) { a = r; }
+        if (a < g) { a = g; }
+        if (a < b) { a = b; }
 
-        dest[destOffset] = clamp8(a >> FIXED_FRAC_BITS);
+        dest[destOffset] = clampTo8((a|0) >> FIXED_FRAC_BITS);
       } else {
         dest[destOffset] = 0xff;
       }
@@ -366,6 +383,7 @@ function resize(options) {
   var srcH  = options.height;
   var destW = options.toWidth;
   var destH = options.toHeight;
+  var dest  = options.dest || new Uint8Array(destW * destH * 4);
   var quality = options.quality === undefined ? 3 : options.quality;
   var alpha = options.alpha || false;
 
@@ -375,7 +393,6 @@ function resize(options) {
       filtersY = createFilters(quality, srcH, destH);
 
   var tmp  = new Uint8Array(destW * srcH * 4);
-  var dest = new Uint8Array(destW * destH * 4);
 
   convolveHorizontally(src, tmp, srcW, srcH, destW, destH, filtersX);
   convolveVertically(tmp, dest, destW, srcH, destW, destH, filtersY, alpha);
