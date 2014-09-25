@@ -51,7 +51,7 @@ Async resize Uint8Array with RGBA image.
 - __options:__
   - __src__ - Uint8Array with source data.
   - __width__ - src image width.
-  - __heigh__ - src image height.
+  - __height__ - src image height.
   - __toWidth__ - output width.
   - __toHeigh__ - output height.
   - __quality__ - 0..3. Default - `3` (lanczos, win=3).
@@ -73,6 +73,11 @@ Resize image from one canvas to another. Sizes are taken from canvas.
   - __alpha__ - use alpha channel. Default - `false`.
 - __callback(err)__ - function to call after resize complete:
   - __err__ - error if happened
+
+### WW - true/false
+
+`true` if webworkers supported. You can use it for capabilities detection.
+Also, you can set it `false` for debug, and pica will use direct function calls.
 
 
 ### What is quality

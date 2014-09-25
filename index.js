@@ -5,7 +5,16 @@
 
 // Feature detect
 var WORKER = (typeof window !== 'undefined') && ('Worker' in window);
-//var WORKER_OK = false;
+if (WORKER) {
+  // IE don't allow to create webworkers from string. We should check it.
+  // https://connect.microsoft.com/IE/feedback/details/801810/web-workers-from-blob-urls-in-ie-10-and-11
+  try {
+    var wkr = require('webworkify')(function () {});
+    wkr.terminate();
+  } catch (__) {
+    WORKER = false;
+  }
+}
 
 var resize       = require('./lib/resize');
 var resizeWorker = require('./lib/resize_worker');
@@ -37,7 +46,7 @@ function resizeBuffer(options, callback) {
     alpha:    options.alpha
   };
 
-  if (WORKER & exports.WW) {
+  if (WORKER && exports.WW) {
     // IE don't allow to create webworkers from string
     // https://connect.microsoft.com/IE/feedback/details/801810/web-workers-from-blob-urls-in-ie-10-and-11
     try {
@@ -121,4 +130,4 @@ function resizeCanvas(from, to, options, callback) {
 
 exports.resizeBuffer = resizeBuffer;
 exports.resizeCanvas = resizeCanvas;
-exports.WW = true;
+exports.WW = WORKER;

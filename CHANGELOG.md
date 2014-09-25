@@ -1,3 +1,10 @@
+1.0.2 / WIP
+------------------
+
+- Improved capabilities detection.
+- `WW` now shows if pica can use Web Workers or not.
+
+
 1.0.1 / 2014.09.25
 ------------------
 
