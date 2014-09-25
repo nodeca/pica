@@ -1,7 +1,7 @@
 {
   "name": "pica",
   "description": "High quality image resize in browser.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "keywords": [
     "resize",
     "scale",
@@ -27,7 +27,7 @@
   },
   "main": "./index.js",
   "dependencies": {
-    "webworkify": "0.1.0"
+    "webworkify": "1.0.0"
   },
   "devDependencies": {
     "browserify": "*",
