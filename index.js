@@ -55,7 +55,7 @@ function resizeBuffer(options, callback) {
 function setCanvasPixels(canvasPixels, dataToSet) {
   var i;
 
-  if (typeof canvasPixels.set === "function") {
+  if (typeof canvasPixels.set === 'function') {
     canvasPixels.set(dataToSet);
   } else {
     for (i = 0; i < dataToSet.length; i++) {
