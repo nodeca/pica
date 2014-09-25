@@ -23,7 +23,7 @@ help:
 
 
 lint:
-	eslint ./
+	./node_modules/eslint/bin/eslint.js ./
 
 
 test: lint
