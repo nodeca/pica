@@ -53,6 +53,17 @@ function resizeBuffer(options, callback) {
   }
 }
 
+function setCanvasPixels(canvasPixels, dataToSet) {
+  var i;
+
+  if (typeof canvasPixels.set === "function") {
+    canvasPixels.set(dataToSet);
+  } else {
+    for (i = 0; i < dataToSet.length; i++) {
+      canvasPixels[i] = dataToSet[i];
+    }
+  }
+}
 
 // Canvas async resize
 //
@@ -91,7 +102,7 @@ function resizeCanvas(from, to, options, callback) {
 
     var imageData = ctxTo.getImageData(0, 0, w2, h2);
 
-    imageData.data.set(output);
+    setCanvasPixels(imageData.data, output);
     ctxTo.putImageData(imageData, 0, 0);
 
     callback();
