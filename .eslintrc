@@ -37,6 +37,7 @@ rules:
   radix:                2
   space-after-keywords: [ 2, always ] # Fixed in master
   space-in-brackets:    [ 1, always ]
+  space-infix-ops:      0
 
   # temporary
   no-func-assign:       0
