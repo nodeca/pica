@@ -44,7 +44,7 @@ bower install pica
 API
 ---
 
-### resizeBuffer(options, callback)
+### .resizeBuffer(options, callback)
 
 Async resize Uint8Array with RGBA image.
 
@@ -62,7 +62,7 @@ Async resize Uint8Array with RGBA image.
   - __err__ - error if happened.
   - __output__ - Uint8Array with resized RGBA image data.
 
-### resizeCanvas(options, callback)
+### .resizeCanvas(options, callback)
 
 Resize image from one canvas to another. Sizes are taken from canvas.
 
@@ -74,7 +74,7 @@ Resize image from one canvas to another. Sizes are taken from canvas.
 - __callback(err)__ - function to call after resize complete:
   - __err__ - error if happened
 
-### WW - true/false
+### .WW - true/false
 
 `true` if webworkers supported. You can use it for capabilities detection.
 Also, you can set it `false` for debug, and pica will use direct function calls.
