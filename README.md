@@ -91,8 +91,6 @@ select this presets with `quality` option param:
 - 3 - Lanczos filter, window 3.0px
 
 
-
-
 References
 ----------
 

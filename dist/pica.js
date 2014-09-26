@@ -48,14 +48,8 @@ function resizeBuffer(options, callback) {
   };
 
   if (WORKER && exports.WW) {
-    // IE don't allow to create webworkers from string
-    // https://connect.microsoft.com/IE/feedback/details/801810/web-workers-from-blob-urls-in-ie-10-and-11
-    try {
-      wr = require('webworkify')(resizeWorker);
-    } catch (__) {}
-  }
+    wr = require('webworkify')(resizeWorker);
 
-  if (wr) {
     wr.onmessage = function(ev) {
       var i, l,
           dest = options.dest,
