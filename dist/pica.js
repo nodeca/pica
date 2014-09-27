@@ -1,4 +1,4 @@
-/* pica 1.0.1 nodeca/pica */!function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.pica=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({"./":[function(require,module,exports){
+/* pica 1.0.2 nodeca/pica */!function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.pica=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({"./":[function(require,module,exports){
 'use strict';
 
 /*global window:true*/
@@ -317,10 +317,10 @@ function convolveHorizontally(src, dest, srcW, srcH, destW, destH, filters) {
 
       // Bring this value back in range. All of the filter scaling factors
       // are in fixed point with FIXED_FRAC_BITS bits of fractional part.
-      dest[destOffset++] = clampTo8((r|0) >> FIXED_FRAC_BITS);
-      dest[destOffset++] = clampTo8((g|0) >> FIXED_FRAC_BITS);
-      dest[destOffset++] = clampTo8((b|0) >> FIXED_FRAC_BITS);
-      dest[destOffset++] = clampTo8((a|0) >> FIXED_FRAC_BITS);
+      dest[destOffset++] = clampTo8((r|0) >> 14/*FIXED_FRAC_BITS*/);
+      dest[destOffset++] = clampTo8((g|0) >> 14/*FIXED_FRAC_BITS*/);
+      dest[destOffset++] = clampTo8((b|0) >> 14/*FIXED_FRAC_BITS*/);
+      dest[destOffset++] = clampTo8((a|0) >> 14/*FIXED_FRAC_BITS*/);
     }
 
     srcOffset += srcW * 4;
@@ -361,9 +361,9 @@ function convolveVertically(src, dest, srcW, srcH, destW, destH, filters, withAl
 
       // Bring this value back in range. All of the filter scaling factors
       // are in fixed point with FIXED_FRAC_BITS bits of fractional part.
-      dest[destOffset++] = clampTo8((r|0) >> FIXED_FRAC_BITS);
-      dest[destOffset++] = clampTo8((g|0) >> FIXED_FRAC_BITS);
-      dest[destOffset++] = clampTo8((b|0) >> FIXED_FRAC_BITS);
+      dest[destOffset++] = clampTo8((r|0) >> 14/*FIXED_FRAC_BITS*/);
+      dest[destOffset++] = clampTo8((g|0) >> 14/*FIXED_FRAC_BITS*/);
+      dest[destOffset++] = clampTo8((b|0) >> 14/*FIXED_FRAC_BITS*/);
       if (withAlpha) {
         // Fix alpha channel if become wrong due rounding errors.
         // It can't be smaller than any color channel.
@@ -372,7 +372,7 @@ function convolveVertically(src, dest, srcW, srcH, destW, destH, filters, withAl
         if (a < g) { a = g; }
         if (a < b) { a = b; }
 
-        dest[destOffset] = clampTo8((a|0) >> FIXED_FRAC_BITS);
+        dest[destOffset] = clampTo8((a|0) >> 14/*FIXED_FRAC_BITS*/);
       } else {
         dest[destOffset] = 0xff;
       }
