@@ -43,7 +43,9 @@ function resizeBuffer(options, callback) {
     toWidth:  options.toWidth|0,
     toHeight: options.toHeight|0,
     quality:  options.quality,
-    alpha:    options.alpha
+    alpha:    options.alpha,
+    unsharpAmount:    options.unsharpAmount,
+    unsharpThreshold: options.unsharpThreshold
   };
 
   if (WORKER && exports.WW) {
@@ -107,7 +109,9 @@ function resizeCanvas(from, to, options, callback) {
     toWidth:  to.width,
     toHeight: to.height,
     quality:  options.quality,
-    alpha:    options.alpha
+    alpha:    options.alpha,
+    unsharpAmount:    options.unsharpAmount,
+    unsharpThreshold: options.unsharpThreshold
   };
 
   resizeBuffer(_opts, function (err/*, output*/) {

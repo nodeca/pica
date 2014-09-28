@@ -1,4 +1,4 @@
-'use strict'
+'use strict';
 
 var pica = require('../../../');
 
@@ -17,4 +17,4 @@ exports.run = function(data) {
   });
 
   return out_result;
-}
+};

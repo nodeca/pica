@@ -73,12 +73,25 @@ var updateResized = _.debounce(function () {
 
   start = performance.now();
 
-  window.pica.resizeCanvas($('#src')[0], dst, quality, function (err) {
+  window.pica.resizeCanvas($('#src')[0], dst, {
+    quality: quality,
+    unsharpAmount: unsharpAmount,
+    unsharpThreshold: unsharpThreshold
+  }, function (err) {
     time = (performance.now() - start).toFixed(2);
-    $('#dst-info').text(_.template('<%= time %>ms, <%= info %>', {
-      time: time,
-      info: qualityInfo[quality]
-    }));
+    if (unsharpAmount) {
+      $('#dst-info').text(_.template('<%= time %>ms, <%= info %>, Unsharp [<%= amount %>, 1.0, <%= threshold %>]', {
+        time: time,
+        info: qualityInfo[quality],
+        amount: unsharpAmount,
+        threshold: unsharpThreshold
+      }));
+    } else {
+      $('#dst-info').text(_.template('<%= time %>ms, <%= info %>, Unsharp off', {
+        time: time,
+        info: qualityInfo[quality]
+      }));
+    }
   });
 }, 100);
 
@@ -87,6 +100,8 @@ var updateResized = _.debounce(function () {
 //
 var img = new Image();
 var quality = Number($('#pica-quality').val());
+var unsharpAmount = Number($('#pica-unsharp-amount').val());
+var unsharpThreshold = Number($('#pica-unsharp-threshold').val());
 
 img.src = imageEncoded;
 
@@ -99,10 +114,20 @@ $(window).on('resize', updateResized);
 $('#dst-pica').on('click', updateResized);
 $('#dst-cvs').on('click', updateResized);
 
+
 $('#pica-quality').on('change', function () {
   quality = Number($('#pica-quality').val());
   updateResized();
 });
+$('#pica-unsharp-amount').on('change', function () {
+  unsharpAmount = Number($('#pica-unsharp-amount').val());
+  updateResized();
+});
+$('#pica-unsharp-threshold').on('change', function () {
+  unsharpThreshold = Number($('#pica-unsharp-threshold').val());
+  updateResized();
+});
+
 
 $('#upload-btn, #src').on('click', function () {
   $('#upload').trigger('click');
