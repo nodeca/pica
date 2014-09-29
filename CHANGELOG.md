@@ -1,3 +1,10 @@
+1.0.3 / 2014.09.29
+------------------
+
+- ~25% speed boost (thanks to @mraleph for advice)
+- Added unsharp mask implementation (very naive). Need futher work.
+
+
 1.0.2 / 2014.09.27
 ------------------
 

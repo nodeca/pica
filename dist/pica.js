@@ -1,4 +1,4 @@
-/* pica 1.0.2 nodeca/pica */!function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.pica=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({"./":[function(require,module,exports){
+/* pica 1.0.3 nodeca/pica */!function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.pica=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({"./":[function(require,module,exports){
 'use strict';
 
 /*global window:true*/
@@ -314,12 +314,13 @@ function convolveHorizontally(src, dest, srcW, srcH, destW, destH, filters) {
       for (; filterSize > 0; filterSize--) {
         filterVal = filters[filterPtr++];
 
-        // TODO: adressing via ..,[srcPtr+1],[srcPtr+2],...,srcPtr+=4
-        // gives 25% boost in node 0.11, but cause deopts in node 0.10
-        r = (r + filterVal * src[srcPtr++])|0;
-        g = (g + filterVal * src[srcPtr++])|0;
-        b = (b + filterVal * src[srcPtr++])|0;
-        a = (a + filterVal * src[srcPtr++])|0;
+        // Use reverse order to workaround deopts in old v8 (node v.10)
+        // Big thanks to @mraleph (Vyacheslav Egorov) for the tip.
+        a = (a + filterVal * src[srcPtr + 3])|0;
+        b = (b + filterVal * src[srcPtr + 2])|0;
+        g = (g + filterVal * src[srcPtr + 1])|0;
+        r = (r + filterVal * src[srcPtr])|0;
+        srcPtr = (srcPtr + 4)|0;
       }
 
       // Bring this value back in range. All of the filter scaling factors
@@ -359,11 +360,13 @@ function convolveVertically(src, dest, srcW, srcH, destW, destH, filters, withAl
       for (; filterSize > 0; filterSize--) {
         filterVal = filters[filterPtr++];
 
-        r = (r + filterVal * src[srcPtr++])|0;
-        g = (g + filterVal * src[srcPtr++])|0;
-        b = (b + filterVal * src[srcPtr++])|0;
-        if (withAlpha) { a = (a + filterVal * src[srcPtr])|0; }
-        srcPtr += destW * 4 - 3;
+        // Use reverse order to workaround deopts in old v8 (node v.10)
+        // Big thanks to @mraleph (Vyacheslav Egorov) for the tip.
+        if (withAlpha) { a = (a + filterVal * src[srcPtr + 3])|0; }
+        b = (b + filterVal * src[srcPtr + 2])|0;
+        g = (g + filterVal * src[srcPtr + 1])|0;
+        r = (r + filterVal * src[srcPtr])|0;
+        srcPtr = (srcPtr + destW * 4)|0;
       }
 
       // Bring this value back in range. All of the filter scaling factors
@@ -451,10 +454,10 @@ function greyscale(src, srcW, srcH) {
   var i, srcPtr;
 
   for (i = 0, srcPtr = 0; i < size; i++) {
-    result[i] = (src[srcPtr++] * 19595 // red
-              + src[srcPtr++] * 38470 // green
-              + src[srcPtr] * 7471) >>> 8;   // blue
-    srcPtr += 2;
+    result[i] = (src[srcPtr + 2] * 7471       // blue
+               + src[srcPtr + 1] * 38470      // green
+               + src[srcPtr] * 19595) >>> 8;  // red
+    srcPtr = (srcPtr + 4)|0;
   }
 
   return result;
