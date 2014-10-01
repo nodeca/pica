@@ -18,7 +18,9 @@ if (WORKER) {
 
 var resize       = require('./lib/resize');
 var resizeWorker = require('./lib/resize_worker');
-
+if (WORKER) {
+  var wr = require('webworkify')(resizeWorker);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Helpers
@@ -33,8 +35,6 @@ function isFunction(obj) { return _class(obj) === '[object Function]'; }
 // RGBA buffer async resize
 //
 function resizeBuffer(options, callback) {
-  var wr;
-
   var _opts = {
     src:      options.src,
     dest:     options.dest,
@@ -49,8 +49,6 @@ function resizeBuffer(options, callback) {
   };
 
   if (WORKER && exports.WW) {
-    wr = require('webworkify')(resizeWorker);
-
     wr.onmessage = function(ev) {
       var i, l,
           dest = options.dest,
@@ -70,7 +68,6 @@ function resizeBuffer(options, callback) {
         }
       }
       callback(ev.data.err, output);
-      wr.terminate();
     };
 
     wr.postMessage(_opts);
