@@ -37,7 +37,7 @@ function resizeBuffer(options, callback) {
 
   var _opts = {
     src:      options.src,
-    dest:     options.dest,
+    dest:     null,
     width:    options.width|0,
     height:   options.height|0,
     toWidth:  options.toWidth|0,
@@ -73,9 +73,14 @@ function resizeBuffer(options, callback) {
       wr.terminate();
     };
 
-    wr.postMessage(_opts);
+    if (options.transferable) {
+      wr.postMessage(_opts, [ options.src.buffer ]);
+    } else {
+      wr.postMessage(_opts);
+    }
 
   } else {
+    _opts.dest = options.dest;
     resize(_opts, callback);
   }
 }
@@ -111,7 +116,8 @@ function resizeCanvas(from, to, options, callback) {
     quality:  options.quality,
     alpha:    options.alpha,
     unsharpAmount:    options.unsharpAmount,
-    unsharpThreshold: options.unsharpThreshold
+    unsharpThreshold: options.unsharpThreshold,
+    transferable: true
   };
 
   resizeBuffer(_opts, function (err/*, output*/) {
