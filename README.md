@@ -60,9 +60,9 @@ Async resize Uint8Array with RGBA image.
   - __unsharpThreshold__ - 0..100. Default - `0`. Try 10 for begibing.
   - __dest__ - Optional. Output buffer to write data. Help to avoid data copy
     if no WebWorkers available. Callback will return result buffer anyway.
-  - __transferable__ - Optional. Whether to use 
+  - __transferable__ - Optional. Default - `false`. Whether to use
     [transferable objects](http://updates.html5rocks.com/2011/12/Transferable-Objects-Lightning-Fast).
-    Faster, but you cannot use the source buffer afterward.
+    with webworkers. Can be faster sometime, but you cannot use the source buffer afterward.
 - __callback(err, output)__ - function to call after resize complete:
   - __err__ - error if happened.
   - __output__ - Uint8Array with resized RGBA image data.
