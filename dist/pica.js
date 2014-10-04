@@ -1,4 +1,4 @@
-/* pica 1.0.3 nodeca/pica */!function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.pica=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({"./":[function(require,module,exports){
+/* pica 1.0.4 nodeca/pica */!function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.pica=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({"./":[function(require,module,exports){
 'use strict';
 
 /*global window:true*/
@@ -38,7 +38,7 @@ function resizeBuffer(options, callback) {
 
   var _opts = {
     src:      options.src,
-    dest:     options.dest,
+    dest:     null,
     width:    options.width|0,
     height:   options.height|0,
     toWidth:  options.toWidth|0,
@@ -74,9 +74,14 @@ function resizeBuffer(options, callback) {
       wr.terminate();
     };
 
-    wr.postMessage(_opts);
+    if (options.transferable) {
+      wr.postMessage(_opts, [ options.src.buffer ]);
+    } else {
+      wr.postMessage(_opts);
+    }
 
   } else {
+    _opts.dest = options.dest;
     resize(_opts, callback);
   }
 }
@@ -112,7 +117,8 @@ function resizeCanvas(from, to, options, callback) {
     quality:  options.quality,
     alpha:    options.alpha,
     unsharpAmount:    options.unsharpAmount,
-    unsharpThreshold: options.unsharpThreshold
+    unsharpThreshold: options.unsharpThreshold,
+    transferable: true
   };
 
   resizeBuffer(_opts, function (err/*, output*/) {
@@ -587,7 +593,7 @@ module.exports = function(self) {
         return;
       }
 
-      self.postMessage({ output: output });
+      self.postMessage({ output: output }, [ output.buffer ]);
     });
   };
 };

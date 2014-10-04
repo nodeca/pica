@@ -1,7 +1,14 @@
+1.0.4 / 2014.10.04
+------------------
+
+- Added transferable objects support.
+- Fixed demo to fork over ssl too.
+
+
 1.0.3 / 2014.09.29
 ------------------
 
-- ~25% speed boost (thanks to @mraleph for advice)
+- ~25% speed boost (thanks to @mraleph for advice).
 - Added unsharp mask implementation (very naive). Need futher work.
 
 
