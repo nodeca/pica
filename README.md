@@ -10,19 +10,21 @@ in browser as fast as possible.
 
 [__demo__](http://nodeca.github.io/pica/demo/)
 
-If you need to resize image in modern browser, you will note, that canvas uses
-low quality interpolation algorythms. That's why we did `pica`.
+If you need to resize images in modern browsers, by default, use canvas'
+low quality interpolation algorythms. That's why we wrote `pica`.
 
-- It's not as fast as canvas, but still reasonable fast. With Lanczos filter and
-  window=3, and huge image 5000x3000px resize takes ~1s on desktop and ~3s on
+- It's not as fast as canvas, but still reasonably fast. With Lanczos filter and
+  `window=3`, and huge image 5000x3000px resize takes ~1s on desktop and ~3s on
   mobile.
-- If you browser supports Webworkers, pica automatically use it to avoid
+- If your [browser supports Webworkers](http://caniuse.com/#feat=webworkers), pica automatically uses it to avoid
   interface freeze.
 
 Why it's useful:
 
-- reduce upload size for big images - save time and traffic
+- reduce upload size for big images to pre-process in browser, saving time and bandwidth
 - save server resources for image processing
+- [HiDPI image technique](http://www.html5rocks.com/en/mobile/high-dpi/#toc-tech-overview) for responsive and retna
+- download single image for both thumbnail and detail-zoom
 
 
 Install
@@ -54,13 +56,13 @@ Async resize Uint8Array with RGBA image.
   - __height__ - src image height.
   - __toWidth__ - output width.
   - __toHeigh__ - output height.
-  - __quality__ - 0..3. Default - `3` (lanczos, win=3).
-  - __alpha__ - use alpha channel. Default - `false`.
-  - __unsharpAmount - 0..500. Default - `0` (off). Usually 50..100 is good.
-  - __unsharpThreshold__ - 0..100. Default - `0`. Try 10 for begibing.
+  - __quality__ - 0..3. Default = `3` (lanczos, win=3).
+  - __alpha__ - use alpha channel. Default = `false`.
+  - __unsharpAmount - 0..500. Default = `0` (off). Usually between 50 to 100 is good.
+  - __unsharpThreshold__ - 0..100. Default = `0`. Try 10 as starting point.
   - __dest__ - Optional. Output buffer to write data. Help to avoid data copy
     if no WebWorkers available. Callback will return result buffer anyway.
-  - __transferable__ - Optional. Default - `false`. Whether to use
+  - __transferable__ - Optional. Default = `false`. Whether to use
     [transferable objects](http://updates.html5rocks.com/2011/12/Transferable-Objects-Lightning-Fast).
     with webworkers. Can be faster sometime, but you cannot use the source buffer afterward.
 - __callback(err, output)__ - function to call after resize complete:
@@ -85,14 +87,13 @@ Resize image from one canvas to another. Sizes are taken from canvas.
 
 ### .WW - true/false
 
-`true` if webworkers supported. You can use it for capabilities detection.
-Also, you can set it `false` for debug, and pica will use direct function calls.
+`true` if [webworkers are supported](http://caniuse.com/#feat=webworkers).  You can use it for capabilities detection.
+Also, you can set it `false` for debuging, so pica will use direct function calls.
 
 
 ### What is quality
 
-Pica has presets, to vary speed/quality ratio. To simplify interface, you can
-select this presets with `quality` option param:
+Pica has presets, to adjust speed/quality ratio. Simply use `quality` option param:
 
 - 0 - Box filter, window 0.5px
 - 1 - Hamming filter, window 1.0px
@@ -110,7 +111,7 @@ to activate filter.
 References
 ----------
 
-You can find this links useful:
+You can find these links useful:
 
 - discussions on stackoverflow:
   [1](http://stackoverflow.com/questions/943781/),
