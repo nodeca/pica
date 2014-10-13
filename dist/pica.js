@@ -79,11 +79,14 @@ function resizeBuffer(options, callback) {
     } else {
       wr.postMessage(_opts);
     }
-
-  } else {
-    _opts.dest = options.dest;
-    resize(_opts, callback);
+    // Expose worker when available, to allow early termination.
+    return wr;
   }
+
+  // Fallback to sync call, if WebWorkers not available
+  _opts.dest = options.dest;
+  resize(_opts, callback);
+  return undefined;
 }
 
 
@@ -121,7 +124,7 @@ function resizeCanvas(from, to, options, callback) {
     transferable: true
   };
 
-  resizeBuffer(_opts, function (err/*, output*/) {
+  return resizeBuffer(_opts, function (err/*, output*/) {
     if (err) {
       callback(err);
       return;

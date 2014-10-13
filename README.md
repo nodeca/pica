@@ -69,6 +69,9 @@ Async resize Uint8Array with RGBA image.
   - __err__ - error if happened.
   - __output__ - Uint8Array with resized RGBA image data.
 
+__(!)__ If WebWorker available, it's returned as function result (not via
+  callback) to allow early termination.
+
 
 ### .resizeCanvas(options, callback)
 
@@ -83,6 +86,9 @@ Resize image from one canvas to another. Sizes are taken from canvas.
   - __unsharpThreshold__ - 0..100. Default - `0`. Try 10 for begining.
 - __callback(err)__ - function to call after resize complete:
   - __err__ - error if happened
+
+__(!)__ If WebWorker available, it's returned as function result (not via
+  callback) to allow early termination.
 
 
 ### .WW - true/false
