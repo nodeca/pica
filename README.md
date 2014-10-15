@@ -58,7 +58,7 @@ Async resize Uint8Array with RGBA image.
   - __toHeigh__ - output height.
   - __quality__ - 0..3. Default = `3` (lanczos, win=3).
   - __alpha__ - use alpha channel. Default = `false`.
-  - __unsharpAmount - 0..500. Default = `0` (off). Usually between 50 to 100 is good.
+  - __unsharpAmount__ - 0..500. Default = `0` (off). Usually between 50 to 100 is good.
   - __unsharpThreshold__ - 0..100. Default = `0`. Try 10 as starting point.
   - __dest__ - Optional. Output buffer to write data. Help to avoid data copy
     if no WebWorkers available. Callback will return result buffer anyway.
@@ -80,10 +80,10 @@ Resize image from one canvas to another. Sizes are taken from canvas.
 - __from__ - source canvas.
 - __to__ - destination canvas.
 - __options__ - quality (number) or object:
-  - __quality__ - 0..3. Default - `3` (lanczos, win=3).
-  - __alpha__ - use alpha channel. Default - `false`.
-  - __unsharpAmount - 0..500. Default - `0` (off). Usually 50..100 is good.
-  - __unsharpThreshold__ - 0..100. Default - `0`. Try 10 for begining.
+  - __quality__ - 0..3. Default = `3` (lanczos, win=3).
+  - __alpha__ - use alpha channel. Default = `false`.
+  - __unsharpAmount__ - 0..500. Default = `0` (off). Usually between 50 to 100 is good.
+  - __unsharpThreshold__ - 0..100. Default = `0`. Try 10 as starting point.
 - __callback(err)__ - function to call after resize complete:
   - __err__ - error if happened
 
