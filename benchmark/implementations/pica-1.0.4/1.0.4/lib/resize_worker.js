@@ -12,7 +12,7 @@ module.exports = function(self) {
         return;
       }
 
-      self.postMessage({ output: output });
+      self.postMessage({ output: output }, [ output.buffer ]);
     });
   };
 };

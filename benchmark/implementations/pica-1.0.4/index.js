@@ -1,6 +1,6 @@
 'use strict';
 
-var pica = require('./1.0.2/');
+var pica = require('./1.0.4/');
 
 exports.run = function(data) {
   var out_result;

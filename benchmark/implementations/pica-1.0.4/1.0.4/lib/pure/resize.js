@@ -3,6 +3,9 @@
 'use strict';
 
 
+var unsharp = require('./unsharp');
+
+
 // Precision of fixed FP values
 var FIXED_FRAC_BITS = 14;
 var FIXED_FRAC_VAL  = 1 << FIXED_FRAC_BITS;
@@ -177,12 +180,13 @@ function convolveHorizontally(src, dest, srcW, srcH, destW, destH, filters) {
       for (; filterSize > 0; filterSize--) {
         filterVal = filters[filterPtr++];
 
-        // TODO: adressing via ..,[srcPtr+1],[srcPtr+2],...,srcPtr+=4
-        // gives 25% boost in node 0.11, but cause deopts in node 0.10
-        r = (r + filterVal * src[srcPtr++])|0;
-        g = (g + filterVal * src[srcPtr++])|0;
-        b = (b + filterVal * src[srcPtr++])|0;
-        a = (a + filterVal * src[srcPtr++])|0;
+        // Use reverse order to workaround deopts in old v8 (node v.10)
+        // Big thanks to @mraleph (Vyacheslav Egorov) for the tip.
+        a = (a + filterVal * src[srcPtr + 3])|0;
+        b = (b + filterVal * src[srcPtr + 2])|0;
+        g = (g + filterVal * src[srcPtr + 1])|0;
+        r = (r + filterVal * src[srcPtr])|0;
+        srcPtr = (srcPtr + 4)|0;
       }
 
       // Bring this value back in range. All of the filter scaling factors
@@ -222,11 +226,13 @@ function convolveVertically(src, dest, srcW, srcH, destW, destH, filters, withAl
       for (; filterSize > 0; filterSize--) {
         filterVal = filters[filterPtr++];
 
-        r = (r + filterVal * src[srcPtr++])|0;
-        g = (g + filterVal * src[srcPtr++])|0;
-        b = (b + filterVal * src[srcPtr++])|0;
-        if (withAlpha) { a = (a + filterVal * src[srcPtr])|0; }
-        srcPtr += destW * 4 - 3;
+        // Use reverse order to workaround deopts in old v8 (node v.10)
+        // Big thanks to @mraleph (Vyacheslav Egorov) for the tip.
+        if (withAlpha) { a = (a + filterVal * src[srcPtr + 3])|0; }
+        b = (b + filterVal * src[srcPtr + 2])|0;
+        g = (g + filterVal * src[srcPtr + 1])|0;
+        r = (r + filterVal * src[srcPtr])|0;
+        srcPtr = (srcPtr + destW * 4)|0;
       }
 
       // Bring this value back in range. All of the filter scaling factors
@@ -264,6 +270,8 @@ function resize(options) {
   var dest  = options.dest || new Uint8Array(destW * destH * 4);
   var quality = options.quality === undefined ? 3 : options.quality;
   var alpha = options.alpha || false;
+  var unsharpAmount = options.unsharpAmount === undefined ? 0 : (options.unsharpAmount|0);
+  var unsharpThreshold = options.unsharpThreshold === undefined ? 0 : (options.unsharpThreshold|0);
 
   if (srcW < 1 || srcH < 1 || destW < 1 || destH < 1) { return []; }
 
@@ -274,6 +282,10 @@ function resize(options) {
 
   convolveHorizontally(src, tmp, srcW, srcH, destW, destH, filtersX);
   convolveVertically(tmp, dest, destW, srcH, destW, destH, filtersY, alpha);
+
+  if (unsharpAmount) {
+    unsharp(dest, destW, destH, unsharpAmount, 1.0, unsharpThreshold);
+  }
 
   return dest;
 }
