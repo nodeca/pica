@@ -1,4 +1,4 @@
-1.0.5 / WIP
+1.0.5 / 2014.11.03
 ------------------
 
 - Expose WebWorker on pica call, to allow early termination of task.
