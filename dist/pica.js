@@ -1,4 +1,4 @@
-/* pica 1.0.4 nodeca/pica */!function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.pica=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({"./":[function(require,module,exports){
+/* pica 1.0.5 nodeca/pica */!function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.pica=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({"./":[function(require,module,exports){
 'use strict';
 
 /*global window:true*/
@@ -140,7 +140,78 @@ exports.resizeBuffer = resizeBuffer;
 exports.resizeCanvas = resizeCanvas;
 exports.WW = WORKER;
 
-},{"./lib/resize":3,"./lib/resize_worker":4,"webworkify":5}],1:[function(require,module,exports){
+},{"./lib/resize":4,"./lib/resize_worker":5,"webworkify":6}],1:[function(require,module,exports){
+// Blur filter
+//
+
+'use strict';
+
+
+var _blurKernel = new Uint8Array([
+  1, 2, 1,
+  2, 4, 2,
+  1, 2, 1
+]);
+
+var _bkWidth = Math.floor(Math.sqrt(_blurKernel.length));
+var _bkHalf = Math.floor(_bkWidth / 2);
+var _bkWsum = 0;
+for (var wc=0; wc < _blurKernel.length; wc++) { _bkWsum += _blurKernel[wc]; }
+
+
+function blurPoint(gs, x, y, srcW, srcH) {
+  var bx, by, sx, sy, w, wsum, br;
+  var bPtr = 0;
+  var blurKernel = _blurKernel;
+  var bkHalf = _bkHalf;
+
+  wsum = 0; // weight sum to normalize result
+  br   = 0;
+
+  if (x >= bkHalf && y >= bkHalf && x + bkHalf < srcW && y + bkHalf < srcH) {
+    for (by = 0; by < 3; by++) {
+      for (bx = 0; bx < 3; bx++) {
+        sx = x + bx - bkHalf;
+        sy = y + by - bkHalf;
+
+        br += gs[sx + sy * srcW] * blurKernel[bPtr++];
+      }
+    }
+    return (br - (br % _bkWsum)) / _bkWsum;
+  }
+
+  for (by = 0; by < 3; by++) {
+    for (bx = 0; bx < 3; bx++) {
+      sx = x + bx - bkHalf;
+      sy = y + by - bkHalf;
+
+      if (sx >= 0 && sx < srcW && sy >= 0 && sy < srcH) {
+        w = blurKernel[bPtr];
+        wsum += w;
+        br += gs[sx + sy * srcW] * w;
+      }
+      bPtr++;
+    }
+  }
+  return ((br - (br % wsum)) / wsum)|0;
+}
+
+function blur(src, srcW, srcH/*, radius*/) {
+  var x, y,
+      output = new Uint16Array(src.length);
+
+  for (x = 0; x < srcW; x++) {
+    for (y = 0; y < srcH; y++) {
+      output[y * srcW + x] = blurPoint(src, x, y, srcW, srcH);
+    }
+  }
+
+  return output;
+}
+
+module.exports = blur;
+
+},{}],2:[function(require,module,exports){
 // High speed resize with tuneable speed/quality ratio
 
 'use strict';
@@ -297,8 +368,16 @@ function createFilters(quality, srcSize, destSize) {
   return packedFilter;
 }
 
-
-function convolveHorizontally(src, dest, srcW, srcH, destW, destH, filters) {
+// Convolve image in horizontal directions and transpose output. In theory,
+// transpose allow:
+//
+// - use the same convolver for both passes (this fails due different
+//   types of input array and temporary buffer)
+// - making vertical pass by horisonltal lines inprove CPU cache use.
+//
+// But in real life this doesn't work :)
+//
+function convolveHorizontally(src, dest, srcW, srcH, destW, filters) {
 
   var r, g, b, a;
   var filterPtr, filterShift, filterSize;
@@ -312,8 +391,8 @@ function convolveHorizontally(src, dest, srcW, srcH, destW, destH, filters) {
     // Apply precomputed filters to each destination row point
     for (destX = 0; destX < destW; destX++) {
       // Get the filter that determines the current output pixel.
-      filterShift     = filters[filterPtr++];
-      filterSize      = filters[filterPtr++];
+      filterShift = filters[filterPtr++];
+      filterSize  = filters[filterPtr++];
 
       srcPtr = (srcOffset + (filterShift * 4))|0;
 
@@ -334,34 +413,40 @@ function convolveHorizontally(src, dest, srcW, srcH, destW, destH, filters) {
 
       // Bring this value back in range. All of the filter scaling factors
       // are in fixed point with FIXED_FRAC_BITS bits of fractional part.
-      dest[destOffset++] = clampTo8((r|0) >> 14/*FIXED_FRAC_BITS*/);
-      dest[destOffset++] = clampTo8((g|0) >> 14/*FIXED_FRAC_BITS*/);
-      dest[destOffset++] = clampTo8((b|0) >> 14/*FIXED_FRAC_BITS*/);
-      dest[destOffset++] = clampTo8((a|0) >> 14/*FIXED_FRAC_BITS*/);
+      dest[destOffset + 3] = clampTo8(a >> 14/*FIXED_FRAC_BITS*/);
+      dest[destOffset + 2] = clampTo8(b >> 14/*FIXED_FRAC_BITS*/);
+      dest[destOffset + 1] = clampTo8(g >> 14/*FIXED_FRAC_BITS*/);
+      dest[destOffset]     = clampTo8(r >> 14/*FIXED_FRAC_BITS*/);
+      destOffset = (destOffset + srcH * 4)|0;
     }
 
-    srcOffset += srcW * 4;
+    destOffset = ((srcY + 1) * 4)|0;
+    srcOffset  = ((srcY + 1) * srcW * 4)|0;
   }
 }
 
+// Technically, convolvers are the same. But input array and temporary
+// buffer can be of different type (especially, in old browsers). So,
+// keep code in separate functions to avoid deoptimizations & speed loss.
 
-function convolveVertically(src, dest, srcW, srcH, destW, destH, filters, withAlpha) {
+function convolveVertically(src, dest, srcW, srcH, destW, filters) {
+
   var r, g, b, a;
   var filterPtr, filterShift, filterSize;
-  var srcPtr, srcX, destY, filterVal;
+  var srcPtr, srcY, destX, filterVal;
   var srcOffset = 0, destOffset = 0;
 
   // For each row
-  for (srcX = 0; srcX < destW; srcX++) {
+  for (srcY = 0; srcY < srcH; srcY++) {
     filterPtr  = 0;
 
     // Apply precomputed filters to each destination row point
-    for (destY = 0; destY < destH; destY++) {
+    for (destX = 0; destX < destW; destX++) {
       // Get the filter that determines the current output pixel.
-      filterShift     = filters[filterPtr++];
-      filterSize      = filters[filterPtr++];
+      filterShift = filters[filterPtr++];
+      filterSize  = filters[filterPtr++];
 
-      srcPtr = (srcOffset + (filterShift * destW * 4))|0;
+      srcPtr = (srcOffset + (filterShift * 4))|0;
 
       r = g = b = a = 0;
 
@@ -371,35 +456,44 @@ function convolveVertically(src, dest, srcW, srcH, destW, destH, filters, withAl
 
         // Use reverse order to workaround deopts in old v8 (node v.10)
         // Big thanks to @mraleph (Vyacheslav Egorov) for the tip.
-        if (withAlpha) { a = (a + filterVal * src[srcPtr + 3])|0; }
+        a = (a + filterVal * src[srcPtr + 3])|0;
         b = (b + filterVal * src[srcPtr + 2])|0;
         g = (g + filterVal * src[srcPtr + 1])|0;
         r = (r + filterVal * src[srcPtr])|0;
-        srcPtr = (srcPtr + destW * 4)|0;
+        srcPtr = (srcPtr + 4)|0;
       }
 
       // Bring this value back in range. All of the filter scaling factors
       // are in fixed point with FIXED_FRAC_BITS bits of fractional part.
-      dest[destOffset++] = clampTo8((r|0) >> 14/*FIXED_FRAC_BITS*/);
-      dest[destOffset++] = clampTo8((g|0) >> 14/*FIXED_FRAC_BITS*/);
-      dest[destOffset++] = clampTo8((b|0) >> 14/*FIXED_FRAC_BITS*/);
-      if (withAlpha) {
-        // Fix alpha channel if become wrong due rounding errors.
-        // It can't be smaller than any color channel.
-        // Operate with unshifted values for simplicity
-        if (a < r) { a = r; }
-        if (a < g) { a = g; }
-        if (a < b) { a = b; }
-
-        dest[destOffset] = clampTo8((a|0) >> 14/*FIXED_FRAC_BITS*/);
-      } else {
-        dest[destOffset] = 0xff;
-      }
-      destOffset += destW * 4 - 3;
+      dest[destOffset + 3] = clampTo8(a >> 14/*FIXED_FRAC_BITS*/);
+      dest[destOffset + 2] = clampTo8(b >> 14/*FIXED_FRAC_BITS*/);
+      dest[destOffset + 1] = clampTo8(g >> 14/*FIXED_FRAC_BITS*/);
+      dest[destOffset]     = clampTo8(r >> 14/*FIXED_FRAC_BITS*/);
+      destOffset = (destOffset + srcH * 4)|0;
     }
 
-    srcOffset += 4;
-    destOffset = srcOffset;
+    destOffset = ((srcY + 1) * 4)|0;
+    srcOffset  = ((srcY + 1) * srcW * 4)|0;
+  }
+}
+
+
+function resetAlpha(dst, width, height) {
+  var ptr = 3, len = (width * height * 4)|0;
+  while (ptr < len) { dst[ptr] = 0xFF; ptr += (ptr + 4)|0; }
+}
+
+
+// Fix alpha channel if become wrong due rounding errors.
+// It can't be smaller than any color channel.
+// Operate with unshifted values for simplicity
+function fixAlpha(dst, width, height) {
+  var a, ptr = 3, len = (width * height * 4)|0;
+  while (ptr < len) {
+    a = dst[ptr];
+    a = Math.max(a, dst[ptr - 1], dst[ptr - 2], dst[ptr - 3]);
+    dst[ptr] = a;
+    ptr = (ptr + 4)|0;
   }
 }
 
@@ -423,8 +517,19 @@ function resize(options) {
 
   var tmp  = new Uint8Array(destW * srcH * 4);
 
-  convolveHorizontally(src, tmp, srcW, srcH, destW, destH, filtersX);
-  convolveVertically(tmp, dest, destW, srcH, destW, destH, filtersY, alpha);
+  // To use single function we need src & tmp of the same type.
+  // But src can be CanvasPixelArray, and tmp - Uint8Array. So, keep
+  // vertical and horizontal passes separately to avoid deoptimization.
+
+  convolveHorizontally(src, tmp, srcW, srcH, destW, filtersX);
+  convolveVertically(tmp, dest, srcH, destW, destH, filtersY);
+
+  // That's faster than doing checks in convolver.
+  if (alpha) {
+    fixAlpha(dest, destW, destH);
+  } else {
+    resetAlpha(dest, destW, destH);
+  }
 
   if (unsharpAmount) {
     unsharp(dest, destW, destH, unsharpAmount, 1.0, unsharpThreshold);
@@ -436,7 +541,7 @@ function resize(options) {
 
 module.exports = resize;
 
-},{"./unsharp":2}],2:[function(require,module,exports){
+},{"./unsharp":3}],3:[function(require,module,exports){
 // Unsharp mask filter
 //
 // http://stackoverflow.com/a/23322820/1031804
@@ -453,13 +558,16 @@ module.exports = resize;
 'use strict';
 
 
+var blur = require('./blur');
+
+
 function clampTo8(i) { return i < 0 ? 0 : (i > 255 ? 255 : i); }
 
-// Convert image to greyscale, 32bits FP result (16.16)
+// Convert image to greyscale, 16bits FP result (8.8)
 //
 function greyscale(src, srcW, srcH) {
   var size = srcW * srcH;
-  var result = new Uint32Array(size); // We don't use sign, but that helps to JIT
+  var result = new Uint16Array(size); // We don't use sign, but that helps to JIT
   var i, srcPtr;
 
   for (i = 0, srcPtr = 0; i < size; i++) {
@@ -472,54 +580,6 @@ function greyscale(src, srcW, srcH) {
   return result;
 }
 
-var _blurKernel = new Uint8Array([
-  1, 2, 1,
-  2, 4, 2,
-  1, 2, 1
-]);
-
-var _bkWidth = Math.floor(Math.sqrt(_blurKernel.length));
-var _bkHalf = Math.floor(_bkWidth / 2);
-var _bkWsum = 0;
-for (var wc=0; wc < _blurKernel.length; wc++) { _bkWsum += _blurKernel[wc]; }
-
-
-function blur(gs, x, y, srcW, srcH) {
-  var bx, by, sx, sy, w, wsum, br;
-  var bPtr = 0;
-  var blurKernel = _blurKernel;
-  var bkHalf = _bkHalf;
-
-  wsum = 0; // weight sum to normalize result
-  br   = 0;
-
-  if (x >= bkHalf && y >= bkHalf && x + bkHalf < srcW && y + bkHalf < srcH) {
-    for (by = 0; by < 3; by++) {
-      for (bx = 0; bx < 3; bx++) {
-        sx = x + bx - bkHalf;
-        sy = y + by - bkHalf;
-
-        br += gs[sx + sy * srcW] * blurKernel[bPtr++];
-      }
-    }
-    return (br - (br % _bkWsum)) / _bkWsum;
-  }
-
-  for (by = 0; by < 3; by++) {
-    for (bx = 0; bx < 3; bx++) {
-      sx = x + bx - bkHalf;
-      sy = y + by - bkHalf;
-
-      if (sx >= 0 && sx < srcW && sy >= 0 && sy < srcH) {
-        w = blurKernel[bPtr];
-        wsum += w;
-        br += gs[sx + sy * srcW] * w;
-      }
-      bPtr++;
-    }
-  }
-  return (br - (br % wsum)) / wsum;
-}
 
 // Apply unsharp mask to src
 //
@@ -538,6 +598,7 @@ function unsharp(src, srcW, srcH, amount, radius, threshold) {
   // - speedup blur calc
   //
   var gs = greyscale(src, srcW, srcH);
+  var blured = blur(gs, srcW, srcH, 1);
   var fpThreshold = threshold << 8;
   var gsPtr = 0;
 
@@ -546,13 +607,13 @@ function unsharp(src, srcW, srcH, amount, radius, threshold) {
 
       // calculate brightness blur, difference & update source buffer
 
-      diff = (gs[gsPtr++] - blur(gs, x, y, srcW, srcH))|0;
+      diff = gs[gsPtr] - blured[gsPtr];
 
       // Update source image if thresold exceeded
       if (Math.abs(diff) > fpThreshold) {
         // Calculate correction multiplier
         corr = 65536 + ((diff * AMOUNT_NORM) >> 8);
-        srcPtr = (x + y * srcW) * 4;
+        srcPtr = gsPtr * 4;
 
         c = src[srcPtr];
         src[srcPtr++] = clampTo8((c * corr) >> 16);
@@ -562,6 +623,8 @@ function unsharp(src, srcW, srcH, amount, radius, threshold) {
         src[srcPtr] = clampTo8((c * corr) >> 16);
       }
 
+      gsPtr++;
+
     } // end row
   } // end column
 }
@@ -569,7 +632,7 @@ function unsharp(src, srcW, srcH, amount, radius, threshold) {
 
 module.exports = unsharp;
 
-},{}],3:[function(require,module,exports){
+},{"./blur":1}],4:[function(require,module,exports){
 // Proxy to simplify split between webworker/plain calls
 'use strict';
 
@@ -581,7 +644,7 @@ module.exports = function (options, callback) {
   callback(null, output);
 };
 
-},{"./pure/resize":1}],4:[function(require,module,exports){
+},{"./pure/resize":2}],5:[function(require,module,exports){
 // Web Worker wrapper for image resize function
 
 'use strict';
@@ -601,7 +664,7 @@ module.exports = function(self) {
   };
 };
 
-},{"./resize":3}],5:[function(require,module,exports){
+},{"./resize":4}],6:[function(require,module,exports){
 var bundleFn = arguments[3];
 var sources = arguments[4];
 var cache = arguments[5];
