@@ -1,4 +1,4 @@
-/* pica 1.0.5 nodeca/pica */!function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.pica=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({"./":[function(require,module,exports){
+/* pica 1.0.6 nodeca/pica */!function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.pica=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({"./":[function(require,module,exports){
 'use strict';
 
 /*global window:true*/
@@ -484,20 +484,6 @@ function resetAlpha(dst, width, height) {
 }
 
 
-// Fix alpha channel if become wrong due rounding errors.
-// It can't be smaller than any color channel.
-// Operate with unshifted values for simplicity
-function fixAlpha(dst, width, height) {
-  var a, ptr = 3, len = (width * height * 4)|0;
-  while (ptr < len) {
-    a = dst[ptr];
-    a = Math.max(a, dst[ptr - 1], dst[ptr - 2], dst[ptr - 3]);
-    dst[ptr] = a;
-    ptr = (ptr + 4)|0;
-  }
-}
-
-
 function resize(options) {
   var src   = options.src;
   var srcW  = options.width;
@@ -525,9 +511,10 @@ function resize(options) {
   convolveVertically(tmp, dest, srcH, destW, destH, filtersY);
 
   // That's faster than doing checks in convolver.
-  if (alpha) {
-    fixAlpha(dest, destW, destH);
-  } else {
+  // !!! Note, canvas data is not premultipled. We don't need other
+  // alpha corrections.
+
+  if (!alpha) {
     resetAlpha(dest, destW, destH);
   }
 
