@@ -1,3 +1,10 @@
+1.0.6 / 2014.11.08
+------------------
+
+- Removed alpha correction, because canvas data is not premultipled (#13).
+  Thanks to @devongovett.
+
+
 1.0.5 / 2014.11.03
 ------------------
 
