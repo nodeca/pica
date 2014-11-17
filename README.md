@@ -114,6 +114,21 @@ radius 1.0. It's off by default. Set `unsharpAmount` and `unsharpThresold`
 to activate filter.
 
 
+Browsers support
+----------------
+
+We had no time to test all possible combinations, but in general:
+
+- Top level API should work in all browsers, [supporing canvas](http://caniuse.com/#feat=canvas)
+  and [typed arrays](http://caniuse.com/#feat=typedarrays).
+- [Webworkers support](http://caniuse.com/#feat=webworkers) is not needed, but those will be used if available.
+- If you plan to use only pure math core, then [typed arrays support](http://caniuse.com/#feat=typedarrays)
+  will be enougth.
+
+__Note.__ Though you can run this package on `node.js`, browsers are the main target platform.
+On server side we recommend to use GraphicsMagick or ImageMagick for better speed.
+
+
 References
 ----------
 
