@@ -1,3 +1,9 @@
+1.0.7 / 2014.11.18
+------------------
+
+- Fixed alpha reset for images without alpha channel (regression in 1.0.5).
+
+
 1.0.6 / 2014.11.08
 ------------------
 
