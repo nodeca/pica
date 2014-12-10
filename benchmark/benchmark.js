@@ -22,7 +22,7 @@ fs.readdirSync(IMPLS_DIRECTORY).sort().forEach(function (name) {
   var file = path.join(IMPLS_DIRECTORY, name);
   var code = require(file);
 
-  IMPLS_PATHS[ name ] = file;
+  IMPLS_PATHS[name] = file;
   IMPLS.push({
     name: name,
     code: code

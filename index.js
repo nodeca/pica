@@ -85,7 +85,7 @@ function resizeBuffer(options, callback) {
   // Fallback to sync call, if WebWorkers not available
   _opts.dest = options.dest;
   resize(_opts, callback);
-  return undefined;
+  return null;
 }
 
 

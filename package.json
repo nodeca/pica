@@ -31,8 +31,8 @@
   },
   "devDependencies": {
     "browserify": "*",
-    "eslint": "0.8.0",
-    "eslint-plugin-nodeca": "^1.0.0",
+    "eslint": "0.10.1",
+    "eslint-plugin-nodeca": "^1.0.3",
     "uglify-js": "*",
     "canvas": "1.1.x",
     "benchmark": "1.0.x",
