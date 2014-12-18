@@ -13,6 +13,37 @@
   </head>
 
   <body>
+
+
+<script id="vertex-shader" type="x-shader/x-vertex">
+attribute vec2 a_position;
+attribute vec2 a_texCoord;
+
+uniform vec2 u_resolution;
+
+varying vec2 v_texCoord;
+
+void main() {
+   vec2 clipSpace = a_position / u_resolution * 2.0 - 1.0;
+
+   gl_Position = vec4(clipSpace, 0, 1);
+   v_texCoord = a_texCoord;
+}
+</script>
+
+
+<script id="fragment-shader" type="x-shader/x-fragment">
+precision mediump float;
+uniform sampler2D u_image;
+
+varying vec2 v_texCoord;
+
+void main() {
+   gl_FragColor = texture2D(u_image, v_texCoord);
+}
+</script>
+
+
     <div class="container">
       <h1>Pica demo</h1>
       <p>High quality image resize in browser.

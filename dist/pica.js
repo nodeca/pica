@@ -1,7 +1,7 @@
 /* pica 1.0.7 nodeca/pica */!function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.pica=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({"./":[function(require,module,exports){
 'use strict';
 
-/*global window:true*/
+/*global window, document*/
 /*eslint space-infix-ops:0*/
 
 // Feature detect
@@ -16,9 +16,23 @@ if (WORKER) {
     WORKER = false;
   }
 }
+var WEBGL = false;
+try {
+  if (typeof document !== 'undefined' &&
+      typeof window !== 'undefined' &&
+      window.WebGLRenderingContext) {
+    var _cvs = document.createElement('canvas');
+    if (_cvs.getContext('webgl') || _cvs.getContext('experimental-webgl')) {
+      WEBGL = true;
+    }
+    _cvs = null;
+  }
+} catch (__) {}
+
 
 var resize       = require('./lib/resize');
 var resizeWorker = require('./lib/resize_worker');
+var resizeWebgl  = require('./lib/resize_webgl');
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,7 +100,7 @@ function resizeBuffer(options, callback) {
   // Fallback to sync call, if WebWorkers not available
   _opts.dest = options.dest;
   resize(_opts, callback);
-  return undefined;
+  return null;
 }
 
 
@@ -106,6 +120,11 @@ function resizeCanvas(from, to, options, callback) {
   if (!isNaN(options)) {
     options = { quality: options, alpha: false };
   }
+
+  if (WEBGL && exports.WEBGL) {
+    return resizeWebgl(from, to, options, callback);
+  }
+
 
   var ctxTo = to.getContext('2d');
   var imageDataTo = ctxTo.getImageData(0, 0, w2, h2);
@@ -139,8 +158,9 @@ function resizeCanvas(from, to, options, callback) {
 exports.resizeBuffer = resizeBuffer;
 exports.resizeCanvas = resizeCanvas;
 exports.WW = WORKER;
+exports.WEBGL = WEBGL;
 
-},{"./lib/resize":4,"./lib/resize_worker":5,"webworkify":6}],1:[function(require,module,exports){
+},{"./lib/resize":4,"./lib/resize_webgl":5,"./lib/resize_worker":6,"webworkify":7}],1:[function(require,module,exports){
 // Blur filter
 //
 
@@ -156,7 +176,7 @@ var _blurKernel = new Uint8Array([
 var _bkWidth = Math.floor(Math.sqrt(_blurKernel.length));
 var _bkHalf = Math.floor(_bkWidth / 2);
 var _bkWsum = 0;
-for (var wc=0; wc < _blurKernel.length; wc++) { _bkWsum += _blurKernel[wc]; }
+for (var wc = 0; wc < _blurKernel.length; wc++) { _bkWsum += _blurKernel[wc]; }
 
 
 function blurPoint(gs, x, y, srcW, srcH) {
@@ -193,6 +213,7 @@ function blurPoint(gs, x, y, srcW, srcH) {
       bPtr++;
     }
   }
+  /*eslint-disable space-infix-ops*/
   return ((br - (br % wsum)) / wsum)|0;
 }
 
@@ -293,7 +314,7 @@ function createFilters(quality, srcSize, destSize) {
       floatFilter, fxpFilter, total, fixedTotal, pxl, idx, floatVal, fixedVal;
   var leftNotEmpty, rightNotEmpty, filterShift, filterSize;
 
-  var maxFilterElementSize = Math.floor((srcWindow + 1) * 2 );
+  var maxFilterElementSize = Math.floor((srcWindow + 1) * 2);
   var packedFilter    = new Int16Array((maxFilterElementSize + 2) * destSize);
   var packedFilterPtr = 0;
 
@@ -388,6 +409,8 @@ function convolveHorizontally(src, dest, srcW, srcH, destW, filters) {
   for (srcY = 0; srcY < srcH; srcY++) {
     filterPtr  = 0;
 
+    /*eslint-disable space-infix-ops*/
+
     // Apply precomputed filters to each destination row point
     for (destX = 0; destX < destW; destX++) {
       // Get the filter that determines the current output pixel.
@@ -440,6 +463,8 @@ function convolveVertically(src, dest, srcW, srcH, destW, filters) {
   for (srcY = 0; srcY < srcH; srcY++) {
     filterPtr  = 0;
 
+    /*eslint-disable space-infix-ops*/
+
     // Apply precomputed filters to each destination row point
     for (destX = 0; destX < destW; destX++) {
       // Get the filter that determines the current output pixel.
@@ -491,10 +516,10 @@ function resize(options) {
   var destW = options.toWidth;
   var destH = options.toHeight;
   var dest  = options.dest || new Uint8Array(destW * destH * 4);
-  var quality = options.quality === undefined ? 3 : options.quality;
+  var quality = typeof options.quality === 'undefined' ? 3 : options.quality;
   var alpha = options.alpha || false;
-  var unsharpAmount = options.unsharpAmount === undefined ? 0 : (options.unsharpAmount|0);
-  var unsharpThreshold = options.unsharpThreshold === undefined ? 0 : (options.unsharpThreshold|0);
+  var unsharpAmount = typeof options.unsharpAmount === 'undefined' ? 0 : (options.unsharpAmount|0);
+  var unsharpThreshold = typeof options.unsharpThreshold === 'undefined' ? 0 : (options.unsharpThreshold|0);
 
   if (srcW < 1 || srcH < 1 || destW < 1 || destH < 1) { return []; }
 
@@ -558,6 +583,7 @@ function greyscale(src, srcW, srcH) {
   var i, srcPtr;
 
   for (i = 0, srcPtr = 0; i < size; i++) {
+    /*eslint-disable space-infix-ops*/
     result[i] = (src[srcPtr + 2] * 7471       // blue
                + src[srcPtr + 1] * 38470      // green
                + src[srcPtr] * 19595) >>> 8;  // red
@@ -632,6 +658,125 @@ module.exports = function (options, callback) {
 };
 
 },{"./pure/resize":2}],5:[function(require,module,exports){
+'use strict';
+
+/*global window*/
+
+
+function error(msg) {
+  try { (window.console.error || window.console.log)(msg); } catch (__) {}
+}
+
+function createGl(canvas) {
+  return canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+}
+
+function createShader(gl, type, src) {
+  var shader = gl.createShader(type);
+
+  gl.shaderSource(shader, src);
+  gl.compileShader(shader);
+
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    error('Shader compile error: ' + gl.getShaderInfoLog(shader) + '. Source: `' + src + '`');
+    gl.deleteShader(shader);
+    return null;
+  }
+
+  return shader;
+}
+
+
+function createProgram(gl, shaders, attrs, locations) {
+  var program = gl.createProgram();
+
+  shaders.forEach(function (shader) {
+    gl.attachShader(program, shader);
+  });
+
+  if (attrs) {
+    attrs.forEach(function (attr, idx) {
+      gl.bindAttribLocation(program, locations ? locations[idx] : idx, attr);
+    });
+  }
+
+  gl.linkProgram(program);
+
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    error('Program linking error: ' + gl.getProgramInfoLog(program));
+    gl.deleteProgram(program);
+    return null;
+  }
+
+  return program;
+}
+
+function setRectangle(gl, x, y, w, h) {
+  var x1 = x;
+  var x2 = x + w;
+  var y1 = y;
+  var y2 = y + h;
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([ x1, y1, x2, y1, x1, y2,
+    x1, y2, x2, y1, x2, y2 ]), gl.STATIC_DRAW);
+}
+
+
+
+module.exports = function (from, to, options, callback) {
+
+  var gl = createGl(to);
+
+  var vertexShader = createShader(gl, gl.VERTEX_SHADER, $('#vertex-shader').text());
+
+  var fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, $('#fragment-shader').text());
+
+  var program = createProgram(gl, [ vertexShader, fragmentShader ]);
+
+  gl.useProgram(program);
+
+  var texCoordLocation = gl.getAttribLocation(program, 'a_texCoord');
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([ 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1 ]), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(texCoordLocation);
+  gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 0, 0);
+
+
+  gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, from);
+
+  gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+  // lookup uniforms
+  var resolutionLocation = gl.getUniformLocation(program, 'u_resolution');
+  gl.uniform2f(resolutionLocation, from.width, from.height);
+
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+
+  var positionLocation = gl.getAttribLocation(program, 'a_position');
+
+  gl.enableVertexAttribArray(positionLocation);
+  gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+  // Set a rectangle the same size as the image.
+  setRectangle(gl, 0, 0, from.width, from.height);
+
+  // Draw the rectangle.
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  // Resize to output
+  // context = to.getContext('2d')
+  // context.drawImage(canvas, 0, 0);
+  callback();
+};
+
+},{}],6:[function(require,module,exports){
 // Web Worker wrapper for image resize function
 
 'use strict';
@@ -651,7 +796,7 @@ module.exports = function(self) {
   };
 };
 
-},{"./resize":4}],6:[function(require,module,exports){
+},{"./resize":4}],7:[function(require,module,exports){
 var bundleFn = arguments[3];
 var sources = arguments[4];
 var cache = arguments[5];
