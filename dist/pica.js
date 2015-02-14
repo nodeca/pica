@@ -711,7 +711,7 @@ function createProgram(gl, shaders, attrs, locations) {
   return program;
 }
 
-function setRectangle(gl, x, y, w, h) {
+function bufferRectangleData(gl, x, y, w, h) {
   var x1 = x;
   var x2 = x + w;
   var y1 = y;
@@ -721,13 +721,8 @@ function setRectangle(gl, x, y, w, h) {
 }
 
 
-
-module.exports = function (from, to, options, callback) {
-
-  var gl = createGl(to);
-
+function doLanczos(gl, texture, inputWidth, inputHeight, width, height, texelWidth, texelHeight) {
   var vertexShader = createShader(gl, gl.VERTEX_SHADER, $('#vertex-shader').text());
-
   var fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, $('#fragment-shader').text());
 
   var program = createProgram(gl, [ vertexShader, fragmentShader ]);
@@ -742,37 +737,93 @@ module.exports = function (from, to, options, callback) {
   gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 0, 0);
 
 
-  gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, from);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.uniform1i(gl.getUniformLocation(program, 'u_image'), 0);
 
-  gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+  gl.viewport(0, 0, width, height);
 
   // lookup uniforms
   var resolutionLocation = gl.getUniformLocation(program, 'u_resolution');
-  gl.uniform2f(resolutionLocation, from.width, from.height);
+  gl.uniform2f(resolutionLocation, inputWidth, inputHeight);
 
+  var texelWidthOffset = gl.getUniformLocation(program, 'texelWidthOffset');
+  gl.uniform1f(texelWidthOffset, texelWidth);
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  var texelHeightOffset = gl.getUniformLocation(program, 'texelHeightOffset');
+  gl.uniform1f(texelHeightOffset, texelWidth);
 
   var positionLocation = gl.getAttribLocation(program, 'a_position');
-
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
   gl.enableVertexAttribArray(positionLocation);
+  // Set a rectangle the same size as the image.
+  bufferRectangleData(gl, 0, 0, inputWidth, inputHeight);
   gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
 
-  // Set a rectangle the same size as the image.
-  setRectangle(gl, 0, 0, from.width, from.height);
 
   // Draw the rectangle.
   gl.drawArrays(gl.TRIANGLES, 0, 6);
+}
 
-  // Resize to output
-  // context = to.getContext('2d')
-  // context.drawImage(canvas, 0, 0);
+function initRttStructure(gl, width , height) {
+  var rttFramebuffer = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, rttFramebuffer);
+  rttFramebuffer.width = width;
+  rttFramebuffer.height = height;
+
+  var rttTexture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, rttTexture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);//gl.NEAREST is also allowed, instead of gl.LINEAR, as neither mipmap.
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); 
+
+
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, rttFramebuffer.width, rttFramebuffer.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+
+  var renderbuffer = gl.createRenderbuffer();
+  gl.bindRenderbuffer(gl.RENDERBUFFER, renderbuffer);
+  gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, rttFramebuffer.width, rttFramebuffer.height);
+
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, rttTexture, 0);
+  gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, renderbuffer);
+
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+  return {"buffer": rttFramebuffer, "texture": rttTexture};
+}
+
+function configureTexture(gl, texture, src) {
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); 
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+
+  gl.bindTexture(gl.TEXTURE_2D, null);
+}
+
+module.exports = function (imgSource, to, options, callback) {
+  var gl = createGl(to);
+
+  var rttStructure = initRttStructure(gl, imgSource.width, gl.canvas.height);
+
+  var sourceTexture = gl.createTexture();
+  configureTexture(gl, sourceTexture, imgSource);
+
+  //renter to texture
+  gl.bindFramebuffer(gl.FRAMEBUFFER, rttStructure.buffer);
+  doLanczos(gl, sourceTexture, imgSource.width, imgSource.height, imgSource.width, gl.canvas.height, 0.0, 1.0/(3*imgSource.height));
+
+  //render to canvas
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  doLanczos(gl, rttStructure.texture, imgSource.width, gl.canvas.height, gl.canvas.width, gl.canvas.height, 1.0/(3*imgSource.width), 0.0);  
+
+
   callback();
 };
 

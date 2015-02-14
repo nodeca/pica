@@ -16,31 +16,77 @@
 
 
 <script id="vertex-shader" type="x-shader/x-vertex">
-attribute vec2 a_position;
-attribute vec2 a_texCoord;
+  attribute vec2 a_position;
+  attribute vec2 a_texCoord;
 
-uniform vec2 u_resolution;
+  uniform vec2 u_resolution;
 
-varying vec2 v_texCoord;
+  uniform float texelWidthOffset;
+  uniform float texelHeightOffset;
 
-void main() {
-   vec2 clipSpace = a_position / u_resolution * 2.0 - 1.0;
+  varying vec2 centerTextureCoordinate;
+  varying vec2 oneStepLeftTextureCoordinate;
+  varying vec2 twoStepsLeftTextureCoordinate;
+  varying vec2 threeStepsLeftTextureCoordinate;
+  varying vec2 fourStepsLeftTextureCoordinate;
+  varying vec2 oneStepRightTextureCoordinate;
+  varying vec2 twoStepsRightTextureCoordinate;
+  varying vec2 threeStepsRightTextureCoordinate;
+  varying vec2 fourStepsRightTextureCoordinate;
 
-   gl_Position = vec4(clipSpace, 0, 1);
-   v_texCoord = a_texCoord;
-}
+  void main() {
+    vec2 clipSpace = a_position / u_resolution * 2.0 - 1.0;
+
+    gl_Position = vec4(clipSpace, 0, 1);
+
+    vec2 firstOffset = vec2(texelWidthOffset, texelHeightOffset);
+    vec2 secondOffset = vec2(2.0 * texelWidthOffset, 2.0 * texelHeightOffset);
+    vec2 thirdOffset = vec2(3.0 * texelWidthOffset, 3.0 * texelHeightOffset);
+    vec2 fourthOffset = vec2(4.0 * texelWidthOffset, 4.0 * texelHeightOffset);
+
+    centerTextureCoordinate = a_texCoord;
+    oneStepLeftTextureCoordinate = a_texCoord - firstOffset;
+    twoStepsLeftTextureCoordinate = a_texCoord - secondOffset;
+    threeStepsLeftTextureCoordinate = a_texCoord - thirdOffset;
+    fourStepsLeftTextureCoordinate = a_texCoord - fourthOffset;
+    oneStepRightTextureCoordinate = a_texCoord + firstOffset;
+    twoStepsRightTextureCoordinate = a_texCoord + secondOffset;
+    threeStepsRightTextureCoordinate = a_texCoord + thirdOffset;
+    fourStepsRightTextureCoordinate = a_texCoord + fourthOffset;
+  }
 </script>
 
-
 <script id="fragment-shader" type="x-shader/x-fragment">
-precision mediump float;
-uniform sampler2D u_image;
+  precision mediump float;
+  uniform sampler2D u_image;
 
-varying vec2 v_texCoord;
+  varying vec2 centerTextureCoordinate;
+  varying vec2 oneStepLeftTextureCoordinate;
+  varying vec2 twoStepsLeftTextureCoordinate;
+  varying vec2 threeStepsLeftTextureCoordinate;
+  varying vec2 fourStepsLeftTextureCoordinate;
+  varying vec2 oneStepRightTextureCoordinate;
+  varying vec2 twoStepsRightTextureCoordinate;
+  varying vec2 threeStepsRightTextureCoordinate;
+  varying vec2 fourStepsRightTextureCoordinate;
 
-void main() {
-   gl_FragColor = texture2D(u_image, v_texCoord);
-}
+  void main() {
+     lowp vec4 fragmentColor = texture2D(u_image, centerTextureCoordinate) * 0.38026;
+
+     fragmentColor += texture2D(u_image, oneStepLeftTextureCoordinate) * 0.27667;
+     fragmentColor += texture2D(u_image, oneStepRightTextureCoordinate) * 0.27667;
+
+     fragmentColor += texture2D(u_image, twoStepsLeftTextureCoordinate) * 0.08074;
+     fragmentColor += texture2D(u_image, twoStepsRightTextureCoordinate) * 0.08074;
+
+     fragmentColor += texture2D(u_image, threeStepsLeftTextureCoordinate) * -0.02612;
+     fragmentColor += texture2D(u_image, threeStepsRightTextureCoordinate) * -0.02612;
+
+     fragmentColor += texture2D(u_image, fourStepsLeftTextureCoordinate) * -0.02143;
+     fragmentColor += texture2D(u_image, fourStepsRightTextureCoordinate) * -0.02143;
+
+     gl_FragColor = fragmentColor;
+  }
 </script>
 
 
