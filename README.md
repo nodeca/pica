@@ -27,6 +27,39 @@ Why it's useful:
 - download single image for both thumbnail and detail-zoom
 
 
+Prior to use
+------------
+
+Pica is a low level library that does math with minimal wrappers. If you need to
+resize binary image, you should care about load it into canvas first (and about
+saving it back to blob). Here is a short list of problems you can face with:
+
+- Load image:
+  - Due JS security restrictions, you can load to canvas only images from the same
+    domain or local files. Or if you get image from remote domain with proper
+    `Access-Control-Allow-Origin` header.
+  - iOS has resources limits for canvas size & image size. See
+    https://github.com/stomita/ios-imagefile-megapixel for details and possible
+    solutions.
+  - If you plan to show image on screen after load, you must parse `exif` header
+    to get proper orientation. Image can be rotated.
+- Save image:
+  - Some ancient browsers do not support `.toBlob()` method, use
+    https://github.com/blueimp/JavaScript-Canvas-to-Blob if needed.
+  - It's a good idea to keep `exif` data, to avoid palette & rotation info
+    loss. The most simple way is to cut original header and glue it to resized
+    result. See
+    https://github.com/nodeca/nodeca.users/blob/master/client/users/uploader/uploader.js
+    for example.
+- Quality
+  - JS canvas does not support access to info about gamma correction. Bitmaps
+    have 8 bits per channel. That cause some quality loss, because with gamma
+    correction precision could be 12 bits per channel.
+  - Precision loss will not be noticeable for ortinary images like kittens,
+    selfies and so on. But we don't recommend this library to resize images of
+    professional quality.
+
+
 Install
 -------
 
@@ -46,9 +79,28 @@ bower install pica
 API
 ---
 
+### .resizeCanvas(options, callback)
+
+Resize image from one canvas to another. Sizes are taken from canvas.
+
+- __from__ - source canvas.
+- __to__ - destination canvas.
+- __options__ - quality (number) or object:
+  - __quality__ - 0..3. Default = `3` (lanczos, win=3).
+  - __alpha__ - use alpha channel. Default = `false`.
+  - __unsharpAmount__ - 0..500. Default = `0` (off). Usually between 50 to 100 is good.
+  - __unsharpThreshold__ - 0..100. Default = `0`. Try 10 as starting point.
+- __callback(err)__ - function to call after resize complete:
+  - __err__ - error if happened
+
+__(!)__ If WebWorker available, it's returned as function result (not via
+  callback) to allow early termination.
+
+
 ### .resizeBuffer(options, callback)
 
-Async resize Uint8Array with RGBA image.
+Async resize Uint8Array with raw RGBA bitmap (don't confuse with jpeg / png  / ...
+binaries).
 
 - __options:__
   - __src__ - Uint8Array with source data.
@@ -68,24 +120,6 @@ Async resize Uint8Array with RGBA image.
 - __callback(err, output)__ - function to call after resize complete:
   - __err__ - error if happened.
   - __output__ - Uint8Array with resized RGBA image data.
-
-__(!)__ If WebWorker available, it's returned as function result (not via
-  callback) to allow early termination.
-
-
-### .resizeCanvas(options, callback)
-
-Resize image from one canvas to another. Sizes are taken from canvas.
-
-- __from__ - source canvas.
-- __to__ - destination canvas.
-- __options__ - quality (number) or object:
-  - __quality__ - 0..3. Default = `3` (lanczos, win=3).
-  - __alpha__ - use alpha channel. Default = `false`.
-  - __unsharpAmount__ - 0..500. Default = `0` (off). Usually between 50 to 100 is good.
-  - __unsharpThreshold__ - 0..100. Default = `0`. Try 10 as starting point.
-- __callback(err)__ - function to call after resize complete:
-  - __err__ - error if happened
 
 __(!)__ If WebWorker available, it's returned as function result (not via
   callback) to allow early termination.
