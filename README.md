@@ -5,59 +5,57 @@ pica - high quality image resize in browser
 [![NPM version](https://img.shields.io/npm/v/pica.svg)](https://www.npmjs.org/package/pica)
 
 `pica` is one more experiment with high speed javascript, from authors of
-[paco](https://github.com/nodeca/pako). It does high quality images resize
+[paco](https://github.com/nodeca/pako). It does high quality image resize
 in browser as fast as possible.
 
 [__demo__](http://nodeca.github.io/pica/demo/)
 
-If you need to resize images in modern browsers, by default, use canvas'
-low quality interpolation algorythms. That's why we wrote `pica`.
+When you resize images using modern browsers' `canvas`
+low quality interpolation algorythms are used by default. That's why we wrote `pica`.
 
 - It's not as fast as canvas, but still reasonably fast. With Lanczos filter and
-  `window=3`, and huge image 5000x3000px resize takes ~1s on desktop and ~3s on
+  `window=3` huge image resize (5000x3000px) takes ~1s on desktop and ~3s on
   mobile.
-- If your [browser supports Webworkers](http://caniuse.com/#feat=webworkers), pica automatically uses it to avoid
+- If your browser supports [Webworkers](http://caniuse.com/#feat=webworkers), `pica` automatically uses it to avoid
   interface freeze.
 
 Why it's useful:
 
-- reduce upload size for big images to pre-process in browser, saving time and bandwidth
-- save server resources for image processing
-- [HiDPI image technique](http://www.html5rocks.com/en/mobile/high-dpi/#toc-tech-overview) for responsive and retna
-- download single image for both thumbnail and detail-zoom
+- reduces upload size for large images to pre-process in browser, saving time and bandwidth
+- saves server resources on image processing
+- [HiDPI image technique](http://www.html5rocks.com/en/mobile/high-dpi/#toc-tech-overview) for responsive and retina
+- use single image for both thumbnail and detailed view
 
 
 Prior to use
 ------------
 
 Pica is a low level library that does math with minimal wrappers. If you need to
-resize binary image, you should care about load it into canvas first (and about
-saving it back to blob). Here is a short list of problems you can face with:
+resize binary image, you should take care to load it into canvas first (and to
+save it back to blob). Here is a short list of problems you can face:
 
-- Load image:
-  - Due JS security restrictions, you can load to canvas only images from the same
-    domain or local files. Or if you get image from remote domain with proper
+- Loading image:
+  - Due to JS security restrictions, you can load to canvas only images from same
+    domain or local files. If you load images from remote domain use proper
     `Access-Control-Allow-Origin` header.
-  - iOS has resources limits for canvas size & image size. See
-    https://github.com/stomita/ios-imagefile-megapixel for details and possible
+  - iOS has resource limits for canvas size & image size.
+    Look [here](https://github.com/stomita/ios-imagefile-megapixel) for details and possible
     solutions.
-  - If you plan to show image on screen after load, you must parse `exif` header
-    to get proper orientation. Image can be rotated.
-- Save image:
+  - If you plan to show images on screen after load, you must parse `exif` header
+    to get proper orientation. Images can be rotated.
+- Saving image:
   - Some ancient browsers do not support `.toBlob()` method, use
     https://github.com/blueimp/JavaScript-Canvas-to-Blob if needed.
   - It's a good idea to keep `exif` data, to avoid palette & rotation info
     loss. The most simple way is to cut original header and glue it to resized
-    result. See
-    https://github.com/nodeca/nodeca.users/blob/master/client/users/uploader/uploader.js
-    for example.
+    result. Look [here](https://github.com/nodeca/nodeca.users/blob/master/client/users/uploader/uploader.js)
+    for examples.
 - Quality
   - JS canvas does not support access to info about gamma correction. Bitmaps
-    have 8 bits per channel. That cause some quality loss, because with gamma
+    have 8 bits per channel. That causes some quality loss, because with gamma
     correction precision could be 12 bits per channel.
-  - Precision loss will not be noticeable for ortinary images like kittens,
-    selfies and so on. But we don't recommend this library to resize images of
-    professional quality.
+  - Precision loss will not be noticeable for ordinary images like kittens,
+    selfies and so on. But we don't recommend this library for resizing professional quality images.
 
 
 Install
@@ -127,8 +125,9 @@ __(!)__ If WebWorker available, it's returned as function result (not via
 
 ### .WW - true/false
 
-`true` if [webworkers are supported](http://caniuse.com/#feat=webworkers).  You can use it for capabilities detection.
-Also, you can set it `false` for debuging, so pica will use direct function calls.
+`true` if webworkers are [supported](http://caniuse.com/#feat=webworkers).  You can use it for 
+browser capabilities detection.
+Also, you can set it to `false` for debuging, so `pica` will use direct function calls.
 
 
 ### What is quality
@@ -143,19 +142,19 @@ Pica has presets, to adjust speed/quality ratio. Simply use `quality` option par
 
 ### Unsharp mask
 
-Pica has built in unsharp mask, similar to photoshop, but limited with
-radius 1.0. It's off by default. Set `unsharpAmount` and `unsharpThresold`
-to activate filter.
+Pica has built-in unsharp mask, similar to photoshop, but limited to
+radius 1.0. It's `off` by default. Set `unsharpAmount` and `unsharpThresold`
+to `true` to activate the filter.
 
 
-Browsers support
+Browser support
 ----------------
 
-We had no time to test all possible combinations, but in general:
+We didn't have time to test all possible combinations, but in general:
 
-- Top level API should work in all browsers, [supporing canvas](http://caniuse.com/#feat=canvas)
+- Top level API should work in all browsers, supporting [canvas](http://caniuse.com/#feat=canvas)
   and [typed arrays](http://caniuse.com/#feat=typedarrays).
-- [Webworkers support](http://caniuse.com/#feat=webworkers) is not needed, but those will be used if available.
+- [Webworkers](http://caniuse.com/#feat=webworkers) support is not required, but they will be used if available.
 - If you plan to use only pure math core, then [typed arrays support](http://caniuse.com/#feat=typedarrays)
   will be enougth.
 
