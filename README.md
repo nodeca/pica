@@ -77,7 +77,7 @@ bower install pica
 API
 ---
 
-### .resizeCanvas(options, callback)
+### .resizeCanvas(from, to, options, callback)
 
 Resize image from one canvas to another. Sizes are taken from canvas.
 
