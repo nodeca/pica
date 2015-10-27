@@ -6,6 +6,9 @@
 var resize = require('../lib/pure/resize');
 var assert = require('assert');
 
+function fill(arr, val) {
+  for (var i = 0; i < arr.length; i++) { arr[i] = val; }
+}
 
 function createTest(color) {
   var srcSize = 4 * 100 * 100,
@@ -14,8 +17,8 @@ function createTest(color) {
       src = new Uint8Array(srcSize),
       correct = new Uint8Array(resultSize);
 
-  src.fill(color);
-  correct.fill(color);
+  fill(src, color);
+  fill(correct, color);
 
   it('test 100x100 -> 10x10 with color #' + hexColor + hexColor + hexColor, function () {
     var result = resize({
