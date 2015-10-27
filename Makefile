@@ -27,7 +27,7 @@ lint:
 
 
 test: lint
-	#mocha
+	mocha
 
 
 browserify:
