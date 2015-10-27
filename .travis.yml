@@ -1,7 +1,9 @@
 language: node_js
 node_js:
   - '0.12'
-  - stable
+  #- stable
+
+# Needed for node_canvas build
 addons:
   apt:
     packages:
@@ -9,4 +11,5 @@ addons:
       - libjpeg8-dev
       - libpango1.0-dev
       - libgif-dev
+
 sudo: false
