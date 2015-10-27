@@ -1,6 +1,12 @@
 language: node_js
-before_install: sudo apt-get install libgif-dev
 node_js:
-  - "0.10"
-script: make test
-
+  - '0.12'
+  - stable
+addons:
+  apt:
+    packages:
+      - libcairo2-dev
+      - libjpeg8-dev
+      - libpango1.0-dev
+      - libgif-dev
+sudo: false
