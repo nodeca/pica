@@ -1,7 +1,0 @@
-benchmark/
-demo/
-test/
-.*
-Makefile
-v8.log
-
