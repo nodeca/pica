@@ -25,7 +25,7 @@ function createTest(color) {
   fill(src, color);
   fill(correct, color);
 
-  it.skip('test 100x100 -> 10x10 with color #' + hexColor + hexColor + hexColor, function () {
+  it('test 100x100 -> 10x10 with color #' + hexColor + hexColor + hexColor, function () {
     var result = resize({
       src:      src,
       width:    SRC_W,
