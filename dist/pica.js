@@ -1,146 +1,4 @@
-/* pica 1.0.7 nodeca/pica */!function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.pica=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({"./":[function(require,module,exports){
-'use strict';
-
-/*global window:true*/
-/*eslint space-infix-ops:0*/
-
-// Feature detect
-var WORKER = (typeof window !== 'undefined') && ('Worker' in window);
-if (WORKER) {
-  // IE don't allow to create webworkers from string. We should check it.
-  // https://connect.microsoft.com/IE/feedback/details/801810/web-workers-from-blob-urls-in-ie-10-and-11
-  try {
-    var wkr = require('webworkify')(function () {});
-    wkr.terminate();
-  } catch (__) {
-    WORKER = false;
-  }
-}
-
-var resize       = require('./lib/resize');
-var resizeWorker = require('./lib/resize_worker');
-
-
-////////////////////////////////////////////////////////////////////////////////
-// Helpers
-function _class(obj) { return Object.prototype.toString.call(obj); }
-function isFunction(obj) { return _class(obj) === '[object Function]'; }
-
-
-////////////////////////////////////////////////////////////////////////////////
-// API methods
-
-
-// RGBA buffer async resize
-//
-function resizeBuffer(options, callback) {
-  var wr;
-
-  var _opts = {
-    src:      options.src,
-    dest:     null,
-    width:    options.width|0,
-    height:   options.height|0,
-    toWidth:  options.toWidth|0,
-    toHeight: options.toHeight|0,
-    quality:  options.quality,
-    alpha:    options.alpha,
-    unsharpAmount:    options.unsharpAmount,
-    unsharpThreshold: options.unsharpThreshold
-  };
-
-  if (WORKER && exports.WW) {
-    wr = require('webworkify')(resizeWorker);
-
-    wr.onmessage = function(ev) {
-      var i, l,
-          dest = options.dest,
-          output = ev.data.output;
-
-      // If we got output buffer by reference, we should copy data,
-      // because WW returns independent instance
-      if (dest) {
-        // IE ImageData can return old-style CanvasPixelArray
-        // without .set() method. Copy manually for such case.
-        if (dest.set) {
-          dest.set(output);
-        } else {
-          for (i = 0, l = output.length; i < l; i++) {
-            dest[i] = output[i];
-          }
-        }
-      }
-      callback(ev.data.err, output);
-      wr.terminate();
-    };
-
-    if (options.transferable) {
-      wr.postMessage(_opts, [ options.src.buffer ]);
-    } else {
-      wr.postMessage(_opts);
-    }
-    // Expose worker when available, to allow early termination.
-    return wr;
-  }
-
-  // Fallback to sync call, if WebWorkers not available
-  _opts.dest = options.dest;
-  resize(_opts, callback);
-  return undefined;
-}
-
-
-// Canvas async resize
-//
-function resizeCanvas(from, to, options, callback) {
-  var w = from.width,
-      h = from.height,
-      w2 = to.width,
-      h2 = to.height;
-
-  if (isFunction(options)) {
-    callback = options;
-    options = {};
-  }
-
-  if (!isNaN(options)) {
-    options = { quality: options, alpha: false };
-  }
-
-  var ctxTo = to.getContext('2d');
-  var imageDataTo = ctxTo.getImageData(0, 0, w2, h2);
-
-  var _opts = {
-    src:      from.getContext('2d').getImageData(0, 0, w, h).data,
-    dest:     imageDataTo.data,
-    width:    from.width,
-    height:   from.height,
-    toWidth:  to.width,
-    toHeight: to.height,
-    quality:  options.quality,
-    alpha:    options.alpha,
-    unsharpAmount:    options.unsharpAmount,
-    unsharpThreshold: options.unsharpThreshold,
-    transferable: true
-  };
-
-  return resizeBuffer(_opts, function (err/*, output*/) {
-    if (err) {
-      callback(err);
-      return;
-    }
-
-    ctxTo.putImageData(imageDataTo, 0, 0);
-    callback();
-  });
-}
-
-
-exports.resizeBuffer = resizeBuffer;
-exports.resizeCanvas = resizeCanvas;
-exports.WW = WORKER;
-
-},{"./lib/resize":4,"./lib/resize_worker":5,"webworkify":6}],1:[function(require,module,exports){
+/* pica 1.0.8 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 // Blur filter
 //
 
@@ -156,7 +14,7 @@ var _blurKernel = new Uint8Array([
 var _bkWidth = Math.floor(Math.sqrt(_blurKernel.length));
 var _bkHalf = Math.floor(_bkWidth / 2);
 var _bkWsum = 0;
-for (var wc=0; wc < _blurKernel.length; wc++) { _bkWsum += _blurKernel[wc]; }
+for (var wc = 0; wc < _blurKernel.length; wc++) { _bkWsum += _blurKernel[wc]; }
 
 
 function blurPoint(gs, x, y, srcW, srcH) {
@@ -193,6 +51,7 @@ function blurPoint(gs, x, y, srcW, srcH) {
       bPtr++;
     }
   }
+  /*eslint-disable space-infix-ops*/
   return ((br - (br % wsum)) / wsum)|0;
 }
 
@@ -293,7 +152,7 @@ function createFilters(quality, srcSize, destSize) {
       floatFilter, fxpFilter, total, fixedTotal, pxl, idx, floatVal, fixedVal;
   var leftNotEmpty, rightNotEmpty, filterShift, filterSize;
 
-  var maxFilterElementSize = Math.floor((srcWindow + 1) * 2 );
+  var maxFilterElementSize = Math.floor((srcWindow + 1) * 2);
   var packedFilter    = new Int16Array((maxFilterElementSize + 2) * destSize);
   var packedFilterPtr = 0;
 
@@ -388,6 +247,8 @@ function convolveHorizontally(src, dest, srcW, srcH, destW, filters) {
   for (srcY = 0; srcY < srcH; srcY++) {
     filterPtr  = 0;
 
+    /*eslint-disable space-infix-ops*/
+
     // Apply precomputed filters to each destination row point
     for (destX = 0; destX < destW; destX++) {
       // Get the filter that determines the current output pixel.
@@ -413,10 +274,15 @@ function convolveHorizontally(src, dest, srcW, srcH, destW, filters) {
 
       // Bring this value back in range. All of the filter scaling factors
       // are in fixed point with FIXED_FRAC_BITS bits of fractional part.
-      dest[destOffset + 3] = clampTo8(a >> 14/*FIXED_FRAC_BITS*/);
-      dest[destOffset + 2] = clampTo8(b >> 14/*FIXED_FRAC_BITS*/);
-      dest[destOffset + 1] = clampTo8(g >> 14/*FIXED_FRAC_BITS*/);
-      dest[destOffset]     = clampTo8(r >> 14/*FIXED_FRAC_BITS*/);
+      //
+      // (!) Add 1/2 of value before clamping to get proper rounding. In other
+      // case brightness loss will be noticeable if you resize image with white
+      // border and place it on white background.
+      //
+      dest[destOffset + 3] = clampTo8((a + (1 << 13)) >> 14/*FIXED_FRAC_BITS*/);
+      dest[destOffset + 2] = clampTo8((b + (1 << 13)) >> 14/*FIXED_FRAC_BITS*/);
+      dest[destOffset + 1] = clampTo8((g + (1 << 13)) >> 14/*FIXED_FRAC_BITS*/);
+      dest[destOffset]     = clampTo8((r + (1 << 13)) >> 14/*FIXED_FRAC_BITS*/);
       destOffset = (destOffset + srcH * 4)|0;
     }
 
@@ -440,6 +306,8 @@ function convolveVertically(src, dest, srcW, srcH, destW, filters) {
   for (srcY = 0; srcY < srcH; srcY++) {
     filterPtr  = 0;
 
+    /*eslint-disable space-infix-ops*/
+
     // Apply precomputed filters to each destination row point
     for (destX = 0; destX < destW; destX++) {
       // Get the filter that determines the current output pixel.
@@ -465,10 +333,15 @@ function convolveVertically(src, dest, srcW, srcH, destW, filters) {
 
       // Bring this value back in range. All of the filter scaling factors
       // are in fixed point with FIXED_FRAC_BITS bits of fractional part.
-      dest[destOffset + 3] = clampTo8(a >> 14/*FIXED_FRAC_BITS*/);
-      dest[destOffset + 2] = clampTo8(b >> 14/*FIXED_FRAC_BITS*/);
-      dest[destOffset + 1] = clampTo8(g >> 14/*FIXED_FRAC_BITS*/);
-      dest[destOffset]     = clampTo8(r >> 14/*FIXED_FRAC_BITS*/);
+      //
+      // (!) Add 1/2 of value before clamping to get proper rounding. In other
+      // case brightness loss will be noticeable if you resize image with white
+      // border and place it on white background.
+      //
+      dest[destOffset + 3] = clampTo8((a + (1 << 13)) >> 14/*FIXED_FRAC_BITS*/);
+      dest[destOffset + 2] = clampTo8((b + (1 << 13)) >> 14/*FIXED_FRAC_BITS*/);
+      dest[destOffset + 1] = clampTo8((g + (1 << 13)) >> 14/*FIXED_FRAC_BITS*/);
+      dest[destOffset]     = clampTo8((r + (1 << 13)) >> 14/*FIXED_FRAC_BITS*/);
       destOffset = (destOffset + srcH * 4)|0;
     }
 
@@ -491,10 +364,10 @@ function resize(options) {
   var destW = options.toWidth;
   var destH = options.toHeight;
   var dest  = options.dest || new Uint8Array(destW * destH * 4);
-  var quality = options.quality === undefined ? 3 : options.quality;
+  var quality = typeof options.quality === 'undefined' ? 3 : options.quality;
   var alpha = options.alpha || false;
-  var unsharpAmount = options.unsharpAmount === undefined ? 0 : (options.unsharpAmount|0);
-  var unsharpThreshold = options.unsharpThreshold === undefined ? 0 : (options.unsharpThreshold|0);
+  var unsharpAmount = typeof options.unsharpAmount === 'undefined' ? 0 : (options.unsharpAmount|0);
+  var unsharpThreshold = typeof options.unsharpThreshold === 'undefined' ? 0 : (options.unsharpThreshold|0);
 
   if (srcW < 1 || srcH < 1 || destW < 1 || destH < 1) { return []; }
 
@@ -558,6 +431,7 @@ function greyscale(src, srcW, srcH) {
   var i, srcPtr;
 
   for (i = 0, srcPtr = 0; i < size; i++) {
+    /*eslint-disable space-infix-ops*/
     result[i] = (src[srcPtr + 2] * 7471       // blue
                + src[srcPtr + 1] * 38470      // green
                + src[srcPtr] * 19595) >>> 8;  // red
@@ -700,10 +574,155 @@ module.exports = function (fn) {
         }).join(',')
         + '},{},[' + stringify(skey) + '])'
     ;
-    return new Worker(window.URL.createObjectURL(
+    
+    var URL = window.URL || window.webkitURL || window.mozURL || window.msURL;
+    
+    return new Worker(URL.createObjectURL(
         new Blob([src], { type: 'text/javascript' })
     ));
 };
 
-},{}]},{},[])("./")
+},{}],"/":[function(require,module,exports){
+'use strict';
+
+/*global window:true*/
+/*eslint space-infix-ops:0*/
+
+// Feature detect
+var WORKER = (typeof window !== 'undefined') && ('Worker' in window);
+if (WORKER) {
+  // IE don't allow to create webworkers from string. We should check it.
+  // https://connect.microsoft.com/IE/feedback/details/801810/web-workers-from-blob-urls-in-ie-10-and-11
+  try {
+    var wkr = require('webworkify')(function () {});
+    wkr.terminate();
+  } catch (__) {
+    WORKER = false;
+  }
+}
+
+var resize       = require('./lib/resize');
+var resizeWorker = require('./lib/resize_worker');
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Helpers
+function _class(obj) { return Object.prototype.toString.call(obj); }
+function isFunction(obj) { return _class(obj) === '[object Function]'; }
+
+
+////////////////////////////////////////////////////////////////////////////////
+// API methods
+
+
+// RGBA buffer async resize
+//
+function resizeBuffer(options, callback) {
+  var wr;
+
+  var _opts = {
+    src:      options.src,
+    dest:     null,
+    width:    options.width|0,
+    height:   options.height|0,
+    toWidth:  options.toWidth|0,
+    toHeight: options.toHeight|0,
+    quality:  options.quality,
+    alpha:    options.alpha,
+    unsharpAmount:    options.unsharpAmount,
+    unsharpThreshold: options.unsharpThreshold
+  };
+
+  if (WORKER && exports.WW) {
+    wr = require('webworkify')(resizeWorker);
+
+    wr.onmessage = function(ev) {
+      var i, l,
+          dest = options.dest,
+          output = ev.data.output;
+
+      // If we got output buffer by reference, we should copy data,
+      // because WW returns independent instance
+      if (dest) {
+        // IE ImageData can return old-style CanvasPixelArray
+        // without .set() method. Copy manually for such case.
+        if (dest.set) {
+          dest.set(output);
+        } else {
+          for (i = 0, l = output.length; i < l; i++) {
+            dest[i] = output[i];
+          }
+        }
+      }
+      callback(ev.data.err, output);
+      wr.terminate();
+    };
+
+    if (options.transferable) {
+      wr.postMessage(_opts, [ options.src.buffer ]);
+    } else {
+      wr.postMessage(_opts);
+    }
+    // Expose worker when available, to allow early termination.
+    return wr;
+  }
+
+  // Fallback to sync call, if WebWorkers not available
+  _opts.dest = options.dest;
+  resize(_opts, callback);
+  return null;
+}
+
+
+// Canvas async resize
+//
+function resizeCanvas(from, to, options, callback) {
+  var w = from.width,
+      h = from.height,
+      w2 = to.width,
+      h2 = to.height;
+
+  if (isFunction(options)) {
+    callback = options;
+    options = {};
+  }
+
+  if (!isNaN(options)) {
+    options = { quality: options, alpha: false };
+  }
+
+  var ctxTo = to.getContext('2d');
+  var imageDataTo = ctxTo.getImageData(0, 0, w2, h2);
+
+  var _opts = {
+    src:      from.getContext('2d').getImageData(0, 0, w, h).data,
+    dest:     imageDataTo.data,
+    width:    from.width,
+    height:   from.height,
+    toWidth:  to.width,
+    toHeight: to.height,
+    quality:  options.quality,
+    alpha:    options.alpha,
+    unsharpAmount:    options.unsharpAmount,
+    unsharpThreshold: options.unsharpThreshold,
+    transferable: true
+  };
+
+  return resizeBuffer(_opts, function (err/*, output*/) {
+    if (err) {
+      callback(err);
+      return;
+    }
+
+    ctxTo.putImageData(imageDataTo, 0, 0);
+    callback();
+  });
+}
+
+
+exports.resizeBuffer = resizeBuffer;
+exports.resizeCanvas = resizeCanvas;
+exports.WW = WORKER;
+
+},{"./lib/resize":4,"./lib/resize_worker":5,"webworkify":6}]},{},[])("/")
 });
