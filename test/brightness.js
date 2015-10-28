@@ -5,6 +5,7 @@
 
 var resize = require('../lib/pure/resize');
 var assert = require('assert');
+var format = require('util').format;
 
 function fill(arr, val) {
   for (var i = 0; i < arr.length; i++) { arr[i] = val; }
@@ -25,7 +26,8 @@ function createTest(color) {
   fill(src, color);
   fill(correct, color);
 
-  it('test 100x100 -> 10x10 with color #' + hexColor + hexColor + hexColor, function () {
+  /*eslint-disable max-len*/
+  it(format('test %sx%s -> %sx%s with color #%s%s%s', SRC_W, SRC_H, DEST_W, DEST_H, hexColor, hexColor, hexColor), function () {
     var result = resize({
       src:      src,
       width:    SRC_W,
@@ -36,12 +38,11 @@ function createTest(color) {
     });
 
     assert.deepEqual(result, correct);
-    // console.log(result);
   });
 }
 
 
 describe('Brightness should not change', function () {
   createTest(255);
-  // createTest(127);
+  createTest(127);
 });
