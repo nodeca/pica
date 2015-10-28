@@ -79,8 +79,8 @@ API
 
 ### .resizeCanvas(from, to, options, callback)
 
-Resize image from one canvas to another. Sizes are taken from canvas.
-
+Resize image from one canvas to another. Sizes are taken from canvas.  
+*Please note that resize procedure is async; if you want to manipulate your resized canvas - put your code into the callback.* 
 - __from__ - source canvas.
 - __to__ - destination canvas.
 - __options__ - quality (number) or object:
