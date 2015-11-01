@@ -86,8 +86,9 @@ Resize image from one canvas to another. Sizes are taken from canvas.
 - __options__ - quality (number) or object:
   - __quality__ - 0..3. Default = `3` (lanczos, win=3).
   - __alpha__ - use alpha channel. Default = `false`.
-  - __unsharpAmount__ - 0..500. Default = `0` (off). Usually between 50 to 100 is good.
-  - __unsharpThreshold__ - 0..100. Default = `0`. Try 10 as starting point.
+  - __unsharpAmount__ - 0..500, in percents. Default = `0` (off). Usually between 50 to 100 is good.
+  - __unsharpRadius__ - 1..100. Radius of Gaussian blur.
+  - __unsharpThreshold__ - 0..255. Threshold for applying unsharp mask.
 - __callback(err)__ - function to call after resize complete:
   - __err__ - error if happened
 
@@ -108,8 +109,9 @@ binaries).
   - __toHeigh__ - output height.
   - __quality__ - 0..3. Default = `3` (lanczos, win=3).
   - __alpha__ - use alpha channel. Default = `false`.
-  - __unsharpAmount__ - 0..500. Default = `0` (off). Usually between 50 to 100 is good.
-  - __unsharpThreshold__ - 0..100. Default = `0`. Try 10 as starting point.
+  - __unsharpAmount__ - 0..500, in percents. Default = `0` (off). Usually between 50 to 100 is good.
+  - __usnharpRadius__ - 1..100. Radius of Gaussian blur.
+  - __unsharpThreshold__ - 0..255. Threshold for applying unsharp mask.
   - __dest__ - Optional. Output buffer to write data. Help to avoid data copy
     if no WebWorkers available. Callback will return result buffer anyway.
   - __transferable__ - Optional. Default = `false`. Whether to use
@@ -142,10 +144,7 @@ Pica has presets, to adjust speed/quality ratio. Simply use `quality` option par
 
 ### Unsharp mask
 
-Pica has built-in unsharp mask, similar to photoshop, but limited to
-radius 1.0. It's `off` by default. Set `unsharpAmount` and `unsharpThresold`
-to `true` to activate the filter.
-
+Pica has built-in unsharp mask. Set `unsharpAmount` to positive number to activate the filter.
 
 Browser support
 ----------------

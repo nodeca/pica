@@ -76,15 +76,17 @@ var updateResized = _.debounce(function () {
   window.pica.resizeCanvas($('#src')[0], dst, {
     quality: quality,
     unsharpAmount: unsharpAmount,
+    unsharpRadius: unsharpRadius,
     unsharpThreshold: unsharpThreshold,
     transferable: true
   }, function (err) {
     time = (performance.now() - start).toFixed(2);
     if (unsharpAmount) {
-      $('#dst-info').text(_.template('<%= time %>ms, <%= info %>, Unsharp [<%= amount %>, 1.0, <%= threshold %>]', {
+      $('#dst-info').text(_.template('<%= time %>ms, <%= info %>, Unsharp [<%= amount %>, <%= radius %>, <%= threshold %>]', {
         time: time,
         info: qualityInfo[quality],
         amount: unsharpAmount,
+        radius: unsharpRadius,
         threshold: unsharpThreshold
       }));
     } else {
@@ -102,6 +104,7 @@ var updateResized = _.debounce(function () {
 var img = new Image();
 var quality = Number($('#pica-quality').val());
 var unsharpAmount = Number($('#pica-unsharp-amount').val());
+var unsharpRadius = Number($('#pica-unsharp-radius').val());
 var unsharpThreshold = Number($('#pica-unsharp-threshold').val());
 
 img.src = imageEncoded;
@@ -122,6 +125,10 @@ $('#pica-quality').on('change', function () {
 });
 $('#pica-unsharp-amount').on('change', function () {
   unsharpAmount = Number($('#pica-unsharp-amount').val());
+  updateResized();
+});
+$('#pica-unsharp-radius').on('change', function () {
+  unsharpRadius = Number($('#pica-unsharp-radius').val());
   updateResized();
 });
 $('#pica-unsharp-threshold').on('change', function () {

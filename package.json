@@ -25,7 +25,8 @@
     "index.js"
   ],
   "dependencies": {
-    "webworkify": "1.0.2"
+    "webworkify": "1.0.2",
+    "glur": "1.0.1"
   },
   "devDependencies": {
     "ansi": "0.3.x",

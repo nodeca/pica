@@ -45,6 +45,7 @@ function resizeBuffer(options, callback) {
     quality:  options.quality,
     alpha:    options.alpha,
     unsharpAmount:    options.unsharpAmount,
+    unsharpRadius:    options.unsharpRadius,
     unsharpThreshold: options.unsharpThreshold
   };
 
@@ -119,6 +120,7 @@ function resizeCanvas(from, to, options, callback) {
     quality:  options.quality,
     alpha:    options.alpha,
     unsharpAmount:    options.unsharpAmount,
+    unsharpRadius:    options.unsharpRadius,
     unsharpThreshold: options.unsharpThreshold,
     transferable: true
   };
