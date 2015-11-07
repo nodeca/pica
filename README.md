@@ -86,9 +86,9 @@ Resize image from one canvas to another. Sizes are taken from canvas.
 - __options__ - quality (number) or object:
   - __quality__ - 0..3. Default = `3` (lanczos, win=3).
   - __alpha__ - use alpha channel. Default = `false`.
-  - __unsharpAmount__ - 0..500, in percents. Default = `0` (off). Usually between 50 to 100 is good.
-  - __unsharpRadius__ - 1..100. Radius of Gaussian blur.
-  - __unsharpThreshold__ - 0..255. Threshold for applying unsharp mask.
+  - __unsharpAmount__ - >=0, in percents. Default = `0` (off). Usually between 50 to 100 is good.
+  - __unsharpRadius__ - >=0.5. Radius of Gaussian blur. If it is less than 0.5, Unsharp Mask is off.
+  - __unsharpThreshold__ - 0..255. Default = `0`. Threshold for applying unsharp mask.
 - __callback(err)__ - function to call after resize complete:
   - __err__ - error if happened
 
@@ -109,9 +109,9 @@ binaries).
   - __toHeigh__ - output height.
   - __quality__ - 0..3. Default = `3` (lanczos, win=3).
   - __alpha__ - use alpha channel. Default = `false`.
-  - __unsharpAmount__ - 0..500, in percents. Default = `0` (off). Usually between 50 to 100 is good.
-  - __usnharpRadius__ - 1..100. Radius of Gaussian blur.
-  - __unsharpThreshold__ - 0..255. Threshold for applying unsharp mask.
+  - __unsharpAmount__ - >=0, in percents. Default = `0` (off). Usually between 50 to 100 is good.
+  - __usnharpRadius__ - >=0.5. Radius of Gaussian blur. If it is less than 0.5, Unsharp Mask is off.
+  - __unsharpThreshold__ - 0..255. Default = `0`. Threshold for applying unsharp mask.
   - __dest__ - Optional. Output buffer to write data. Help to avoid data copy
     if no WebWorkers available. Callback will return result buffer anyway.
   - __transferable__ - Optional. Default = `false`. Whether to use
@@ -145,6 +145,11 @@ Pica has presets, to adjust speed/quality ratio. Simply use `quality` option par
 ### Unsharp mask
 
 Pica has built-in unsharp mask. Set `unsharpAmount` to positive number to activate the filter.
+
+The parameters of it are similar to ones from Photoshop. We recommend to start from
+`unsharpAmount = 80`, `unsharpRadius = 0.6`, `unsharpThreshop = 2`.
+There is [a correspondence between UnsharpMask parameters in popular graphics
+software](https://github.com/nodeca/pica/wiki#editing-unsharp-mask-params-relations-in-pupular-softare).
 
 Browser support
 ----------------
