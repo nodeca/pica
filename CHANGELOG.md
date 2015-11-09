@@ -1,7 +1,8 @@
-WIP
----
+1.1.0 / 2015-11-09
+------------------
 
-- Rewritten Unsharp Mask using HSL colorspace
+- Unsharp mask now useable.
+
 
 1.0.8 / 2015-10-28
 ------------------
