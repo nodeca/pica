@@ -183,8 +183,9 @@ You can find these links useful:
 Authors
 -------
 
-- Loïc Faure-Lacroix [@llacroix](https://github.com/llacroix)
 - Vitaly Puzrin [@puzrin](https://github.com/puzrin)
+- Alexander Rodin [@a-rodin](https://github.com/a-rodin)
+- Loïc Faure-Lacroix [@llacroix](https://github.com/llacroix)
 
 
 Licence
