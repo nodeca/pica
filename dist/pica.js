@@ -1,76 +1,4 @@
-/* pica 1.0.8 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-// Blur filter
-//
-
-'use strict';
-
-
-var _blurKernel = new Uint8Array([
-  1, 2, 1,
-  2, 4, 2,
-  1, 2, 1
-]);
-
-var _bkWidth = Math.floor(Math.sqrt(_blurKernel.length));
-var _bkHalf = Math.floor(_bkWidth / 2);
-var _bkWsum = 0;
-for (var wc = 0; wc < _blurKernel.length; wc++) { _bkWsum += _blurKernel[wc]; }
-
-
-function blurPoint(gs, x, y, srcW, srcH) {
-  var bx, by, sx, sy, w, wsum, br;
-  var bPtr = 0;
-  var blurKernel = _blurKernel;
-  var bkHalf = _bkHalf;
-
-  wsum = 0; // weight sum to normalize result
-  br   = 0;
-
-  if (x >= bkHalf && y >= bkHalf && x + bkHalf < srcW && y + bkHalf < srcH) {
-    for (by = 0; by < 3; by++) {
-      for (bx = 0; bx < 3; bx++) {
-        sx = x + bx - bkHalf;
-        sy = y + by - bkHalf;
-
-        br += gs[sx + sy * srcW] * blurKernel[bPtr++];
-      }
-    }
-    return (br - (br % _bkWsum)) / _bkWsum;
-  }
-
-  for (by = 0; by < 3; by++) {
-    for (bx = 0; bx < 3; bx++) {
-      sx = x + bx - bkHalf;
-      sy = y + by - bkHalf;
-
-      if (sx >= 0 && sx < srcW && sy >= 0 && sy < srcH) {
-        w = blurKernel[bPtr];
-        wsum += w;
-        br += gs[sx + sy * srcW] * w;
-      }
-      bPtr++;
-    }
-  }
-  /*eslint-disable space-infix-ops*/
-  return ((br - (br % wsum)) / wsum)|0;
-}
-
-function blur(src, srcW, srcH/*, radius*/) {
-  var x, y,
-      output = new Uint16Array(src.length);
-
-  for (x = 0; x < srcW; x++) {
-    for (y = 0; y < srcH; y++) {
-      output[y * srcW + x] = blurPoint(src, x, y, srcW, srcH);
-    }
-  }
-
-  return output;
-}
-
-module.exports = blur;
-
-},{}],2:[function(require,module,exports){
+/* pica 1.1.0 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 // High speed resize with tuneable speed/quality ratio
 
 'use strict';
@@ -367,6 +295,7 @@ function resize(options) {
   var quality = typeof options.quality === 'undefined' ? 3 : options.quality;
   var alpha = options.alpha || false;
   var unsharpAmount = typeof options.unsharpAmount === 'undefined' ? 0 : (options.unsharpAmount|0);
+  var unsharpRadius = typeof options.unsharpRadius === 'undefined' ? 0 : (options.unsharpRadius);
   var unsharpThreshold = typeof options.unsharpThreshold === 'undefined' ? 0 : (options.unsharpThreshold|0);
 
   if (srcW < 1 || srcH < 1 || destW < 1 || destH < 1) { return []; }
@@ -392,7 +321,7 @@ function resize(options) {
   }
 
   if (unsharpAmount) {
-    unsharp(dest, destW, destH, unsharpAmount, 1.0, unsharpThreshold);
+    unsharp(dest, destW, destH, unsharpAmount, unsharpRadius, unsharpThreshold);
   }
 
   return dest;
@@ -401,99 +330,138 @@ function resize(options) {
 
 module.exports = resize;
 
-},{"./unsharp":3}],3:[function(require,module,exports){
+},{"./unsharp":2}],2:[function(require,module,exports){
 // Unsharp mask filter
 //
 // http://stackoverflow.com/a/23322820/1031804
 // USM(O) = O + (2 * (Amount / 100) * (O - GB))
-// GB - gaussial blur.
+// GB - gaussian blur.
 //
-// brightness = 0.299*R + 0.587*G + 0.114*B
-// http://stackoverflow.com/a/596243/1031804
-//
-// To simplify math, normalize brighness mutipliers to 2^16:
-//
-// brightness = (19595*R + 38470*G + 7471*B) / 65536
+// Image is converted from RGB to HSL, unsharp mask is applied to the
+// lightness channel and then image is converted back to RGB.
 
 'use strict';
 
 
-var blur = require('./blur');
+var glurMono16 = require('glur/mono16');
 
+function getLightness(img, width, height) {
+  var size = width * height;
+  var out = new Uint16Array(size);
+  var r, g, b, min, max;
+  for (var i = 0; i < size; i++) {
+    r = img[4 * i];
+    g = img[4 * i + 1];
+    b = img[4 * i + 2];
+    max = (r >= g && r >= b) ? r : (g >= b && g >= r) ? g : b;
+    min = (r <= g && r <= b) ? r : (g <= b && g <= r) ? g : b;
+    out[i] = (max + min) * 257 >> 1;
+  }
+  return out;
+}
 
-function clampTo8(i) { return i < 0 ? 0 : (i > 255 ? 255 : i); }
+function unsharp(img, width, height, amount, radius, threshold) {
+  var r, g, b;
+  var h, s, l;
+  var min, max;
+  var m1, m2, hShifted;
+  var diff, iTimes4;
 
-// Convert image to greyscale, 16bits FP result (8.8)
-//
-function greyscale(src, srcW, srcH) {
-  var size = srcW * srcH;
-  var result = new Uint16Array(size); // We don't use sign, but that helps to JIT
-  var i, srcPtr;
-
-  for (i = 0, srcPtr = 0; i < size; i++) {
-    /*eslint-disable space-infix-ops*/
-    result[i] = (src[srcPtr + 2] * 7471       // blue
-               + src[srcPtr + 1] * 38470      // green
-               + src[srcPtr] * 19595) >>> 8;  // red
-    srcPtr = (srcPtr + 4)|0;
+  if (amount === 0 || radius < 0.5) {
+    return;
   }
 
-  return result;
-}
+  var lightness = getLightness(img, width, height);
 
+  var blured = new Uint16Array(lightness); // copy, because blur modify src
 
-// Apply unsharp mask to src
-//
-// NOTE: radius is ignored to simplify gaussian blur calculation
-// on practice we need radius 0.3..2.0. Use 1.0 now.
-//
-function unsharp(src, srcW, srcH, amount, radius, threshold) {
-  var x, y, c, diff = 0, corr, srcPtr;
+  glurMono16(blured, width, height, radius);
 
-  // Normalized delta multiplier. Expect that:
-  var AMOUNT_NORM = Math.floor(amount * 256 / 50);
+  /* eslint-disable space-infix-ops */
+  var amountFp = (amount / 100 * 0x1000 + 0.5)|0;
+  var thresholdFp = (threshold * 257)|0;
 
-  // Convert to grayscale:
-  //
-  // - prevent color drift
-  // - speedup blur calc
-  //
-  var gs = greyscale(src, srcW, srcH);
-  var blured = blur(gs, srcW, srcH, 1);
-  var fpThreshold = threshold << 8;
-  var gsPtr = 0;
+  var size = width * height;
 
-  for (y = 0; y < srcH; y++) {
-    for (x = 0; x < srcW; x++) {
+  for (var i = 0; i < size; i++) {
+    diff = 2 * (lightness[i] - blured[i]);
 
-      // calculate brightness blur, difference & update source buffer
+    if (Math.abs(diff) >= thresholdFp) {
+      iTimes4 = i * 4;
+      r = img[iTimes4];
+      g = img[iTimes4 + 1];
+      b = img[iTimes4 + 2];
 
-      diff = gs[gsPtr] - blured[gsPtr];
+      // convert RGB to HSL
+      // take RGB, 8-bit unsigned integer per each channel
+      // save HSL, H and L are 16-bit unsigned integers, S is 12-bit unsigned integer
+      // math is taken from here: http://www.easyrgb.com/index.php?X=MATH&H=18
+      // and adopted to be integer (fixed point in fact) for sake of performance
+      max = (r >= g && r >= b) ? r : (g >= r && g >= b) ? g : b; // min and max are in [0..0xff]
+      min = (r <= g && r <= b) ? r : (g <= r && g <= b) ? g : b;
+      l = (max + min) * 257 >> 1; // l is in [0..0xffff] that is caused by multiplication by 257
 
-      // Update source image if thresold exceeded
-      if (Math.abs(diff) > fpThreshold) {
-        // Calculate correction multiplier
-        corr = 65536 + ((diff * AMOUNT_NORM) >> 8);
-        srcPtr = gsPtr * 4;
-
-        c = src[srcPtr];
-        src[srcPtr++] = clampTo8((c * corr) >> 16);
-        c = src[srcPtr];
-        src[srcPtr++] = clampTo8((c * corr) >> 16);
-        c = src[srcPtr];
-        src[srcPtr] = clampTo8((c * corr) >> 16);
+      if (min === max) {
+        h = s = 0;
+      } else {
+        s = (l <= 0x7fff) ?
+          (((max - min) * 0xfff) / (max + min))|0 :
+          (((max - min) * 0xfff) / (2 * 0xff - max - min))|0; // s is in [0..0xfff]
+        // h could be less 0, it will be fixed in backward conversion to RGB, |h| <= 0xffff / 6
+        h = (r === max) ? (((g - b) * 0xffff) / (6 * (max - min)))|0
+          : (g === max) ? 0x5555 + ((((b - r) * 0xffff) / (6 * (max - min)))|0) // 0x5555 == 0xffff / 3
+          : 0xaaaa + ((((r - g) * 0xffff) / (6 * (max - min)))|0); // 0xaaaa == 0xffff * 2 / 3
       }
 
-      gsPtr++;
+      // add unsharp mask mask to the lightness channel
+      l += (amountFp * diff + 0x800) >> 12;
+      if (l > 0xffff) {
+        l = 0xffff;
+      } else if (l < 0) {
+        l = 0;
+      }
 
-    } // end row
-  } // end column
+      // convert HSL back to RGB
+      // for information about math look above
+      if (s === 0) {
+        r = g = b = l >> 8;
+      } else {
+        m2 = (l <= 0x7fff) ? (l * (0x1000 + s) + 0x800) >> 12 :
+          l  + (((0xffff - l) * s + 0x800) >>  12);
+        m1 = 2 * l - m2 >> 8;
+        m2 >>= 8;
+        // save result to RGB channels
+        // R channel
+        hShifted = (h + 0x5555) & 0xffff; // 0x5555 == 0xffff / 3
+        r = (hShifted >= 0xaaaa) ? m1 // 0xaaaa == 0xffff * 2 / 3
+          : (hShifted >= 0x7fff) ?  m1 + ((m2 - m1) * 6 * (0xaaaa - hShifted) + 0x8000 >> 16)
+          : (hShifted >= 0x2aaa) ? m2 // 0x2aaa == 0xffff / 6
+          : m1 + ((m2 - m1) * 6 * hShifted + 0x8000 >> 16);
+        // G channel
+        hShifted = h & 0xffff;
+        g = (hShifted >= 0xaaaa) ? m1 // 0xaaaa == 0xffff * 2 / 3
+          : (hShifted >= 0x7fff) ?  m1 + ((m2 - m1) * 6 * (0xaaaa - hShifted) + 0x8000 >> 16)
+          : (hShifted >= 0x2aaa) ? m2 // 0x2aaa == 0xffff / 6
+          : m1 + ((m2 - m1) * 6 * hShifted + 0x8000 >> 16);
+        // B channel
+        hShifted = (h - 0x5555) & 0xffff;
+        b = (hShifted >= 0xaaaa) ? m1 // 0xaaaa == 0xffff * 2 / 3
+          : (hShifted >= 0x7fff) ?  m1 + ((m2 - m1) * 6 * (0xaaaa - hShifted) + 0x8000 >> 16)
+          : (hShifted >= 0x2aaa) ? m2 // 0x2aaa == 0xffff / 6
+          : m1 + ((m2 - m1) * 6 * hShifted + 0x8000 >> 16);
+      }
+
+      img[iTimes4] = r;
+      img[iTimes4 + 1] = g;
+      img[iTimes4 + 2] = b;
+    }
+  }
 }
 
-
 module.exports = unsharp;
+module.exports.lightness = getLightness;
 
-},{"./blur":1}],4:[function(require,module,exports){
+},{"glur/mono16":5}],3:[function(require,module,exports){
 // Proxy to simplify split between webworker/plain calls
 'use strict';
 
@@ -505,7 +473,7 @@ module.exports = function (options, callback) {
   callback(null, output);
 };
 
-},{"./pure/resize":2}],5:[function(require,module,exports){
+},{"./pure/resize":1}],4:[function(require,module,exports){
 // Web Worker wrapper for image resize function
 
 'use strict';
@@ -525,7 +493,128 @@ module.exports = function(self) {
   };
 };
 
-},{"./resize":4}],6:[function(require,module,exports){
+},{"./resize":3}],5:[function(require,module,exports){
+// Calculate Gaussian blur of an image using IIR filter
+// The method is taken from Intel's white paper and code example attached to it:
+// https://software.intel.com/en-us/articles/iir-gaussian-blur-filter
+// -implementation-using-intel-advanced-vector-extensions
+
+var a0, a1, a2, a3, b1, b2, left_corner, right_corner;
+
+function gaussCoef(sigma) {
+  if (sigma < 0.5) {
+    sigma = 0.5;
+  }
+
+  var a = Math.exp(0.726 * 0.726) / sigma,
+      g1 = Math.exp(-a),
+      g2 = Math.exp(-2 * a),
+      k = (1 - g1) * (1 - g1) / (1 + 2 * a * g1 - g2);
+
+  a0 = k;
+  a1 = k * (a - 1) * g1;
+  a2 = k * (a + 1) * g1;
+  a3 = -k * g2;
+  b1 = 2 * g1;
+  b2 = -g2;
+  left_corner = (a0 + a1) / (1 - b1 - b2);
+  right_corner = (a2 + a3) / (1 - b1 - b2);
+
+  // Attempt to force type to FP32.
+  return new Float32Array([ a0, a1, a2, a3, b1, b2, left_corner, right_corner ]);
+}
+
+function convolveMono16(src, out, line, coeff, width, height) {
+  // takes src image and writes the blurred and transposed result into out
+
+  var prev_src, curr_src, curr_out, prev_out, prev_prev_out;
+  var src_index, out_index, line_index;
+  var i, j;
+  var coeff_a0, coeff_a1, coeff_b1, coeff_b2;
+
+  for (i = 0; i < height; i++) {
+    src_index = i * width;
+    out_index = i;
+    line_index = 0;
+
+    // left to right
+    prev_src = src[src_index];
+    prev_prev_out = prev_src * coeff[6];
+    prev_out = prev_prev_out;
+
+    coeff_a0 = coeff[0];
+    coeff_a1 = coeff[1];
+    coeff_b1 = coeff[4];
+    coeff_b2 = coeff[5];
+
+    for (j = 0; j < width; j++) {
+      curr_src = src[src_index];
+
+      curr_out = curr_src * coeff_a0 +
+                 prev_src * coeff_a1 +
+                 prev_out * coeff_b1 +
+                 prev_prev_out * coeff_b2;
+
+      prev_prev_out = prev_out;
+      prev_out = curr_out;
+      prev_src = curr_src;
+
+      line[line_index] = prev_out;
+      line_index++;
+      src_index++;
+    }
+
+    src_index--;
+    line_index--;
+    out_index += height * (width - 1);
+
+    // right to left
+    prev_src = src[src_index];
+    prev_prev_out = prev_src * coeff[7];
+    prev_out = prev_prev_out;
+    curr_src = prev_src;
+
+    coeff_a0 = coeff[2];
+    coeff_a1 = coeff[3];
+
+    for (j = width - 1; j >= 0; j--) {
+      curr_out = curr_src * coeff_a0 +
+                 prev_src * coeff_a1 +
+                 prev_out * coeff_b1 +
+                 prev_prev_out * coeff_b2;
+
+      prev_prev_out = prev_out;
+      prev_out = curr_out;
+
+      prev_src = curr_src;
+      curr_src = src[src_index];
+
+      out[out_index] = line[line_index] + prev_out;
+
+      src_index--;
+      line_index--;
+      out_index -= height;
+    }
+  }
+}
+
+
+function blurMono16(src, width, height, radius) {
+  // Quick exit on zero radius
+  if (!radius) { return; }
+
+  var out      = new Uint16Array(src.length),
+      tmp_line = new Float32Array(width);
+
+  var coeff = gaussCoef(radius);
+
+  convolveMono16(src, out, tmp_line, coeff, width, height, radius);
+  convolveMono16(out, src, tmp_line, coeff, height, width, radius);
+}
+
+module.exports = blurMono16;
+
+},{}],6:[function(require,module,exports){
 var bundleFn = arguments[3];
 var sources = arguments[4];
 var cache = arguments[5];
@@ -630,6 +719,7 @@ function resizeBuffer(options, callback) {
     quality:  options.quality,
     alpha:    options.alpha,
     unsharpAmount:    options.unsharpAmount,
+    unsharpRadius:    options.unsharpRadius,
     unsharpThreshold: options.unsharpThreshold
   };
 
@@ -704,6 +794,7 @@ function resizeCanvas(from, to, options, callback) {
     quality:  options.quality,
     alpha:    options.alpha,
     unsharpAmount:    options.unsharpAmount,
+    unsharpRadius:    options.unsharpRadius,
     unsharpThreshold: options.unsharpThreshold,
     transferable: true
   };
@@ -724,5 +815,5 @@ exports.resizeBuffer = resizeBuffer;
 exports.resizeCanvas = resizeCanvas;
 exports.WW = WORKER;
 
-},{"./lib/resize":4,"./lib/resize_worker":5,"webworkify":6}]},{},[])("/")
+},{"./lib/resize":3,"./lib/resize_worker":4,"webworkify":6}]},{},[])("/")
 });
