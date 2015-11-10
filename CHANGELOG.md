@@ -1,3 +1,9 @@
+1.1.1 / 2015-11-10
+------------------
+
+- Bumped `glur` version to fix bug in unsharp mask with vertical images.
+
+
 1.1.0 / 2015-11-09
 ------------------
 
