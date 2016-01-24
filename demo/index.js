@@ -102,6 +102,7 @@ var updateResized = _.debounce(function () {
 // Init
 //
 window.pica.debug = console.log.bind(console);
+window.pica.WEBGL = true;
 
 var img = new Image();
 var quality = Number($('#pica-quality').val());

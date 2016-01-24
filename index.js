@@ -68,6 +68,9 @@ function resizeBuffer(options, callback) {
     unsharpThreshold: options.unsharpThreshold
   };
 
+  // Force flag reset to simplify status check
+  if (!WORKER) { exports.WW = false; }
+
   if (WORKER && exports.WW) {
     exports.debug('Resize buffer in WebWorker');
 
@@ -130,6 +133,9 @@ function resizeCanvas(from, to, options, callback) {
   if (!isNaN(options)) {
     options = { quality: options, alpha: false };
   }
+
+  // Force flag reset to simplify status check
+  if (!WEBGL) { exports.WEBGL = false; }
 
   if (WEBGL && exports.WEBGL) {
     exports.debug('Resize canvas with WebGL');
@@ -202,5 +208,5 @@ function resizeCanvas(from, to, options, callback) {
 exports.resizeBuffer = resizeBuffer;
 exports.resizeCanvas = resizeCanvas;
 exports.WW = WORKER;
-exports.WEBGL = WEBGL;
+exports.WEBGL = false; // WEBGL;
 exports.debug = function () {};
