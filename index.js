@@ -1,6 +1,6 @@
 'use strict';
 
-/*global window:true*/
+/*global window, document*/
 /*eslint space-infix-ops:0*/
 
 // Feature detect
@@ -16,8 +16,22 @@ if (WORKER) {
   }
 }
 
+var WEBGL = false;
+try {
+  if (typeof document !== 'undefined' &&
+      typeof window !== 'undefined' &&
+      window.WebGLRenderingContext) {
+    var _cvs = document.createElement('canvas');
+    if (_cvs.getContext('webgl') || _cvs.getContext('experimental-webgl')) {
+      WEBGL = true;
+    }
+    _cvs = null;
+  }
+} catch (__) {}
+
 var resize       = require('./lib/resize');
 var resizeWorker = require('./lib/resize_worker');
+var resizeWebgl  = require('./lib/resize_webgl');
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,6 +121,35 @@ function resizeCanvas(from, to, options, callback) {
     options = { quality: options, alpha: false };
   }
 
+  if (WEBGL && exports.WEBGL) {
+    return resizeWebgl(from, to, options, function (err, data) {
+      if (err) {
+        WEBGL = false;
+        return resizeCanvas(from, to, options, callback);
+      }
+      var ctxTo = to.getContext('2d');
+      var imageDataTo = ctxTo.getImageData(0, 0, w2, h2);
+      
+      // copy flipped y
+      var k = 0;
+      for (var j = 0; j < h2; j++) {
+        for (var i = 0; i < w2; i++) {
+          var p0 = (i + j*w2)*4;
+          var p1 = (i + (h2 - j)*w2)*4;
+          imageDataTo.data[p0] = data[p1];
+          imageDataTo.data[p0+1] = data[p1+1];
+          imageDataTo.data[p0+2] = data[p1+2];
+          imageDataTo.data[p0+3] = data[p1+3];
+        }
+      }
+      
+      ctxTo.putImageData(imageDataTo, 0, 0);
+      callback()
+    });
+
+  }
+
+
   var ctxTo = to.getContext('2d');
   var imageDataTo = ctxTo.getImageData(0, 0, w2, h2);
 
@@ -140,3 +183,4 @@ function resizeCanvas(from, to, options, callback) {
 exports.resizeBuffer = resizeBuffer;
 exports.resizeCanvas = resizeCanvas;
 exports.WW = WORKER;
+exports.WEBGL = WEBGL;

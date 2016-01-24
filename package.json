@@ -26,7 +26,8 @@
   ],
   "dependencies": {
     "webworkify": "1.0.2",
-    "glur": "^1.1.1"
+    "glur": "^1.1.1",
+    "brfs": "^1.4.2"
   },
   "devDependencies": {
     "ansi": "0.3.x",
