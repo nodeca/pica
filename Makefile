@@ -35,7 +35,7 @@ browserify:
 	mkdir dist
 	# Browserify
 	( printf "/* ${NPM_PACKAGE} ${NPM_VERSION} ${GITHUB_PROJ} */" ; \
-		browserify -r ./ -s pica -t brfs \
+		browserify -r ./ -s pica \
 		) > dist/pica.js
 	# Minify
 	uglifyjs dist/pica.js -c -m \

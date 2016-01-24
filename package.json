@@ -11,7 +11,7 @@
   ],
   "homepage": "https://github.com/nodeca/pica",
   "contributors": [
-    "Loïc Faure-Lacroix (lamerstar@gmail.com)",
+    "Loïc Faure-Lacroix <lamerstar@gmail.com>",
     "Vitaly Puzrin (https://github.com/puzrin)"
   ],
   "license": "MIT",
@@ -24,14 +24,19 @@
     "lib/",
     "index.js"
   ],
+  "browserify": {
+    "transform": [
+      "brfs"
+    ]
+  },
   "dependencies": {
     "webworkify": "1.0.2",
-    "glur": "^1.1.1",
-    "brfs": "^1.4.2"
+    "glur": "^1.1.1"
   },
   "devDependencies": {
     "ansi": "0.3.x",
     "benchmark": "1.0.x",
+    "brfs": "^1.4.2",
     "browserify": "*",
     "canvas": "^1.3.0",
     "eslint": "0.10.1",
