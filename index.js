@@ -16,18 +16,23 @@ if (WORKER) {
   }
 }
 
-var WEBGL = false;
+var WEBGL = false,
+    __cvs;
 try {
   if (typeof document !== 'undefined' &&
       typeof window !== 'undefined' &&
       window.WebGLRenderingContext) {
-    var _cvs = document.createElement('canvas');
-    if (_cvs.getContext('webgl') || _cvs.getContext('experimental-webgl')) {
+
+    __cvs = document.createElement('canvas');
+
+    if (__cvs.getContext('webgl') || __cvs.getContext('experimental-webgl')) {
       WEBGL = true;
     }
-    _cvs = null;
   }
-} catch (__) {}
+} catch (__) {
+} finally {
+  __cvs = null;
+}
 
 var resize       = require('./lib/resize');
 var resizeWorker = require('./lib/resize_worker');
@@ -111,6 +116,7 @@ function resizeCanvas(from, to, options, callback) {
       h = from.height,
       w2 = to.width,
       h2 = to.height;
+  var ctxTo, imageDataTo;
 
   if (isFunction(options)) {
     callback = options;
@@ -127,31 +133,34 @@ function resizeCanvas(from, to, options, callback) {
         WEBGL = false;
         return resizeCanvas(from, to, options, callback);
       }
-      var ctxTo = to.getContext('2d');
-      var imageDataTo = ctxTo.getImageData(0, 0, w2, h2);
-      
+
+      ctxTo = to.getContext('2d');
+      imageDataTo = ctxTo.getImageData(0, 0, w2, h2);
+
       // copy flipped y
-      var k = 0;
-      for (var j = 0; j < h2; j++) {
-        for (var i = 0; i < w2; i++) {
-          var p0 = (i + j*w2)*4;
-          var p1 = (i + (h2 - j)*w2)*4;
+
+      var i, j, p0, p1;
+
+      for (j = 0; j < h2; j++) {
+        for (i = 0; i < w2; i++) {
+          p0 = (i + j*w2)*4;
+          p1 = (i + (h2 - j)*w2)*4;
           imageDataTo.data[p0] = data[p1];
           imageDataTo.data[p0+1] = data[p1+1];
           imageDataTo.data[p0+2] = data[p1+2];
           imageDataTo.data[p0+3] = data[p1+3];
         }
       }
-      
+
       ctxTo.putImageData(imageDataTo, 0, 0);
-      callback()
+      callback();
     });
 
   }
 
 
-  var ctxTo = to.getContext('2d');
-  var imageDataTo = ctxTo.getImageData(0, 0, w2, h2);
+  ctxTo = to.getContext('2d');
+  imageDataTo = ctxTo.getImageData(0, 0, w2, h2);
 
   var _opts = {
     src:      from.getContext('2d').getImageData(0, 0, w, h).data,
