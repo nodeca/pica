@@ -73,14 +73,13 @@ bower:
 bower install pica
 ```
 
-Experimental WebGL support
---------------------------
+!!! Experimental WebGL support !!!
+----------------------------------
 
-<font color="red">Pica can use WebGL to significantly improve resize speed.
-This support is experimental and disabled by default.</font>
+_Pica can use WebGL to significantly improve resize speed.
+This support is experimental and disabled by default._
 
-To enable WebGL use (when available), take sources from the master branch
-and set:
+To allow WebGL use, use sources from the master branch and set:
 
 ```js
 pica.WEBGL = true;
@@ -89,6 +88,8 @@ pica.debug = console.log.bind(console);
 
 If error happens, pica will reset `.WEBGL` property and dump error. Then in will
 fallback to more safe methods.
+
+We encourage you to help us test this mode! We need your feedback!
 
 
 API
