@@ -461,7 +461,7 @@ function unsharp(img, width, height, amount, radius, threshold) {
 module.exports = unsharp;
 module.exports.lightness = getLightness;
 
-},{"glur/mono16":5}],3:[function(require,module,exports){
+},{"glur/mono16":6}],3:[function(require,module,exports){
 // Proxy to simplify split between webworker/plain calls
 'use strict';
 
@@ -474,6 +474,354 @@ module.exports = function (options, callback) {
 };
 
 },{"./pure/resize":1}],4:[function(require,module,exports){
+/*global window,document*/
+'use strict';
+
+
+var unsharp = require('./pure/unsharp');
+
+
+function error(msg) {
+  try { (window.console.error || window.console.log).call(window.console, msg); } catch (__) {}
+}
+
+
+function checkGlError(gl) {
+  var e = gl.getError();
+  if (e !== gl.NO_ERROR) {
+    var msg = 'gl error ' + e;
+    throw msg
+  }
+}
+
+
+function createGl(canvas) {
+  return canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+}
+
+
+function createShader(gl, type, src) {
+  var shader = gl.createShader(type);
+
+  gl.shaderSource(shader, src);
+  gl.compileShader(shader);
+
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    error('Shader compile error: ' + gl.getShaderInfoLog(shader) + '. Source: `' + src + '`');
+    gl.deleteShader(shader);
+    return null;
+  }
+
+  return shader;
+}
+
+
+function createProgram(gl, shaders, attrs, locations) {
+  var program = gl.createProgram();
+
+  shaders.forEach(function (shader) {
+    gl.attachShader(program, shader);
+  });
+
+  if (attrs) {
+    attrs.forEach(function (attr, idx) {
+      gl.bindAttribLocation(program, locations ? locations[idx] : idx, attr);
+    });
+  }
+
+  gl.linkProgram(program);
+
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    error('Program linking error: ' + gl.getProgramInfoLog(program));
+    gl.deleteProgram(program);
+    return null;
+  }
+
+  return program;
+}
+
+
+function createShader2(gl, vsh, fsh) {
+  var vertexShader = createShader(gl, gl.VERTEX_SHADER, vsh);
+  var fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fsh);
+  var program = createProgram(gl, [ vertexShader, fragmentShader ]);
+  checkGlError(gl);
+  return program;
+}
+
+
+var shadersCache = {};
+
+
+function loadShaders() {
+  if (Object.keys(shadersCache).length) {
+    return;
+  }
+
+  
+
+  /*eslint-disable no-path-concat*/
+  shadersCache['#vsh-basic'] =
+    "precision highp float;\nattribute vec2 a_position;\nattribute vec2 a_texCoord;\n\nuniform vec2 u_resolution;\n\nvarying vec2 v_texCoord;\n\nvoid main() {\n   vec2 clipSpace = a_position / u_resolution * 2.0 - 1.0;\n\n   gl_Position = vec4(clipSpace, 0, 1);\n   v_texCoord = a_texCoord;\n}\n";
+  shadersCache['#fsh-simple-texture'] =
+    "precision highp float;\nuniform sampler2D u_image;\n\nvarying vec2 v_texCoord;\n\nvoid main() {\n   gl_FragColor = texture2D(u_image, v_texCoord);\n}\n";
+  shadersCache['#fsh-lanczos-1d-covolve-horizontal'] =
+    "precision highp float;\nuniform vec2 u_resolution;\nuniform sampler2D u_image;\nuniform vec2 u_imageSize;\nuniform float u_winSize;\n\nvarying vec2 v_texCoord;\n\n#define sinc(a) (sin(a)/a)\n#define M_PI 3.1415926535897932384626433832795\n\nvoid main() {\n  vec2 pixel = vec2(1.) / u_imageSize;\n  gl_FragColor = vec4(0.);\n\n//  gl_FragColor = texture2D(u_image, v_texCoord);\n//  float a = gl_FragColor.x;\n  float total = 0.;\n  float scale = u_imageSize.x / u_resolution.x;\n  float count = u_winSize * scale * 2.;\n  for (int i = 0; i < 1024*8; i++) {\n    if (float(i) >= count) {\n      break;\n    }\n    float k = float(i) - (count / 2.);\n    vec2 offset = vec2(pixel.x * k, 0.);\n    vec4 c = texture2D(u_image, v_texCoord+offset);\n    if (v_texCoord.x+offset.x < 0. || v_texCoord.x+offset.x > 1. ||\n      v_texCoord.y+offset.y < 0. || v_texCoord.y+offset.y > 1.) {\n      c = vec4(0.);\n    }\n    float x = k / scale; // max [-3, 3]\n    float xpi = x * M_PI;\n    float b = sinc(xpi) * sinc(xpi / u_winSize);\n    if (x > -1.19209290E-07 && x < 1.19209290E-07) { \n      b = 1.;\n    }\n    total += b;\n    c *= vec4(vec3(b), 1.);\n    //c += vec4(b);\n    gl_FragColor += c;\n//    gl_FragColor += 0.01; //vec4(sin(a*10.))*1;\n  }\n  gl_FragColor /= vec4(vec3(total), 1.);\n//  gl_FragColor /= vec4(vec3(count), 1.);\n//  gl_FragColor = vec4(vec3(total), 1.);\n}\n";
+  shadersCache['#fsh-lanczos-1d-covolve-vertical'] =
+    "precision highp float;\nuniform vec2 u_resolution;\nuniform sampler2D u_image;\nuniform vec2 u_imageSize;\nuniform float u_winSize;\n\nvarying vec2 v_texCoord;\n\n#define sinc(a) (sin(a)/a)\n#define M_PI 3.1415926535897932384626433832795\n\nvoid main() {\n  vec2 pixel = vec2(1.) / u_imageSize;\n  gl_FragColor = vec4(0.);\n\n//  gl_FragColor = texture2D(u_image, v_texCoord);\n//  float a = gl_FragColor.x;\n  float total = 0.;\n  float scale = u_imageSize.y / u_resolution.y;\n  float count = u_winSize * scale * 2.;\n  for (int i = 0; i < 1024*8; i++) {\n    if (float(i) >= count) {\n      break;\n    }\n    float k = float(i) - (count / 2.);\n    vec2 offset = vec2(0., pixel.y * k);\n    vec4 c = texture2D(u_image, v_texCoord+offset);\n    if (v_texCoord.x+offset.x < 0. || v_texCoord.x+offset.x > 1. ||\n      v_texCoord.y+offset.y < 0. || v_texCoord.y+offset.y > 1.) {\n      c = vec4(0.);\n    }\n    float x = k / scale; // max [-3, 3]\n    float xpi = x * M_PI;\n    float b = sinc(xpi) * sinc(xpi / u_winSize);\n    if (x > -1.19209290E-07 && x < 1.19209290E-07) { \n      b = 1.;\n    }\n    total += b;\n    c *= vec4(vec3(b), 1.);\n    //c += vec4(b);\n    gl_FragColor += c;\n//    gl_FragColor += 0.01; //vec4(sin(a*10.))*1;\n  }\n  gl_FragColor /= vec4(vec3(total), 1.);\n//  gl_FragColor /= vec4(vec3(count), 1.);\n//  gl_FragColor = vec4(vec3(total), 1.);\n}\n";
+}
+
+
+function createShader2file(gl, vshFile, fshFile) {
+  var vsh = shadersCache[vshFile];
+  var fsh = shadersCache[fshFile];
+  return createShader2(gl, vsh, fsh);
+}
+
+
+function setAttributeValues(gl, program, name, values, options) {
+  var a = gl.getAttribLocation(program, name);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(values), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(a);
+  gl.vertexAttribPointer(a, options.elementSize, gl.FLOAT, false, 0, 0);
+  checkGlError(gl);
+}
+
+
+function loadTexture(gl, texUnit, data) {
+  var tex = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE0 + texUnit);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, data);
+  checkGlError(gl);
+  return tex;
+}
+
+
+function setUniform1i(gl, program, name, i0) {
+  var u = gl.getUniformLocation(program, name);
+  gl.uniform1i(u, i0);
+}
+
+
+function setUniform1f(gl, program, name, f0) {
+  var u = gl.getUniformLocation(program, name);
+  gl.uniform1f(u, f0);
+}
+
+
+function setUniform2f(gl, program, name, f0, f1) {
+  var u = gl.getUniformLocation(program, name);
+  gl.uniform2f(u, f0, f1);
+}
+
+
+function vec2Rectangle(x, y, w, h) {
+  var x1 = x;
+  var x2 = x + w;
+  var y1 = y;
+  var y2 = y + h;
+  return [ x1, y1, x2, y1, x1, y2, x1, y2, x2, y1, x2, y2 ];
+}
+
+
+function createTextureSize(gl, texUnit, width, height) {
+  var tex = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE0 + texUnit);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  checkGlError(gl);
+  return tex;
+}
+
+
+function setupTextureFBO(gl, texUnit, width, height) {
+  var texture = createTextureSize(gl, texUnit, width, height);
+
+  var oldFbo = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+
+  var fbo = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+
+//  gl.viewport(0, 0, width, height);
+
+  checkGlError(gl);
+
+  return {
+    fbo: fbo,
+    texture: texture,
+    oldFbo: oldFbo
+  };
+}
+
+
+function webglProcessResize(from, gl, options) {
+
+  gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+  var basicProgram;
+  var resizeProgram;
+
+  var program;
+
+  var bigsize = {
+    width: from.width,
+    height: from.height
+  };
+
+  loadShaders();
+
+  basicProgram = createShader2file(gl, '#vsh-basic', '#fsh-simple-texture');
+
+  var texUnit0 = 0;
+  /*var tex = */loadTexture(gl, texUnit0, from);
+
+  var tsize = {
+    width: bigsize.width,
+    height: bigsize.height
+  };
+
+  // resize [
+
+  function convolve(texUnit0, texWidth, texHeight, texUnit, fsh, winSize, width, height) {
+    var outsize = {
+      width: width,
+      height: height
+    };
+
+    resizeProgram = createShader2file(gl, '#vsh-basic', fsh);
+    program = resizeProgram;
+    gl.useProgram(program);
+
+    setUniform1f(gl, program, 'u_winSize', winSize);
+    setUniform1i(gl, program, 'u_image', texUnit0);
+    setUniform2f(gl, program, 'u_imageSize', texWidth, texHeight);
+    setUniform2f(gl, program, 'u_resolution', outsize.width, outsize.height);
+    setAttributeValues(gl, program, 'a_texCoord',
+      [ 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1 ], { elementSize: 2 });
+    setAttributeValues(gl, program, 'a_position',
+      vec2Rectangle(0, 0, outsize.width, outsize.height), { elementSize: 2 });
+    gl.viewport(0, 0, outsize.width, outsize.height);
+
+    var fboObject = setupTextureFBO(gl, texUnit, outsize.width, outsize.height);
+
+    gl.viewport(0, 0, outsize.width, outsize.height);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fboObject.oldFbo);
+
+    checkGlError(gl);
+
+    return fboObject;
+  }
+
+  var winSize = typeof options.quality === 'undefined' ? 3 : options.quality;
+
+  var texUnit2 = 2;
+  var texUnit3 = 3;
+
+  convolve(texUnit0, tsize.width, tsize.height,
+    texUnit2, '#fsh-lanczos-1d-covolve-horizontal', winSize, gl.canvas.width, tsize.height);
+
+  var finalFboObject = convolve(texUnit2, gl.canvas.width, tsize.height,
+    texUnit3, '#fsh-lanczos-1d-covolve-vertical', winSize, gl.canvas.width, gl.canvas.height);
+
+  // resize ]
+  // final draw to canvas (for debug) [
+
+  gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+  var texUnitOutput = texUnit3;
+
+  program = basicProgram;
+  gl.useProgram(program);
+  setUniform1i(gl, program, 'u_image', texUnitOutput);
+  setUniform2f(gl, program, 'u_resolution', gl.canvas.width, gl.canvas.height);
+  setAttributeValues(gl, program, 'a_texCoord',
+    [ 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1 ], { elementSize: 2 });
+  setAttributeValues(gl, program, 'a_position',
+    vec2Rectangle(0, 0, gl.canvas.width, gl.canvas.height), { elementSize: 2 });
+
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  checkGlError(gl);
+
+  // final draw to canvas (for debug) ]
+
+  gl.flush();
+
+  var fb = gl.createFramebuffer();
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, finalFboObject.texture, 0);
+
+  if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE) {
+    var width = gl.canvas.width;
+    var height = gl.canvas.height;
+    var pixels = new Uint8Array(width * height * 4);
+    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+
+    var destW = width;
+    var destH = height;
+    var dest = pixels;
+    var unsharpAmount = typeof options.unsharpAmount === 'undefined' ? 0 : (options.unsharpAmount | 0);
+    var unsharpRadius = typeof options.unsharpRadius === 'undefined' ? 0 : (options.unsharpRadius);
+    var unsharpThreshold = typeof options.unsharpThreshold === 'undefined' ? 0 : (options.unsharpThreshold | 0);
+
+    if (unsharpAmount) {
+      unsharp(dest, destW, destH, unsharpAmount, unsharpRadius, unsharpThreshold);
+    }
+
+    return dest;
+  }
+}
+
+
+module.exports = function (from, to, options, callback) {
+  var gl, canvas;
+
+  try {
+    // create temporarry canvas [
+
+    canvas = document.createElement('canvas');
+    canvas.id = 'pica-webgl-temporarry-canvas';
+    canvas.height = to.height;
+    canvas.width = to.width;
+    document.body.appendChild(canvas);
+
+    // create temporarry canvas ]
+
+    gl = createGl(canvas);
+
+    var pixels = webglProcessResize(from, gl, options);
+
+    gl.finish();
+    document.body.removeChild(canvas);
+
+    callback(null, pixels);
+  } catch (e) {
+    error(e);
+    gl.finish();
+    document.body.removeChild(canvas);
+    callback(e);
+  }
+
+  return null; // No webworker
+};
+
+},{"./pure/unsharp":2}],5:[function(require,module,exports){
 // Web Worker wrapper for image resize function
 
 'use strict';
@@ -493,7 +841,7 @@ module.exports = function(self) {
   };
 };
 
-},{"./resize":3}],5:[function(require,module,exports){
+},{"./resize":3}],6:[function(require,module,exports){
 // Calculate Gaussian blur of an image using IIR filter
 // The method is taken from Intel's white paper and code example attached to it:
 // https://software.intel.com/en-us/articles/iir-gaussian-blur-filter
@@ -614,7 +962,7 @@ function blurMono16(src, width, height, radius) {
 
 module.exports = blurMono16;
 
-},{}],6:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 var bundleFn = arguments[3];
 var sources = arguments[4];
 var cache = arguments[5];
@@ -674,7 +1022,7 @@ module.exports = function (fn) {
 },{}],"/":[function(require,module,exports){
 'use strict';
 
-/*global window:true*/
+/*global window, document*/
 /*eslint space-infix-ops:0*/
 
 // Feature detect
@@ -690,8 +1038,27 @@ if (WORKER) {
   }
 }
 
+var WEBGL = false,
+    __cvs;
+try {
+  if (typeof document !== 'undefined' &&
+      typeof window !== 'undefined' &&
+      window.WebGLRenderingContext) {
+
+    __cvs = document.createElement('canvas');
+
+    if (__cvs.getContext('webgl') || __cvs.getContext('experimental-webgl')) {
+      WEBGL = true;
+    }
+  }
+} catch (__) {
+} finally {
+  __cvs = null;
+}
+
 var resize       = require('./lib/resize');
 var resizeWorker = require('./lib/resize_worker');
+var resizeWebgl  = require('./lib/resize_webgl');
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -723,7 +1090,12 @@ function resizeBuffer(options, callback) {
     unsharpThreshold: options.unsharpThreshold
   };
 
+  // Force flag reset to simplify status check
+  if (!WORKER) { exports.WW = false; }
+
   if (WORKER && exports.WW) {
+    exports.debug('Resize buffer in WebWorker');
+
     wr = require('webworkify')(resizeWorker);
 
     wr.onmessage = function(ev) {
@@ -758,6 +1130,8 @@ function resizeBuffer(options, callback) {
   }
 
   // Fallback to sync call, if WebWorkers not available
+  exports.debug('Resize buffer sync (freeze event loop)');
+
   _opts.dest = options.dest;
   resize(_opts, callback);
   return null;
@@ -771,6 +1145,7 @@ function resizeCanvas(from, to, options, callback) {
       h = from.height,
       w2 = to.width,
       h2 = to.height;
+  var ctxTo, imageDataTo;
 
   if (isFunction(options)) {
     callback = options;
@@ -781,8 +1156,49 @@ function resizeCanvas(from, to, options, callback) {
     options = { quality: options, alpha: false };
   }
 
-  var ctxTo = to.getContext('2d');
-  var imageDataTo = ctxTo.getImageData(0, 0, w2, h2);
+  // Force flag reset to simplify status check
+  if (!WEBGL) { exports.WEBGL = false; }
+
+  if (WEBGL && exports.WEBGL) {
+    exports.debug('Resize canvas with WebGL');
+
+    return resizeWebgl(from, to, options, function (err, data) {
+      if (err) {
+        exports.debug('WebGL resize failed, do fallback and cancel next attempts');
+        exports.debug(err);
+
+        WEBGL = false;
+        return resizeCanvas(from, to, options, callback);
+      }
+
+      ctxTo = to.getContext('2d');
+      imageDataTo = ctxTo.getImageData(0, 0, w2, h2);
+
+      // copy flipped y
+
+      var i, j, p0, p1;
+
+      for (j = 0; j < h2; j++) {
+        for (i = 0; i < w2; i++) {
+          p0 = (i + j*w2)*4;
+          p1 = (i + (h2 - j)*w2)*4;
+          imageDataTo.data[p0] = data[p1];
+          imageDataTo.data[p0+1] = data[p1+1];
+          imageDataTo.data[p0+2] = data[p1+2];
+          imageDataTo.data[p0+3] = data[p1+3];
+        }
+      }
+
+      ctxTo.putImageData(imageDataTo, 0, 0);
+      callback();
+    });
+
+  }
+
+  exports.debug('Resize canvas: prepare data');
+
+  ctxTo = to.getContext('2d');
+  imageDataTo = ctxTo.getImageData(0, 0, w2, h2);
 
   var _opts = {
     src:      from.getContext('2d').getImageData(0, 0, w, h).data,
@@ -814,6 +1230,8 @@ function resizeCanvas(from, to, options, callback) {
 exports.resizeBuffer = resizeBuffer;
 exports.resizeCanvas = resizeCanvas;
 exports.WW = WORKER;
+exports.WEBGL = false; // WEBGL;
+exports.debug = function () {};
 
-},{"./lib/resize":3,"./lib/resize_worker":4,"webworkify":6}]},{},[])("/")
+},{"./lib/resize":3,"./lib/resize_webgl":4,"./lib/resize_worker":5,"webworkify":7}]},{},[])("/")
 });
