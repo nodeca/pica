@@ -69,6 +69,8 @@ function resizeBuffer(options, callback) {
   };
 
   if (WORKER && exports.WW) {
+    exports.debug('Resize buffer in WebWorker');
+
     wr = require('webworkify')(resizeWorker);
 
     wr.onmessage = function(ev) {
@@ -103,6 +105,8 @@ function resizeBuffer(options, callback) {
   }
 
   // Fallback to sync call, if WebWorkers not available
+  exports.debug('Resize buffer sync (freeze event loop)');
+
   _opts.dest = options.dest;
   resize(_opts, callback);
   return null;
@@ -128,8 +132,13 @@ function resizeCanvas(from, to, options, callback) {
   }
 
   if (WEBGL && exports.WEBGL) {
+    exports.debug('Resize canvas with WebGL');
+
     return resizeWebgl(from, to, options, function (err, data) {
       if (err) {
+        exports.debug('WebGL resize failed, do fallback and cancel next attempts');
+        exports.debug(err);
+
         WEBGL = false;
         return resizeCanvas(from, to, options, callback);
       }
@@ -158,6 +167,7 @@ function resizeCanvas(from, to, options, callback) {
 
   }
 
+  exports.debug('Resize canvas: prepare data');
 
   ctxTo = to.getContext('2d');
   imageDataTo = ctxTo.getImageData(0, 0, w2, h2);
@@ -193,3 +203,4 @@ exports.resizeBuffer = resizeBuffer;
 exports.resizeCanvas = resizeCanvas;
 exports.WW = WORKER;
 exports.WEBGL = WEBGL;
+exports.debug = function () {};
