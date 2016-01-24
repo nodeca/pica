@@ -26,6 +26,10 @@ var qualityInfo = [
   'Lanczos (win 3px)',
 ]
 
+var ww_supported    = window.pica.WW;
+var webgl_supported = window.pica.WEBGL;
+
+
 function updateOrig() {
   var src, ctx;
 
@@ -81,6 +85,19 @@ var updateResized = _.debounce(function () {
     transferable: true
   }, function (err) {
     time = (performance.now() - start).toFixed(2);
+
+    var features;
+
+    if (window.pica.WEBGL) {
+      features = 'WebGL';
+    } else if (window.pica.WW) {
+      features = 'no WebGL, use WebWorker';
+    } else {
+      features = 'no WebGL, no WebWorkers :(';
+    }
+
+    $('#dst-features').text(features);
+
     if (unsharpAmount) {
       $('#dst-info').text(_.template('<%= time %>ms, <%= info %>, Unsharp [<%= amount %>, <%= radius %>, <%= threshold %>]', {
         time: time,
@@ -136,6 +153,14 @@ $('#pica-unsharp-radius').on('change', function () {
 });
 $('#pica-unsharp-threshold').on('change', function () {
   unsharpThreshold = Number($('#pica-unsharp-threshold').val());
+  updateResized();
+});
+$('#pica-use-ww').on('change', function () {
+  window.pica.WW = $(this).is(":checked");
+  updateResized();
+});
+$('#pica-use-webgl').on('change', function () {
+  window.pica.WEBGL = $(this).is(":checked");
   updateResized();
 });
 

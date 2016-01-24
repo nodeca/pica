@@ -25,6 +25,7 @@
           <div class="canvas-containter">
             <div id="dst-info" class="canvas-info"></div>
             <canvas id="dst-pica" class="img-responsive"></canvas>
+            <div id="dst-features" class="pica-features"></div>
             <div class="canvas-tip">click to reload</div>
           </div>
           <div class="pica-options">
@@ -42,6 +43,16 @@
           <div class="pica-options">
             <span>Unsharp threshold (0..255):</span>
             <input id="pica-unsharp-threshold" type="range" value="2" name="points" min="0" max="255">
+          </div>
+          <div class="pica-options">
+            <label>
+              <input id="pica-use-ww" type="checkbox" checked> Use WebWorker if possible
+            </label>
+          </div>
+          <div class="pica-options">
+            <label>
+              <input id="pica-use-webgl" type="checkbox" checked> Use WebGL if possible
+            </label>
           </div>
 
           <hr>

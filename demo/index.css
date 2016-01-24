@@ -3,7 +3,9 @@
   cursor: pointer;
 }
 .pica-options { margin-top: 10px; }
-.canvas-info, .canvas-tip {
+.pica-options label { font-weight: normal; }
+
+.canvas-info, .canvas-tip, .pica-features {
   position: absolute;
   top: 0;
   left: 0;
@@ -24,6 +26,16 @@
 }
 .canvas-containter:hover .canvas-tip {
   opacity: .7;
+}
+
+.pica-features {
+  top: auto;
+  bottom: 0;
+  left: 0;
+  transition: opacity 0.5s ease-in-out;
+}
+.canvas-containter:hover .pica-features {
+  opacity: 0;
 }
 
 body {
