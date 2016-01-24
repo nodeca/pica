@@ -1,3 +1,11 @@
+1.2.0 / WIP
+-----------
+
+- Experimental WebGL support (disabled by default). Thanks to @d08ble.
+- Feature flags (WW, WEBGL) are forced to `false` after resize call,
+  if feature not supported or disabled due fatal error.
+
+
 1.1.1 / 2015-11-10
 ------------------
 

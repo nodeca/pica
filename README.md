@@ -73,6 +73,23 @@ bower:
 bower install pica
 ```
 
+Experimental WebGL support
+--------------------------
+
+<font color="red">Pica can use WebGL to significantly improve resize speed.
+This support is experimental and disabled by default.</font>
+
+To enable WebGL use (when available), take sources from the master branch
+and set:
+
+```js
+pica.WEBGL = true;
+pica.debug = console.log.bind(console);
+```
+
+If error happens, pica will reset `.WEBGL` property and dump error. Then in will
+fallback to more safe methods.
+
 
 API
 ---
@@ -86,9 +103,12 @@ Resize image from one canvas to another. Sizes are taken from canvas.
 - __options__ - quality (number) or object:
   - __quality__ - 0..3. Default = `3` (lanczos, win=3).
   - __alpha__ - use alpha channel. Default = `false`.
-  - __unsharpAmount__ - >=0, in percents. Default = `0` (off). Usually between 50 to 100 is good.
-  - __unsharpRadius__ - >=0.5. Radius of Gaussian blur. If it is less than 0.5, Unsharp Mask is off.
-  - __unsharpThreshold__ - 0..255. Default = `0`. Threshold for applying unsharp mask.
+  - __unsharpAmount__ - >=0, in percents. Default = `0` (off). Usually
+    between 50 to 100 is good.
+  - __unsharpRadius__ - >=0.5. Radius of Gaussian blur. If it is less than 0.5,
+    Unsharp Mask is off.
+  - __unsharpThreshold__ - 0..255. Default = `0`. Threshold for applying
+    unsharp mask.
 - __callback(err)__ - function to call after resize complete:
   - __err__ - error if happened
 
@@ -109,14 +129,18 @@ binaries).
   - __toHeigh__ - output height.
   - __quality__ - 0..3. Default = `3` (lanczos, win=3).
   - __alpha__ - use alpha channel. Default = `false`.
-  - __unsharpAmount__ - >=0, in percents. Default = `0` (off). Usually between 50 to 100 is good.
-  - __usnharpRadius__ - >=0.5. Radius of Gaussian blur. If it is less than 0.5, Unsharp Mask is off.
-  - __unsharpThreshold__ - 0..255. Default = `0`. Threshold for applying unsharp mask.
+  - __unsharpAmount__ - >=0, in percents. Default = `0` (off). Usually
+    between 50 to 100 is good.
+  - __usnharpRadius__ - >=0.5. Radius of Gaussian blur. If it is less than 0.5,
+    Unsharp Mask is off.
+  - __unsharpThreshold__ - 0..255. Default = `0`. Threshold for applying
+    unsharp mask.
   - __dest__ - Optional. Output buffer to write data. Help to avoid data copy
     if no WebWorkers available. Callback will return result buffer anyway.
   - __transferable__ - Optional. Default = `false`. Whether to use
     [transferable objects](http://updates.html5rocks.com/2011/12/Transferable-Objects-Lightning-Fast).
-    with webworkers. Can be faster sometime, but you cannot use the source buffer afterward.
+    with webworkers. Can be faster sometime, but you cannot use the source
+    buffer afterward.
 - __callback(err, output)__ - function to call after resize complete:
   - __err__ - error if happened.
   - __output__ - Uint8Array with resized RGBA image data.
@@ -127,9 +151,10 @@ __(!)__ If WebWorker available, it's returned as function result (not via
 
 ### .WW - true/false
 
-`true` if webworkers are [supported](http://caniuse.com/#feat=webworkers).  You can use it for 
-browser capabilities detection.
-Also, you can set it to `false` for debuging, so `pica` will use direct function calls.
+`true` if webworkers are [supported](http://caniuse.com/#feat=webworkers).
+You can use it for browser capabilities detection.
+Also, you can set it to `false` for debuging, so `pica` will use direct
+function calls.
 
 
 ### What is quality
@@ -144,7 +169,8 @@ Pica has presets, to adjust speed/quality ratio. Simply use `quality` option par
 
 ### Unsharp mask
 
-Pica has built-in unsharp mask. Set `unsharpAmount` to positive number to activate the filter.
+Pica has built-in unsharp mask. Set `unsharpAmount` to positive number to
+activate the filter.
 
 The parameters of it are similar to ones from Photoshop. We recommend to start from
 `unsharpAmount = 80`, `unsharpRadius = 0.6`, `unsharpThreshop = 2`.
@@ -156,14 +182,17 @@ Browser support
 
 We didn't have time to test all possible combinations, but in general:
 
-- Top level API should work in all browsers, supporting [canvas](http://caniuse.com/#feat=canvas)
+- Top level API should work in all browsers,
+  supporting [canvas](http://caniuse.com/#feat=canvas)
   and [typed arrays](http://caniuse.com/#feat=typedarrays).
-- [Webworkers](http://caniuse.com/#feat=webworkers) support is not required, but they will be used if available.
-- If you plan to use only pure math core, then [typed arrays support](http://caniuse.com/#feat=typedarrays)
-  will be enougth.
+- [Webworkers](http://caniuse.com/#feat=webworkers) support is not required,
+  but they will be used if available.
+- If you plan to use only pure math core,
+  then [typed arrays support](http://caniuse.com/#feat=typedarrays) will be enougth.
 
-__Note.__ Though you can run this package on `node.js`, browsers are the main target platform.
-On server side we recommend to use GraphicsMagick or ImageMagick for better speed.
+__Note.__ Though you can run this package on `node.js`, browsers are the main
+target platform. On server side we recommend to use
+[sharp](https://github.com/lovell/sharp) for better speed.
 
 
 References
@@ -185,6 +214,7 @@ Authors
 
 - Vitaly Puzrin [@puzrin](https://github.com/puzrin)
 - Alexander Rodin [@a-rodin](https://github.com/a-rodin)
+- [@d08ble](https://github.com/d08ble)
 - Loïc Faure-Lacroix [@llacroix](https://github.com/llacroix)
 
 
