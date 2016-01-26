@@ -79,6 +79,7 @@ var updateResized = _.debounce(function () {
 
   window.pica.resizeCanvas($('#src')[0], dst, {
     quality: quality,
+    alpha: true,
     unsharpAmount: unsharpAmount,
     unsharpRadius: unsharpRadius,
     unsharpThreshold: unsharpThreshold,
