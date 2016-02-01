@@ -488,10 +488,7 @@ function error(msg) {
 
 function checkGlError(gl) {
   var e = gl.getError();
-  if (e !== gl.NO_ERROR) {
-    var msg = 'gl error ' + e;
-    throw msg
-  }
+  if (e !== gl.NO_ERROR) { throw new Error('gl error ' + e); }
 }
 
 
@@ -563,8 +560,6 @@ function loadShaders() {
   /*eslint-disable no-path-concat*/
   shadersCache['#vsh-basic'] =
     "precision highp float;\nattribute vec2 a_position;\nattribute vec2 a_texCoord;\n\nuniform vec2 u_resolution;\n\nvarying vec2 v_texCoord;\n\nvoid main() {\n   vec2 clipSpace = a_position / u_resolution * 2.0 - 1.0;\n\n   gl_Position = vec4(clipSpace, 0, 1);\n   v_texCoord = a_texCoord;\n}\n";
-  shadersCache['#fsh-simple-texture'] =
-    "precision highp float;\nuniform sampler2D u_image;\n\nvarying vec2 v_texCoord;\n\nvoid main() {\n   gl_FragColor = texture2D(u_image, v_texCoord);\n}\n";
   shadersCache['#fsh-box-1d-covolve-horizontal'] =
     "precision highp float;\nuniform vec2 u_resolution;\nuniform sampler2D u_image;\nuniform vec2 u_imageSize;\nuniform float u_winSize;\n\nvarying vec2 v_texCoord;\n\n#define sinc(a) (sin(a)/a)\n#define M_PI 3.1415926535897932384626433832795\n\nvoid main() {\n  vec2 pixel = vec2(1.) / u_imageSize;\n  gl_FragColor = vec4(0.);\n\n  float total = 0.;\n  float scale = u_imageSize.x / u_resolution.x;\n  float count = u_winSize * scale * 2.;\n  for (int i = 0; i < 1024*8; i++) {\n    if (float(i) >= count) {\n      break;\n    }\n    float k = float(i) - (count / 2.);\n    vec2 offset = vec2(pixel.x * k, 0.);\n    vec4 c = texture2D(u_image, v_texCoord+offset);\n    float x = k / scale; // max [-3, 3]\n    float b = (x >= -0.5 && x < 0.5) ? 1.0 : 0.0;\n    if (x > -1.19209290E-07 && x < 1.19209290E-07) { \n      b = 1.;\n    }\n    total += b;\n    c *= vec4(b);\n    gl_FragColor += c;\n  }\n  gl_FragColor /= vec4(total);\n}\n";
   shadersCache['#fsh-box-1d-covolve-vertical'] =
@@ -680,19 +675,12 @@ function webglProcessResize(from, gl, options) {
 
   gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
-  var basicProgram;
-  var resizeProgram;
-
-  var program;
-
   var bigsize = {
     width: from.width,
     height: from.height
   };
 
   loadShaders();
-
-  basicProgram = createShader2file(gl, '#vsh-basic', '#fsh-simple-texture');
 
   var texUnit0 = 0;
   /*var tex = */loadTexture(gl, texUnit0, from);
@@ -710,8 +698,7 @@ function webglProcessResize(from, gl, options) {
       height: height
     };
 
-    resizeProgram = createShader2file(gl, '#vsh-basic', fsh);
-    program = resizeProgram;
+    var program = createShader2file(gl, '#vsh-basic', fsh);
     gl.useProgram(program);
 
     setUniform1f(gl, program, 'u_winSize', winSize);
@@ -770,26 +757,6 @@ function webglProcessResize(from, gl, options) {
     texUnit3, shaders[winSize].vertical, shaders[winSize].win, gl.canvas.width, gl.canvas.height);
 
   // resize ]
-  // final draw to canvas (for debug) [
-
-  gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-
-  var texUnitOutput = texUnit3;
-
-  program = basicProgram;
-  gl.useProgram(program);
-  setUniform1i(gl, program, 'u_image', texUnitOutput);
-  setUniform2f(gl, program, 'u_resolution', gl.canvas.width, gl.canvas.height);
-  setAttributeValues(gl, program, 'a_texCoord',
-    [ 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1 ], { elementSize: 2 });
-  setAttributeValues(gl, program, 'a_position',
-    vec2Rectangle(0, 0, gl.canvas.width, gl.canvas.height), { elementSize: 2 });
-
-  gl.drawArrays(gl.TRIANGLES, 0, 6);
-
-  checkGlError(gl);
-
-  // final draw to canvas (for debug) ]
 
   gl.flush();
 
@@ -798,25 +765,29 @@ function webglProcessResize(from, gl, options) {
   gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, finalFboObject.texture, 0);
 
-  if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE) {
-    var width = gl.canvas.width;
-    var height = gl.canvas.height;
-    var pixels = new Uint8Array(width * height * 4);
-    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+  var fb_status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
 
-    var destW = width;
-    var destH = height;
-    var dest = pixels;
-    var unsharpAmount = typeof options.unsharpAmount === 'undefined' ? 0 : (options.unsharpAmount | 0);
-    var unsharpRadius = typeof options.unsharpRadius === 'undefined' ? 0 : (options.unsharpRadius);
-    var unsharpThreshold = typeof options.unsharpThreshold === 'undefined' ? 0 : (options.unsharpThreshold | 0);
-
-    if (unsharpAmount) {
-      unsharp(dest, destW, destH, unsharpAmount, unsharpRadius, unsharpThreshold);
-    }
-
-    return dest;
+  if (fb_status !== gl.FRAMEBUFFER_COMPLETE) {
+    throw new Error('Bad framebuffer status: ' + fb_status);
   }
+
+  var width = gl.canvas.width;
+  var height = gl.canvas.height;
+  var pixels = new Uint8Array(width * height * 4);
+  gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+
+  var destW = width;
+  var destH = height;
+  var dest = pixels;
+  var unsharpAmount = typeof options.unsharpAmount === 'undefined' ? 0 : (options.unsharpAmount | 0);
+  var unsharpRadius = typeof options.unsharpRadius === 'undefined' ? 0 : (options.unsharpRadius);
+  var unsharpThreshold = typeof options.unsharpThreshold === 'undefined' ? 0 : (options.unsharpThreshold | 0);
+
+  if (unsharpAmount) {
+    unsharp(dest, destW, destH, unsharpAmount, unsharpRadius, unsharpThreshold);
+  }
+
+  return dest;
 }
 
 
@@ -844,7 +815,7 @@ module.exports = function (from, to, options, callback) {
     var w2 = to.width;
     var h2 = to.height;
     var ctxTo = to.getContext('2d');
-    var imageDataTo = ctxTo.getImageData(0, 0, w2, h2);
+    var imageDataTo = ctxTo.createImageData(w2, h2);
 
     // copy flipped y
 
@@ -1232,7 +1203,7 @@ function resizeCanvas(from, to, options, callback) {
   exports.debug('Resize canvas: prepare data');
 
   ctxTo = to.getContext('2d');
-  imageDataTo = ctxTo.getImageData(0, 0, w2, h2);
+  imageDataTo = ctxTo.createImageData(w2, h2);
 
   var _opts = {
     src:      from.getContext('2d').getImageData(0, 0, w, h).data,
