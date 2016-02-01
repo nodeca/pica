@@ -156,7 +156,7 @@ function resizeCanvas(from, to, options, callback) {
   exports.debug('Resize canvas: prepare data');
 
   ctxTo = to.getContext('2d');
-  imageDataTo = ctxTo.getImageData(0, 0, w2, h2);
+  imageDataTo = ctxTo.createImageData(w2, h2);
 
   var _opts = {
     src:      from.getContext('2d').getImageData(0, 0, w, h).data,
