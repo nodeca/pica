@@ -140,7 +140,7 @@ function resizeCanvas(from, to, options, callback) {
   if (WEBGL && exports.WEBGL) {
     exports.debug('Resize canvas with WebGL');
 
-    return resizeWebgl(from, to, options, function (err, data) {
+    return resizeWebgl(from, to, options, function (err) {
       if (err) {
         exports.debug('WebGL resize failed, do fallback and cancel next attempts');
         exports.debug(err);
@@ -148,26 +148,6 @@ function resizeCanvas(from, to, options, callback) {
         WEBGL = false;
         return resizeCanvas(from, to, options, callback);
       }
-
-      ctxTo = to.getContext('2d');
-      imageDataTo = ctxTo.getImageData(0, 0, w2, h2);
-
-      // copy flipped y
-
-      var i, j, p0, p1;
-
-      for (j = 0; j < h2; j++) {
-        for (i = 0; i < w2; i++) {
-          p0 = (i + j*w2)*4;
-          p1 = (i + (h2 - j)*w2)*4;
-          imageDataTo.data[p0] = data[p1];
-          imageDataTo.data[p0+1] = data[p1+1];
-          imageDataTo.data[p0+2] = data[p1+2];
-          imageDataTo.data[p0+3] = data[p1+3];
-        }
-      }
-
-      ctxTo.putImageData(imageDataTo, 0, 0);
       callback();
     });
 

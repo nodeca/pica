@@ -25,7 +25,7 @@ void main() {
     vec4 c = texture2D(u_image, v_texCoord+offset);
     float x = k / scale; // max [-3, 3]
     float xpi = x * M_PI;
-    float b = sinc(xpi) * sinc(xpi / u_winSize);
+    float b = sinc(xpi) * (0.54 + 0.46 * cos(xpi));
     if (x > -1.19209290E-07 && x < 1.19209290E-07) { 
       b = 1.;
     }

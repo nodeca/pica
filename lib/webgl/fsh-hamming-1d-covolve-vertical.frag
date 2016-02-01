@@ -14,19 +14,19 @@ void main() {
   gl_FragColor = vec4(0.);
 
   float total = 0.;
-  float scale = u_imageSize.x / u_resolution.x;
+  float scale = u_imageSize.y / u_resolution.y;
   float count = u_winSize * scale * 2.;
   for (int i = 0; i < 1024*8; i++) {
     if (float(i) >= count) {
       break;
     }
     float k = float(i) - (count / 2.);
-    vec2 offset = vec2(pixel.x * k, 0.);
+    vec2 offset = vec2(0., pixel.y * k);
     vec4 c = texture2D(u_image, v_texCoord+offset);
     float x = k / scale; // max [-3, 3]
     float xpi = x * M_PI;
-    float b = sinc(xpi) * sinc(xpi / u_winSize);
-    if (x > -1.19209290E-07 && x < 1.19209290E-07) { 
+    float b = sinc(xpi) * (0.54 + 0.46 * cos(xpi));
+     if (x > -1.19209290E-07 && x < 1.19209290E-07) { 
       b = 1.;
     }
     total += b;
