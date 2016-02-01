@@ -480,9 +480,51 @@ module.exports = function (options, callback) {
 
 var unsharp = require('./pure/unsharp');
 
+var shadersContent = {};
+
+/*eslint-disable no-path-concat*/
+shadersContent['#vsh-basic'] =
+  "precision highp float;\nattribute vec2 a_position;\nattribute vec2 a_texCoord;\n\nuniform vec2 u_resolution;\n\nvarying vec2 v_texCoord;\n\nvoid main() {\n   vec2 clipSpace = a_position / u_resolution * 2.0 - 1.0;\n\n   gl_Position = vec4(clipSpace, 0, 1);\n   v_texCoord = a_texCoord;\n}\n";
+shadersContent['#fsh-box-1d-covolve-horizontal'] =
+  "precision highp float;\nuniform vec2 u_resolution;\nuniform sampler2D u_image;\nuniform vec2 u_imageSize;\nuniform float u_winSize;\n\nvarying vec2 v_texCoord;\n\n#define sinc(a) (sin(a)/a)\n#define M_PI 3.1415926535897932384626433832795\n\nvoid main() {\n  vec2 pixel = vec2(1.) / u_imageSize;\n  gl_FragColor = vec4(0.);\n\n  float total = 0.;\n  float scale = u_imageSize.x / u_resolution.x;\n  float count = u_winSize * scale * 2.;\n  for (int i = 0; i < 1024*8; i++) {\n    if (float(i) >= count) {\n      break;\n    }\n    float k = float(i) - (count / 2.);\n    vec2 offset = vec2(pixel.x * k, 0.);\n    vec4 c = texture2D(u_image, v_texCoord+offset);\n    float x = k / scale; // max [-3, 3]\n    float b = (x >= -0.5 && x < 0.5) ? 1.0 : 0.0;\n    if (x > -1.19209290E-07 && x < 1.19209290E-07) { \n      b = 1.;\n    }\n    total += b;\n    c *= vec4(b);\n    gl_FragColor += c;\n  }\n  gl_FragColor /= vec4(total);\n}\n";
+shadersContent['#fsh-box-1d-covolve-vertical'] =
+  "precision highp float;\nuniform vec2 u_resolution;\nuniform sampler2D u_image;\nuniform vec2 u_imageSize;\nuniform float u_winSize;\n\nvarying vec2 v_texCoord;\n\n#define sinc(a) (sin(a)/a)\n#define M_PI 3.1415926535897932384626433832795\n\nvoid main() {\n  vec2 pixel = vec2(1.) / u_imageSize;\n  gl_FragColor = vec4(0.);\n\n  float total = 0.;\n  float scale = u_imageSize.y / u_resolution.y;\n  float count = u_winSize * scale * 2.;\n  for (int i = 0; i < 1024*8; i++) {\n    if (float(i) >= count) {\n      break;\n    }\n    float k = float(i) - (count / 2.);\n    vec2 offset = vec2(0., pixel.y * k);\n    vec4 c = texture2D(u_image, v_texCoord+offset);\n    float x = k / scale; // max [-3, 3]\n    float b = (x >= -0.5 && x < 0.5) ? 1.0 : 0.0;\n    if (x > -1.19209290E-07 && x < 1.19209290E-07) { \n      b = 1.;\n    }\n    total += b;\n    c *= vec4(b);\n    gl_FragColor += c;\n  }\n  gl_FragColor /= vec4(total);\n}\n";
+shadersContent['#fsh-hamming-1d-covolve-horizontal'] =
+  "precision highp float;\nuniform vec2 u_resolution;\nuniform sampler2D u_image;\nuniform vec2 u_imageSize;\nuniform float u_winSize;\n\nvarying vec2 v_texCoord;\n\n#define sinc(a) (sin(a)/a)\n#define M_PI 3.1415926535897932384626433832795\n\nvoid main() {\n  vec2 pixel = vec2(1.) / u_imageSize;\n  gl_FragColor = vec4(0.);\n\n  float total = 0.;\n  float scale = u_imageSize.x / u_resolution.x;\n  float count = u_winSize * scale * 2.;\n  for (int i = 0; i < 1024*8; i++) {\n    if (float(i) >= count) {\n      break;\n    }\n    float k = float(i) - (count / 2.);\n    vec2 offset = vec2(pixel.x * k, 0.);\n    vec4 c = texture2D(u_image, v_texCoord+offset);\n    float x = k / scale; // max [-3, 3]\n    float xpi = x * M_PI;\n    float b = sinc(xpi) * (0.54 + 0.46 * cos(xpi));\n    if (x > -1.19209290E-07 && x < 1.19209290E-07) { \n      b = 1.;\n    }\n    total += b;\n    c *= vec4(b);\n    gl_FragColor += c;\n  }\n  gl_FragColor /= vec4(total);\n}\n";
+shadersContent['#fsh-hamming-1d-covolve-vertical'] =
+  "precision highp float;\nuniform vec2 u_resolution;\nuniform sampler2D u_image;\nuniform vec2 u_imageSize;\nuniform float u_winSize;\n\nvarying vec2 v_texCoord;\n\n#define sinc(a) (sin(a)/a)\n#define M_PI 3.1415926535897932384626433832795\n\nvoid main() {\n  vec2 pixel = vec2(1.) / u_imageSize;\n  gl_FragColor = vec4(0.);\n\n  float total = 0.;\n  float scale = u_imageSize.y / u_resolution.y;\n  float count = u_winSize * scale * 2.;\n  for (int i = 0; i < 1024*8; i++) {\n    if (float(i) >= count) {\n      break;\n    }\n    float k = float(i) - (count / 2.);\n    vec2 offset = vec2(0., pixel.y * k);\n    vec4 c = texture2D(u_image, v_texCoord+offset);\n    float x = k / scale; // max [-3, 3]\n    float xpi = x * M_PI;\n    float b = sinc(xpi) * (0.54 + 0.46 * cos(xpi));\n     if (x > -1.19209290E-07 && x < 1.19209290E-07) { \n      b = 1.;\n    }\n    total += b;\n    c *= vec4(b);\n    gl_FragColor += c;\n  }\n  gl_FragColor /= vec4(total);\n}\n";
+shadersContent['#fsh-lanczos-1d-covolve-horizontal'] =
+  "precision highp float;\nuniform vec2 u_resolution;\nuniform sampler2D u_image;\nuniform vec2 u_imageSize;\nuniform float u_winSize;\n\nvarying vec2 v_texCoord;\n\n#define sinc(a) (sin(a)/a)\n#define M_PI 3.1415926535897932384626433832795\n\nvoid main() {\n  vec2 pixel = vec2(1.) / u_imageSize;\n  gl_FragColor = vec4(0.);\n\n  float total = 0.;\n  float scale = u_imageSize.x / u_resolution.x;\n  float count = u_winSize * scale * 2.;\n  for (int i = 0; i < 1024*8; i++) {\n    if (float(i) >= count) {\n      break;\n    }\n    float k = float(i) - (count / 2.);\n    vec2 offset = vec2(pixel.x * k, 0.);\n    vec4 c = texture2D(u_image, v_texCoord+offset);\n    float x = k / scale; // max [-3, 3]\n    float xpi = x * M_PI;\n    float b = sinc(xpi) * sinc(xpi / u_winSize);\n    if (x > -1.19209290E-07 && x < 1.19209290E-07) { \n      b = 1.;\n    }\n    total += b;\n    c *= vec4(b);\n    gl_FragColor += c;\n  }\n  gl_FragColor /= vec4(total);\n}\n";
+shadersContent['#fsh-lanczos-1d-covolve-vertical'] =
+  "precision highp float;\nuniform vec2 u_resolution;\nuniform sampler2D u_image;\nuniform vec2 u_imageSize;\nuniform float u_winSize;\n\nvarying vec2 v_texCoord;\n\n#define sinc(a) (sin(a)/a)\n#define M_PI 3.1415926535897932384626433832795\n\nvoid main() {\n  vec2 pixel = vec2(1.) / u_imageSize;\n  gl_FragColor = vec4(0.);\n\n  float total = 0.;\n  float scale = u_imageSize.y / u_resolution.y;\n  float count = u_winSize * scale * 2.;\n  for (int i = 0; i < 1024*8; i++) {\n    if (float(i) >= count) {\n      break;\n    }\n    float k = float(i) - (count / 2.);\n    vec2 offset = vec2(0., pixel.y * k);\n    vec4 c = texture2D(u_image, v_texCoord+offset);\n    float x = k / scale; // max [-3, 3]\n    float xpi = x * M_PI;\n    float b = sinc(xpi) * sinc(xpi / u_winSize);\n    if (x > -1.19209290E-07 && x < 1.19209290E-07) { \n      b = 1.;\n    }\n    total += b;\n    c *= vec4(b);\n    gl_FragColor += c;\n  }\n  gl_FragColor /= vec4(total);\n}\n";
+
+var shaders = [
+  { // Nearest neibor (Box)
+    win: 0.5,
+    horizontal: '#fsh-box-1d-covolve-horizontal',
+    vertical: '#fsh-box-1d-covolve-vertical'
+  },
+  { // Hamming
+    win: 1.0,
+    horizontal: '#fsh-hamming-1d-covolve-horizontal',
+    vertical: '#fsh-hamming-1d-covolve-vertical'
+  },
+  { // Lanczos, win = 2
+    win: 2.0,
+    horizontal: '#fsh-lanczos-1d-covolve-horizontal',
+    vertical: '#fsh-lanczos-1d-covolve-vertical'
+  },
+  { // Lanczos, win = 3
+    win: 3.0,
+    horizontal: '#fsh-lanczos-1d-covolve-horizontal',
+    vertical: '#fsh-lanczos-1d-covolve-vertical'
+  }
+];
 
 function error(msg) {
-  try { (window.console.error || window.console.log).call(window.console, msg); } catch (__) {}
+  try {
+    (window.console.error || window.console.log).call(window.console, msg);
+  } catch (__) {}
 }
 
 
@@ -513,72 +555,24 @@ function createShader(gl, type, src) {
 }
 
 
-function createProgram(gl, shaders, attrs, locations) {
+function createProgram(gl, vshFile, fshFile) {
+  var vertexShader = createShader(gl, gl.VERTEX_SHADER, shadersContent[vshFile]);
+  var fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, shadersContent[fshFile]);
+
   var program = gl.createProgram();
 
-  shaders.forEach(function (shader) {
-    gl.attachShader(program, shader);
-  });
-
-  if (attrs) {
-    attrs.forEach(function (attr, idx) {
-      gl.bindAttribLocation(program, locations ? locations[idx] : idx, attr);
-    });
-  }
+  gl.attachShader(program, vertexShader);
+  gl.attachShader(program, fragmentShader);
 
   gl.linkProgram(program);
 
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
     error('Program linking error: ' + gl.getProgramInfoLog(program));
     gl.deleteProgram(program);
-    return null;
   }
 
-  return program;
-}
-
-
-function createShader2(gl, vsh, fsh) {
-  var vertexShader = createShader(gl, gl.VERTEX_SHADER, vsh);
-  var fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fsh);
-  var program = createProgram(gl, [ vertexShader, fragmentShader ]);
   checkGlError(gl);
   return program;
-}
-
-
-var shadersCache = {};
-
-
-function loadShaders() {
-  if (Object.keys(shadersCache).length) {
-    return;
-  }
-
-  
-
-  /*eslint-disable no-path-concat*/
-  shadersCache['#vsh-basic'] =
-    "precision highp float;\nattribute vec2 a_position;\nattribute vec2 a_texCoord;\n\nuniform vec2 u_resolution;\n\nvarying vec2 v_texCoord;\n\nvoid main() {\n   vec2 clipSpace = a_position / u_resolution * 2.0 - 1.0;\n\n   gl_Position = vec4(clipSpace, 0, 1);\n   v_texCoord = a_texCoord;\n}\n";
-  shadersCache['#fsh-box-1d-covolve-horizontal'] =
-    "precision highp float;\nuniform vec2 u_resolution;\nuniform sampler2D u_image;\nuniform vec2 u_imageSize;\nuniform float u_winSize;\n\nvarying vec2 v_texCoord;\n\n#define sinc(a) (sin(a)/a)\n#define M_PI 3.1415926535897932384626433832795\n\nvoid main() {\n  vec2 pixel = vec2(1.) / u_imageSize;\n  gl_FragColor = vec4(0.);\n\n  float total = 0.;\n  float scale = u_imageSize.x / u_resolution.x;\n  float count = u_winSize * scale * 2.;\n  for (int i = 0; i < 1024*8; i++) {\n    if (float(i) >= count) {\n      break;\n    }\n    float k = float(i) - (count / 2.);\n    vec2 offset = vec2(pixel.x * k, 0.);\n    vec4 c = texture2D(u_image, v_texCoord+offset);\n    float x = k / scale; // max [-3, 3]\n    float b = (x >= -0.5 && x < 0.5) ? 1.0 : 0.0;\n    if (x > -1.19209290E-07 && x < 1.19209290E-07) { \n      b = 1.;\n    }\n    total += b;\n    c *= vec4(b);\n    gl_FragColor += c;\n  }\n  gl_FragColor /= vec4(total);\n}\n";
-  shadersCache['#fsh-box-1d-covolve-vertical'] =
-    "precision highp float;\nuniform vec2 u_resolution;\nuniform sampler2D u_image;\nuniform vec2 u_imageSize;\nuniform float u_winSize;\n\nvarying vec2 v_texCoord;\n\n#define sinc(a) (sin(a)/a)\n#define M_PI 3.1415926535897932384626433832795\n\nvoid main() {\n  vec2 pixel = vec2(1.) / u_imageSize;\n  gl_FragColor = vec4(0.);\n\n  float total = 0.;\n  float scale = u_imageSize.y / u_resolution.y;\n  float count = u_winSize * scale * 2.;\n  for (int i = 0; i < 1024*8; i++) {\n    if (float(i) >= count) {\n      break;\n    }\n    float k = float(i) - (count / 2.);\n    vec2 offset = vec2(0., pixel.y * k);\n    vec4 c = texture2D(u_image, v_texCoord+offset);\n    float x = k / scale; // max [-3, 3]\n    float b = (x >= -0.5 && x < 0.5) ? 1.0 : 0.0;\n    if (x > -1.19209290E-07 && x < 1.19209290E-07) { \n      b = 1.;\n    }\n    total += b;\n    c *= vec4(b);\n    gl_FragColor += c;\n  }\n  gl_FragColor /= vec4(total);\n}\n";
-  shadersCache['#fsh-hamming-1d-covolve-horizontal'] =
-    "precision highp float;\nuniform vec2 u_resolution;\nuniform sampler2D u_image;\nuniform vec2 u_imageSize;\nuniform float u_winSize;\n\nvarying vec2 v_texCoord;\n\n#define sinc(a) (sin(a)/a)\n#define M_PI 3.1415926535897932384626433832795\n\nvoid main() {\n  vec2 pixel = vec2(1.) / u_imageSize;\n  gl_FragColor = vec4(0.);\n\n  float total = 0.;\n  float scale = u_imageSize.x / u_resolution.x;\n  float count = u_winSize * scale * 2.;\n  for (int i = 0; i < 1024*8; i++) {\n    if (float(i) >= count) {\n      break;\n    }\n    float k = float(i) - (count / 2.);\n    vec2 offset = vec2(pixel.x * k, 0.);\n    vec4 c = texture2D(u_image, v_texCoord+offset);\n    float x = k / scale; // max [-3, 3]\n    float xpi = x * M_PI;\n    float b = sinc(xpi) * (0.54 + 0.46 * cos(xpi));\n    if (x > -1.19209290E-07 && x < 1.19209290E-07) { \n      b = 1.;\n    }\n    total += b;\n    c *= vec4(b);\n    gl_FragColor += c;\n  }\n  gl_FragColor /= vec4(total);\n}\n";
-  shadersCache['#fsh-hamming-1d-covolve-vertical'] =
-    "precision highp float;\nuniform vec2 u_resolution;\nuniform sampler2D u_image;\nuniform vec2 u_imageSize;\nuniform float u_winSize;\n\nvarying vec2 v_texCoord;\n\n#define sinc(a) (sin(a)/a)\n#define M_PI 3.1415926535897932384626433832795\n\nvoid main() {\n  vec2 pixel = vec2(1.) / u_imageSize;\n  gl_FragColor = vec4(0.);\n\n  float total = 0.;\n  float scale = u_imageSize.y / u_resolution.y;\n  float count = u_winSize * scale * 2.;\n  for (int i = 0; i < 1024*8; i++) {\n    if (float(i) >= count) {\n      break;\n    }\n    float k = float(i) - (count / 2.);\n    vec2 offset = vec2(0., pixel.y * k);\n    vec4 c = texture2D(u_image, v_texCoord+offset);\n    float x = k / scale; // max [-3, 3]\n    float xpi = x * M_PI;\n    float b = sinc(xpi) * (0.54 + 0.46 * cos(xpi));\n     if (x > -1.19209290E-07 && x < 1.19209290E-07) { \n      b = 1.;\n    }\n    total += b;\n    c *= vec4(b);\n    gl_FragColor += c;\n  }\n  gl_FragColor /= vec4(total);\n}\n";
-  shadersCache['#fsh-lanczos-1d-covolve-horizontal'] =
-    "precision highp float;\nuniform vec2 u_resolution;\nuniform sampler2D u_image;\nuniform vec2 u_imageSize;\nuniform float u_winSize;\n\nvarying vec2 v_texCoord;\n\n#define sinc(a) (sin(a)/a)\n#define M_PI 3.1415926535897932384626433832795\n\nvoid main() {\n  vec2 pixel = vec2(1.) / u_imageSize;\n  gl_FragColor = vec4(0.);\n\n  float total = 0.;\n  float scale = u_imageSize.x / u_resolution.x;\n  float count = u_winSize * scale * 2.;\n  for (int i = 0; i < 1024*8; i++) {\n    if (float(i) >= count) {\n      break;\n    }\n    float k = float(i) - (count / 2.);\n    vec2 offset = vec2(pixel.x * k, 0.);\n    vec4 c = texture2D(u_image, v_texCoord+offset);\n    float x = k / scale; // max [-3, 3]\n    float xpi = x * M_PI;\n    float b = sinc(xpi) * sinc(xpi / u_winSize);\n    if (x > -1.19209290E-07 && x < 1.19209290E-07) { \n      b = 1.;\n    }\n    total += b;\n    c *= vec4(b);\n    gl_FragColor += c;\n  }\n  gl_FragColor /= vec4(total);\n}\n";
-  shadersCache['#fsh-lanczos-1d-covolve-vertical'] =
-    "precision highp float;\nuniform vec2 u_resolution;\nuniform sampler2D u_image;\nuniform vec2 u_imageSize;\nuniform float u_winSize;\n\nvarying vec2 v_texCoord;\n\n#define sinc(a) (sin(a)/a)\n#define M_PI 3.1415926535897932384626433832795\n\nvoid main() {\n  vec2 pixel = vec2(1.) / u_imageSize;\n  gl_FragColor = vec4(0.);\n\n  float total = 0.;\n  float scale = u_imageSize.y / u_resolution.y;\n  float count = u_winSize * scale * 2.;\n  for (int i = 0; i < 1024*8; i++) {\n    if (float(i) >= count) {\n      break;\n    }\n    float k = float(i) - (count / 2.);\n    vec2 offset = vec2(0., pixel.y * k);\n    vec4 c = texture2D(u_image, v_texCoord+offset);\n    float x = k / scale; // max [-3, 3]\n    float xpi = x * M_PI;\n    float b = sinc(xpi) * sinc(xpi / u_winSize);\n    if (x > -1.19209290E-07 && x < 1.19209290E-07) { \n      b = 1.;\n    }\n    total += b;\n    c *= vec4(b);\n    gl_FragColor += c;\n  }\n  gl_FragColor /= vec4(total);\n}\n";
-}
-
-
-function createShader2file(gl, vshFile, fshFile) {
-  var vsh = shadersCache[vshFile];
-  var fsh = shadersCache[fshFile];
-  return createShader2(gl, vsh, fsh);
 }
 
 
@@ -671,90 +665,60 @@ function setupTextureFBO(gl, texUnit, width, height) {
 }
 
 
+function convolve(gl, texUnit0, texWidth, texHeight, texUnit, fsh, winSize, destW, destH) {
+  var program = createProgram(gl, '#vsh-basic', fsh);
+
+  gl.useProgram(program);
+
+  setUniform1f(gl, program, 'u_winSize', winSize);
+  setUniform1i(gl, program, 'u_image', texUnit0);
+  setUniform2f(gl, program, 'u_imageSize', texWidth, texHeight);
+  setUniform2f(gl, program, 'u_resolution', destW, destH);
+
+  setAttributeValues(gl, program, 'a_texCoord',
+    [ 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1 ], { elementSize: 2 });
+  setAttributeValues(gl, program, 'a_position',
+    vec2Rectangle(0, 0, destW, destH), { elementSize: 2 });
+
+  gl.viewport(0, 0, destW, destH);
+
+  var fboObject = setupTextureFBO(gl, texUnit, destW, destH);
+
+  gl.viewport(0, 0, destW, destH);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fboObject.oldFbo);
+
+  checkGlError(gl);
+
+  return fboObject;
+}
+
+
 function webglProcessResize(from, gl, options) {
 
-  gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+  var srcW = from.width,
+      srcH = from.height,
+      dstW = gl.canvas.width,
+      dstH = gl.canvas.height;
 
-  var bigsize = {
-    width: from.width,
-    height: from.height
-  };
-
-  loadShaders();
+  gl.viewport(0, 0, dstW, dstH);
 
   var texUnit0 = 0;
-  /*var tex = */loadTexture(gl, texUnit0, from);
 
-  var tsize = {
-    width: bigsize.width,
-    height: bigsize.height
-  };
+  loadTexture(gl, texUnit0, from);
 
   // resize [
-
-  function convolve(texUnit0, texWidth, texHeight, texUnit, fsh, winSize, width, height) {
-    var outsize = {
-      width: width,
-      height: height
-    };
-
-    var program = createShader2file(gl, '#vsh-basic', fsh);
-    gl.useProgram(program);
-
-    setUniform1f(gl, program, 'u_winSize', winSize);
-    setUniform1i(gl, program, 'u_image', texUnit0);
-    setUniform2f(gl, program, 'u_imageSize', texWidth, texHeight);
-    setUniform2f(gl, program, 'u_resolution', outsize.width, outsize.height);
-    setAttributeValues(gl, program, 'a_texCoord',
-      [ 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1 ], { elementSize: 2 });
-    setAttributeValues(gl, program, 'a_position',
-      vec2Rectangle(0, 0, outsize.width, outsize.height), { elementSize: 2 });
-    gl.viewport(0, 0, outsize.width, outsize.height);
-
-    var fboObject = setupTextureFBO(gl, texUnit, outsize.width, outsize.height);
-
-    gl.viewport(0, 0, outsize.width, outsize.height);
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, fboObject.oldFbo);
-
-    checkGlError(gl);
-
-    return fboObject;
-  }
 
   var winSize = typeof options.quality === 'undefined' ? 3 : options.quality;
 
   var texUnit2 = 2;
   var texUnit3 = 3;
 
-  var shaders = [
-    { // Nearest neibor (Box)
-      win: 0.5,
-      horizontal: '#fsh-box-1d-covolve-horizontal',
-      vertical: '#fsh-box-1d-covolve-vertical'
-    },
-    { // Hamming
-      win: 1.0,
-      horizontal: '#fsh-hamming-1d-covolve-horizontal',
-      vertical: '#fsh-hamming-1d-covolve-vertical'
-    },
-    { // Lanczos, win = 2
-      win: 2.0,
-      horizontal: '#fsh-lanczos-1d-covolve-horizontal',
-      vertical: '#fsh-lanczos-1d-covolve-vertical'
-    },
-    { // Lanczos, win = 3
-      win: 3.0,
-      horizontal: '#fsh-lanczos-1d-covolve-horizontal',
-      vertical: '#fsh-lanczos-1d-covolve-vertical'
-    }
-  ];
+  convolve(gl, texUnit0, srcW, srcH,
+    texUnit2, shaders[winSize].horizontal, shaders[winSize].win, dstW, srcH);
 
-  convolve(texUnit0, tsize.width, tsize.height,
-    texUnit2, shaders[winSize].horizontal, shaders[winSize].win, gl.canvas.width, tsize.height);
-
-  var finalFboObject = convolve(texUnit2, gl.canvas.width, tsize.height,
-    texUnit3, shaders[winSize].vertical, shaders[winSize].win, gl.canvas.width, gl.canvas.height);
+  var finalFboObject = convolve(gl, texUnit2, dstW, srcH,
+    texUnit3, shaders[winSize].vertical, shaders[winSize].win, dstW, dstH);
 
   // resize ]
 
@@ -771,23 +735,43 @@ function webglProcessResize(from, gl, options) {
     throw new Error('Bad framebuffer status: ' + fb_status);
   }
 
-  var width = gl.canvas.width;
-  var height = gl.canvas.height;
-  var pixels = new Uint8Array(width * height * 4);
-  gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+  var pixels = new Uint8Array(dstW * dstH * 4);
 
-  var destW = width;
-  var destH = height;
-  var dest = pixels;
+  gl.readPixels(0, 0, dstW, dstH, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+
   var unsharpAmount = typeof options.unsharpAmount === 'undefined' ? 0 : (options.unsharpAmount | 0);
   var unsharpRadius = typeof options.unsharpRadius === 'undefined' ? 0 : (options.unsharpRadius);
   var unsharpThreshold = typeof options.unsharpThreshold === 'undefined' ? 0 : (options.unsharpThreshold | 0);
 
   if (unsharpAmount) {
-    unsharp(dest, destW, destH, unsharpAmount, unsharpRadius, unsharpThreshold);
+    unsharp(pixels, dstW, dstH, unsharpAmount, unsharpRadius, unsharpThreshold);
   }
 
-  return dest;
+  var i;
+
+  // Kill alpha for sure, if disabled.
+  if (!options.alpha) {
+    for (i = pixels.length - 1; i > 0; i = i - 4) { pixels[i] = 255; }
+  }
+
+  // Flip result vertically
+  var flipped = new Uint8Array(pixels.length),
+      line, p0, p1;
+
+  for (line = dstH - 1; line >= 0; line--) {
+    p0 = (line * dstW) << 2;
+    p1 = ((dstH - 1 - line) * dstW) << 2;
+    for (i = dstW - 1; i >= 0; i--) {
+      flipped[p0] = pixels[p1];
+      flipped[p0 + 1] = pixels[p1 + 1];
+      flipped[p0 + 2] = pixels[p1 + 2];
+      flipped[p0 + 3] = pixels[p1 + 3];
+      p0 = p0 + 4;
+      p1 = p1 + 4;
+    }
+  }
+
+  return flipped;
 }
 
 
@@ -812,27 +796,10 @@ module.exports = function (from, to, options, callback) {
     gl.finish();
     document.body.removeChild(canvas);
 
-    var w2 = to.width;
-    var h2 = to.height;
     var ctxTo = to.getContext('2d');
-    var imageDataTo = ctxTo.createImageData(w2, h2);
+    var imageDataTo = ctxTo.createImageData(to.width, to.height);
 
-    // copy flipped y
-
-    var i, j, p0, p1;
-
-    for (j = 0; j < h2; j++) {
-      for (i = 0; i < w2; i++) {
-        p0 = (i + j * w2) * 4;
-        p1 = (i + (h2 - j - 1) * w2) * 4;
-//          p1 = (i + j*w2)*4;
-        imageDataTo.data[p0] = data[p1];
-        imageDataTo.data[p0 + 1] = data[p1 + 1];
-        imageDataTo.data[p0 + 2] = data[p1 + 2];
-        imageDataTo.data[p0 + 3] = data[p1 + 3];
-      }
-    }
-
+    imageDataTo.data.set(data);
     ctxTo.putImageData(imageDataTo, 0, 0);
 
     callback(null, data);
