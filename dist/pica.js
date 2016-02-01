@@ -565,10 +565,18 @@ function loadShaders() {
     "precision highp float;\nattribute vec2 a_position;\nattribute vec2 a_texCoord;\n\nuniform vec2 u_resolution;\n\nvarying vec2 v_texCoord;\n\nvoid main() {\n   vec2 clipSpace = a_position / u_resolution * 2.0 - 1.0;\n\n   gl_Position = vec4(clipSpace, 0, 1);\n   v_texCoord = a_texCoord;\n}\n";
   shadersCache['#fsh-simple-texture'] =
     "precision highp float;\nuniform sampler2D u_image;\n\nvarying vec2 v_texCoord;\n\nvoid main() {\n   gl_FragColor = texture2D(u_image, v_texCoord);\n}\n";
+  shadersCache['#fsh-box-1d-covolve-horizontal'] =
+    "precision highp float;\nuniform vec2 u_resolution;\nuniform sampler2D u_image;\nuniform vec2 u_imageSize;\nuniform float u_winSize;\n\nvarying vec2 v_texCoord;\n\n#define sinc(a) (sin(a)/a)\n#define M_PI 3.1415926535897932384626433832795\n\nvoid main() {\n  vec2 pixel = vec2(1.) / u_imageSize;\n  gl_FragColor = vec4(0.);\n\n  float total = 0.;\n  float scale = u_imageSize.x / u_resolution.x;\n  float count = u_winSize * scale * 2.;\n  for (int i = 0; i < 1024*8; i++) {\n    if (float(i) >= count) {\n      break;\n    }\n    float k = float(i) - (count / 2.);\n    vec2 offset = vec2(pixel.x * k, 0.);\n    vec4 c = texture2D(u_image, v_texCoord+offset);\n    float x = k / scale; // max [-3, 3]\n    float b = (x >= -0.5 && x < 0.5) ? 1.0 : 0.0;\n    if (x > -1.19209290E-07 && x < 1.19209290E-07) { \n      b = 1.;\n    }\n    total += b;\n    c *= vec4(b);\n    gl_FragColor += c;\n  }\n  gl_FragColor /= vec4(total);\n}\n";
+  shadersCache['#fsh-box-1d-covolve-vertical'] =
+    "precision highp float;\nuniform vec2 u_resolution;\nuniform sampler2D u_image;\nuniform vec2 u_imageSize;\nuniform float u_winSize;\n\nvarying vec2 v_texCoord;\n\n#define sinc(a) (sin(a)/a)\n#define M_PI 3.1415926535897932384626433832795\n\nvoid main() {\n  vec2 pixel = vec2(1.) / u_imageSize;\n  gl_FragColor = vec4(0.);\n\n  float total = 0.;\n  float scale = u_imageSize.y / u_resolution.y;\n  float count = u_winSize * scale * 2.;\n  for (int i = 0; i < 1024*8; i++) {\n    if (float(i) >= count) {\n      break;\n    }\n    float k = float(i) - (count / 2.);\n    vec2 offset = vec2(0., pixel.y * k);\n    vec4 c = texture2D(u_image, v_texCoord+offset);\n    float x = k / scale; // max [-3, 3]\n    float b = (x >= -0.5 && x < 0.5) ? 1.0 : 0.0;\n    if (x > -1.19209290E-07 && x < 1.19209290E-07) { \n      b = 1.;\n    }\n    total += b;\n    c *= vec4(b);\n    gl_FragColor += c;\n  }\n  gl_FragColor /= vec4(total);\n}\n";
+  shadersCache['#fsh-hamming-1d-covolve-horizontal'] =
+    "precision highp float;\nuniform vec2 u_resolution;\nuniform sampler2D u_image;\nuniform vec2 u_imageSize;\nuniform float u_winSize;\n\nvarying vec2 v_texCoord;\n\n#define sinc(a) (sin(a)/a)\n#define M_PI 3.1415926535897932384626433832795\n\nvoid main() {\n  vec2 pixel = vec2(1.) / u_imageSize;\n  gl_FragColor = vec4(0.);\n\n  float total = 0.;\n  float scale = u_imageSize.x / u_resolution.x;\n  float count = u_winSize * scale * 2.;\n  for (int i = 0; i < 1024*8; i++) {\n    if (float(i) >= count) {\n      break;\n    }\n    float k = float(i) - (count / 2.);\n    vec2 offset = vec2(pixel.x * k, 0.);\n    vec4 c = texture2D(u_image, v_texCoord+offset);\n    float x = k / scale; // max [-3, 3]\n    float xpi = x * M_PI;\n    float b = sinc(xpi) * (0.54 + 0.46 * cos(xpi));\n    if (x > -1.19209290E-07 && x < 1.19209290E-07) { \n      b = 1.;\n    }\n    total += b;\n    c *= vec4(b);\n    gl_FragColor += c;\n  }\n  gl_FragColor /= vec4(total);\n}\n";
+  shadersCache['#fsh-hamming-1d-covolve-vertical'] =
+    "precision highp float;\nuniform vec2 u_resolution;\nuniform sampler2D u_image;\nuniform vec2 u_imageSize;\nuniform float u_winSize;\n\nvarying vec2 v_texCoord;\n\n#define sinc(a) (sin(a)/a)\n#define M_PI 3.1415926535897932384626433832795\n\nvoid main() {\n  vec2 pixel = vec2(1.) / u_imageSize;\n  gl_FragColor = vec4(0.);\n\n  float total = 0.;\n  float scale = u_imageSize.y / u_resolution.y;\n  float count = u_winSize * scale * 2.;\n  for (int i = 0; i < 1024*8; i++) {\n    if (float(i) >= count) {\n      break;\n    }\n    float k = float(i) - (count / 2.);\n    vec2 offset = vec2(0., pixel.y * k);\n    vec4 c = texture2D(u_image, v_texCoord+offset);\n    float x = k / scale; // max [-3, 3]\n    float xpi = x * M_PI;\n    float b = sinc(xpi) * (0.54 + 0.46 * cos(xpi));\n     if (x > -1.19209290E-07 && x < 1.19209290E-07) { \n      b = 1.;\n    }\n    total += b;\n    c *= vec4(b);\n    gl_FragColor += c;\n  }\n  gl_FragColor /= vec4(total);\n}\n";
   shadersCache['#fsh-lanczos-1d-covolve-horizontal'] =
-    "precision highp float;\nuniform vec2 u_resolution;\nuniform sampler2D u_image;\nuniform vec2 u_imageSize;\nuniform float u_winSize;\n\nvarying vec2 v_texCoord;\n\n#define sinc(a) (sin(a)/a)\n#define M_PI 3.1415926535897932384626433832795\n\nvoid main() {\n  vec2 pixel = vec2(1.) / u_imageSize;\n  gl_FragColor = vec4(0.);\n\n//  gl_FragColor = texture2D(u_image, v_texCoord);\n//  float a = gl_FragColor.x;\n  float total = 0.;\n  float scale = u_imageSize.x / u_resolution.x;\n  float count = u_winSize * scale * 2.;\n  for (int i = 0; i < 1024*8; i++) {\n    if (float(i) >= count) {\n      break;\n    }\n    float k = float(i) - (count / 2.);\n    vec2 offset = vec2(pixel.x * k, 0.);\n    vec4 c = texture2D(u_image, v_texCoord+offset);\n    if (v_texCoord.x+offset.x < 0. || v_texCoord.x+offset.x > 1. ||\n      v_texCoord.y+offset.y < 0. || v_texCoord.y+offset.y > 1.) {\n      c = vec4(0.);\n    }\n    float x = k / scale; // max [-3, 3]\n    float xpi = x * M_PI;\n    float b = sinc(xpi) * sinc(xpi / u_winSize);\n    if (x > -1.19209290E-07 && x < 1.19209290E-07) { \n      b = 1.;\n    }\n    total += b;\n    c *= vec4(vec3(b), 1.);\n    //c += vec4(b);\n    gl_FragColor += c;\n//    gl_FragColor += 0.01; //vec4(sin(a*10.))*1;\n  }\n  gl_FragColor /= vec4(vec3(total), 1.);\n//  gl_FragColor /= vec4(vec3(count), 1.);\n//  gl_FragColor = vec4(vec3(total), 1.);\n}\n";
+    "precision highp float;\nuniform vec2 u_resolution;\nuniform sampler2D u_image;\nuniform vec2 u_imageSize;\nuniform float u_winSize;\n\nvarying vec2 v_texCoord;\n\n#define sinc(a) (sin(a)/a)\n#define M_PI 3.1415926535897932384626433832795\n\nvoid main() {\n  vec2 pixel = vec2(1.) / u_imageSize;\n  gl_FragColor = vec4(0.);\n\n  float total = 0.;\n  float scale = u_imageSize.x / u_resolution.x;\n  float count = u_winSize * scale * 2.;\n  for (int i = 0; i < 1024*8; i++) {\n    if (float(i) >= count) {\n      break;\n    }\n    float k = float(i) - (count / 2.);\n    vec2 offset = vec2(pixel.x * k, 0.);\n    vec4 c = texture2D(u_image, v_texCoord+offset);\n    float x = k / scale; // max [-3, 3]\n    float xpi = x * M_PI;\n    float b = sinc(xpi) * sinc(xpi / u_winSize);\n    if (x > -1.19209290E-07 && x < 1.19209290E-07) { \n      b = 1.;\n    }\n    total += b;\n    c *= vec4(b);\n    gl_FragColor += c;\n  }\n  gl_FragColor /= vec4(total);\n}\n";
   shadersCache['#fsh-lanczos-1d-covolve-vertical'] =
-    "precision highp float;\nuniform vec2 u_resolution;\nuniform sampler2D u_image;\nuniform vec2 u_imageSize;\nuniform float u_winSize;\n\nvarying vec2 v_texCoord;\n\n#define sinc(a) (sin(a)/a)\n#define M_PI 3.1415926535897932384626433832795\n\nvoid main() {\n  vec2 pixel = vec2(1.) / u_imageSize;\n  gl_FragColor = vec4(0.);\n\n//  gl_FragColor = texture2D(u_image, v_texCoord);\n//  float a = gl_FragColor.x;\n  float total = 0.;\n  float scale = u_imageSize.y / u_resolution.y;\n  float count = u_winSize * scale * 2.;\n  for (int i = 0; i < 1024*8; i++) {\n    if (float(i) >= count) {\n      break;\n    }\n    float k = float(i) - (count / 2.);\n    vec2 offset = vec2(0., pixel.y * k);\n    vec4 c = texture2D(u_image, v_texCoord+offset);\n    if (v_texCoord.x+offset.x < 0. || v_texCoord.x+offset.x > 1. ||\n      v_texCoord.y+offset.y < 0. || v_texCoord.y+offset.y > 1.) {\n      c = vec4(0.);\n    }\n    float x = k / scale; // max [-3, 3]\n    float xpi = x * M_PI;\n    float b = sinc(xpi) * sinc(xpi / u_winSize);\n    if (x > -1.19209290E-07 && x < 1.19209290E-07) { \n      b = 1.;\n    }\n    total += b;\n    c *= vec4(vec3(b), 1.);\n    //c += vec4(b);\n    gl_FragColor += c;\n//    gl_FragColor += 0.01; //vec4(sin(a*10.))*1;\n  }\n  gl_FragColor /= vec4(vec3(total), 1.);\n//  gl_FragColor /= vec4(vec3(count), 1.);\n//  gl_FragColor = vec4(vec3(total), 1.);\n}\n";
+    "precision highp float;\nuniform vec2 u_resolution;\nuniform sampler2D u_image;\nuniform vec2 u_imageSize;\nuniform float u_winSize;\n\nvarying vec2 v_texCoord;\n\n#define sinc(a) (sin(a)/a)\n#define M_PI 3.1415926535897932384626433832795\n\nvoid main() {\n  vec2 pixel = vec2(1.) / u_imageSize;\n  gl_FragColor = vec4(0.);\n\n  float total = 0.;\n  float scale = u_imageSize.y / u_resolution.y;\n  float count = u_winSize * scale * 2.;\n  for (int i = 0; i < 1024*8; i++) {\n    if (float(i) >= count) {\n      break;\n    }\n    float k = float(i) - (count / 2.);\n    vec2 offset = vec2(0., pixel.y * k);\n    vec4 c = texture2D(u_image, v_texCoord+offset);\n    float x = k / scale; // max [-3, 3]\n    float xpi = x * M_PI;\n    float b = sinc(xpi) * sinc(xpi / u_winSize);\n    if (x > -1.19209290E-07 && x < 1.19209290E-07) { \n      b = 1.;\n    }\n    total += b;\n    c *= vec4(b);\n    gl_FragColor += c;\n  }\n  gl_FragColor /= vec4(total);\n}\n";
 }
 
 
@@ -732,11 +740,34 @@ function webglProcessResize(from, gl, options) {
   var texUnit2 = 2;
   var texUnit3 = 3;
 
+  var shaders = [
+    { // Nearest neibor (Box)
+      win: 0.5,
+      horizontal: '#fsh-box-1d-covolve-horizontal',
+      vertical: '#fsh-box-1d-covolve-vertical'
+    },
+    { // Hamming
+      win: 1.0,
+      horizontal: '#fsh-hamming-1d-covolve-horizontal',
+      vertical: '#fsh-hamming-1d-covolve-vertical'
+    },
+    { // Lanczos, win = 2
+      win: 2.0,
+      horizontal: '#fsh-lanczos-1d-covolve-horizontal',
+      vertical: '#fsh-lanczos-1d-covolve-vertical'
+    },
+    { // Lanczos, win = 3
+      win: 3.0,
+      horizontal: '#fsh-lanczos-1d-covolve-horizontal',
+      vertical: '#fsh-lanczos-1d-covolve-vertical'
+    }
+  ];
+
   convolve(texUnit0, tsize.width, tsize.height,
-    texUnit2, '#fsh-lanczos-1d-covolve-horizontal', winSize, gl.canvas.width, tsize.height);
+    texUnit2, shaders[winSize].horizontal, shaders[winSize].win, gl.canvas.width, tsize.height);
 
   var finalFboObject = convolve(texUnit2, gl.canvas.width, tsize.height,
-    texUnit3, '#fsh-lanczos-1d-covolve-vertical', winSize, gl.canvas.width, gl.canvas.height);
+    texUnit3, shaders[winSize].vertical, shaders[winSize].win, gl.canvas.width, gl.canvas.height);
 
   // resize ]
   // final draw to canvas (for debug) [
@@ -805,12 +836,35 @@ module.exports = function (from, to, options, callback) {
 
     gl = createGl(canvas);
 
-    var pixels = webglProcessResize(from, gl, options);
+    var data = webglProcessResize(from, gl, options);
 
     gl.finish();
     document.body.removeChild(canvas);
 
-    callback(null, pixels);
+    var w2 = to.width;
+    var h2 = to.height;
+    var ctxTo = to.getContext('2d');
+    var imageDataTo = ctxTo.getImageData(0, 0, w2, h2);
+
+    // copy flipped y
+
+    var i, j, p0, p1;
+
+    for (j = 0; j < h2; j++) {
+      for (i = 0; i < w2; i++) {
+        p0 = (i + j * w2) * 4;
+        p1 = (i + (h2 - j - 1) * w2) * 4;
+//          p1 = (i + j*w2)*4;
+        imageDataTo.data[p0] = data[p1];
+        imageDataTo.data[p0 + 1] = data[p1 + 1];
+        imageDataTo.data[p0 + 2] = data[p1 + 2];
+        imageDataTo.data[p0 + 3] = data[p1 + 3];
+      }
+    }
+
+    ctxTo.putImageData(imageDataTo, 0, 0);
+
+    callback(null, data);
   } catch (e) {
     error(e);
     gl.finish();
@@ -1162,7 +1216,7 @@ function resizeCanvas(from, to, options, callback) {
   if (WEBGL && exports.WEBGL) {
     exports.debug('Resize canvas with WebGL');
 
-    return resizeWebgl(from, to, options, function (err, data) {
+    return resizeWebgl(from, to, options, function (err) {
       if (err) {
         exports.debug('WebGL resize failed, do fallback and cancel next attempts');
         exports.debug(err);
@@ -1170,26 +1224,6 @@ function resizeCanvas(from, to, options, callback) {
         WEBGL = false;
         return resizeCanvas(from, to, options, callback);
       }
-
-      ctxTo = to.getContext('2d');
-      imageDataTo = ctxTo.getImageData(0, 0, w2, h2);
-
-      // copy flipped y
-
-      var i, j, p0, p1;
-
-      for (j = 0; j < h2; j++) {
-        for (i = 0; i < w2; i++) {
-          p0 = (i + j*w2)*4;
-          p1 = (i + (h2 - j)*w2)*4;
-          imageDataTo.data[p0] = data[p1];
-          imageDataTo.data[p0+1] = data[p1+1];
-          imageDataTo.data[p0+2] = data[p1+2];
-          imageDataTo.data[p0+3] = data[p1+3];
-        }
-      }
-
-      ctxTo.putImageData(imageDataTo, 0, 0);
       callback();
     });
 
