@@ -36,12 +36,12 @@ void main() {
       b = 1.;
     }
     total += b;
-    c *= vec4(vec3(b), 1.);
+    c *= vec4(b);
     //c += vec4(b);
     gl_FragColor += c;
 //    gl_FragColor += 0.01; //vec4(sin(a*10.))*1;
   }
-  gl_FragColor /= vec4(vec3(total), 1.);
+  gl_FragColor /= vec4(total);
 //  gl_FragColor /= vec4(vec3(count), 1.);
 //  gl_FragColor = vec4(vec3(total), 1.);
 }
