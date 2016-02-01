@@ -23,10 +23,6 @@ void main() {
     float k = float(i) - (count / 2.);
     vec2 offset = vec2(pixel.x * k, 0.);
     vec4 c = texture2D(u_image, v_texCoord+offset);
-    if (v_texCoord.x+offset.x < 0. || v_texCoord.x+offset.x > 1. ||
-      v_texCoord.y+offset.y < 0. || v_texCoord.y+offset.y > 1.) {
-      c = vec4(0.);
-    }
     float x = k / scale; // max [-3, 3]
     float xpi = x * M_PI;
     float b = sinc(xpi) * sinc(xpi / u_winSize);
