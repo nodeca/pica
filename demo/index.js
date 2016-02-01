@@ -79,7 +79,7 @@ var updateResized = _.debounce(function () {
 
   window.pica.resizeCanvas($('#src')[0], dst, {
     quality: quality,
-    alpha: true,
+    alpha: alpha,
     unsharpAmount: unsharpAmount,
     unsharpRadius: unsharpRadius,
     unsharpThreshold: unsharpThreshold,
@@ -123,10 +123,16 @@ window.pica.debug = console.log.bind(console);
 window.pica.WEBGL = true;
 
 var img = new Image();
-var quality = Number($('#pica-quality').val());
-var unsharpAmount = Number($('#pica-unsharp-amount').val());
-var unsharpRadius = Number($('#pica-unsharp-radius').val());
-var unsharpThreshold = Number($('#pica-unsharp-threshold').val());
+
+var quality           = Number($('#pica-quality').val());
+var unsharpAmount     = Number($('#pica-unsharp-amount').val());
+var unsharpRadius     = Number($('#pica-unsharp-radius').val());
+var unsharpThreshold  = Number($('#pica-unsharp-threshold').val());
+var alpha             = $('#pica-use-alpha').is(":checked")
+
+window.pica.WW        = $('#pica-use-ww').is(":checked");
+window.pica.WEBGL     = $('#pica-use-webgl').is(":checked");
+
 
 img.src = imageEncoded;
 
@@ -154,6 +160,10 @@ $('#pica-unsharp-radius').on('change', function () {
 });
 $('#pica-unsharp-threshold').on('change', function () {
   unsharpThreshold = Number($('#pica-unsharp-threshold').val());
+  updateResized();
+});
+$('#pica-use-alpha').on('change', function () {
+  alpha = $(this).is(":checked");
   updateResized();
 });
 $('#pica-use-ww').on('change', function () {
