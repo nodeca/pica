@@ -13,8 +13,6 @@ void main() {
   vec2 pixel = vec2(1.) / u_imageSize;
   gl_FragColor = vec4(0.);
 
-//  gl_FragColor = texture2D(u_image, v_texCoord);
-//  float a = gl_FragColor.x;
   float total = 0.;
   float scale = u_imageSize.x / u_resolution.x;
   float count = u_winSize * scale * 2.;
@@ -37,11 +35,7 @@ void main() {
     }
     total += b;
     c *= vec4(b);
-    //c += vec4(b);
     gl_FragColor += c;
-//    gl_FragColor += 0.01; //vec4(sin(a*10.))*1;
   }
   gl_FragColor /= vec4(total);
-//  gl_FragColor /= vec4(vec3(count), 1.);
-//  gl_FragColor = vec4(vec3(total), 1.);
 }
