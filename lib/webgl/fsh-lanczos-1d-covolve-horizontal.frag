@@ -2,7 +2,8 @@ precision highp float;
 uniform vec2 u_resolution;
 uniform sampler2D u_image;
 uniform vec2 u_imageSize;
-uniform float u_winSize;
+
+#define winSize 3.0
 
 varying vec2 v_texCoord;
 
@@ -15,7 +16,7 @@ void main() {
 
   float total = 0.;
   float scale = u_imageSize.x / u_resolution.x;
-  float count = u_winSize * scale * 2.;
+  float count = winSize * scale * 2.;
   for (int i = 0; i < 1024*8; i++) {
     if (float(i) >= count) {
       break;
@@ -25,7 +26,7 @@ void main() {
     vec4 c = texture2D(u_image, v_texCoord+offset);
     float x = k / scale; // max [-3, 3]
     float xpi = x * M_PI;
-    float b = sinc(xpi) * sinc(xpi / u_winSize);
+    float b = sinc(xpi) * sinc(xpi / winSize);
     if (x > -1.19209290E-07 && x < 1.19209290E-07) { 
       b = 1.;
     }
