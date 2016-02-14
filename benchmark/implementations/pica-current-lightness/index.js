@@ -1,6 +1,6 @@
 'use strict';
 
-var lightness = require('../../../lib/pure/unsharp').lightness;
+var lightness = require('../../../lib/js/unsharp').lightness;
 
 exports.run = function(data) {
   var buffer = data.buffer;
