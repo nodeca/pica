@@ -1,11 +1,11 @@
 'use strict';
 
-var pica = require('../../../');
+var resize = require('../../../lib/js/resize_array');
 
 exports.run = function(data) {
   var out_result;
 
-  pica.resizeBuffer({
+  resize({
     src: data.buffer,
     width: data.width,
     height: data.height,

@@ -34,97 +34,176 @@ try {
   __cvs = null;
 }
 
-var resize       = require('./lib/resize');
-var resizeWorker = require('./lib/resize_worker');
-var resizeWebgl  = require('./lib/resize_webgl');
-
+var ResizerJS     = require('./lib/resizer_js');
+var ResizerJSWW   = require('./lib/resizer_js_ww');
+var ResizerWebgl  = require('./lib/resizer_webgl');
 
 ////////////////////////////////////////////////////////////////////////////////
 // Helpers
 function _class(obj) { return Object.prototype.toString.call(obj); }
 function isFunction(obj) { return _class(obj) === '[object Function]'; }
 
+/////////////////////////////////////////////////////////////////////////////////
+// Making tiles
+
+var SRC_TILE_SIZE = 512;
+var DEST_TILE_BORDER = 3;
+
+function createRegions(fromWidth, fromHeight, toWidth, toHeight) {
+  var scaleX = toWidth / fromWidth;
+  var scaleY = toHeight / fromHeight;
+
+  var innerTileWidth = Math.floor(SRC_TILE_SIZE * scaleX) - 2 * DEST_TILE_BORDER;
+  var innerTileHeight = Math.floor(SRC_TILE_SIZE * scaleY) - 2 * DEST_TILE_BORDER;
+
+  var x, y;
+  var innerX, innerY, toTileWidth, toTileHeight;
+  var tiles = [];
+  var tile;
+
+  // we go top-to-down instead of left-to-right to make image displayed from top to
+  // doesn in the browser
+  for (innerY = 0; innerY < toHeight; innerY += innerTileHeight) {
+    for (innerX = 0; innerX < toWidth; innerX += innerTileWidth) {
+      x = innerX - DEST_TILE_BORDER;
+      if (x < 0) { x = 0; }
+      toTileWidth = innerX + innerTileWidth + DEST_TILE_BORDER - x;
+      if (x + toTileWidth >= toWidth) {
+        toTileWidth = toWidth - x;
+      }
+
+      y = innerY - DEST_TILE_BORDER;
+      if (y < 0) { y = 0; }
+      toTileHeight = innerY + innerTileHeight + DEST_TILE_BORDER - y;
+      if (y + toTileHeight >= toHeight) {
+        toTileHeight = toHeight - y;
+      }
+
+      tile = {
+        toX: x,
+        toY: y,
+        toWidth: toTileWidth,
+        toHeight: toTileHeight,
+
+        toInnerX: innerX,
+        toInnerY: innerY,
+        toInnerWidth: innerTileWidth,
+        toInnerHeight: innerTileHeight,
+
+        offsetX: x / scaleX - Math.floor(x / scaleX),
+        offsetY: y / scaleY - Math.floor(y / scaleY),
+        scaleX: scaleX,
+        scaleY: scaleY,
+
+        x: Math.floor(x / scaleX),
+        y: Math.floor(y / scaleY),
+        width: Math.ceil(toTileWidth / scaleX),
+        height: Math.ceil(toTileHeight / scaleY)
+      };
+
+      tiles.push(tile);
+    }
+  }
+
+  return tiles;
+}
+
+function eachLimit(list, limit, iterator, callback) {
+  if (list.length === 0) {
+    callback();
+  }
+
+  var current = 0;
+  var failed = false;
+
+  var next = function (err) {
+    if (err) {
+      if (!failed) {
+        failed = true;
+        callback(err);
+      }
+      return;
+    }
+
+    if (current < list.length) {
+      iterator(list[current++], next);
+    } else {
+      callback();
+    }
+  };
+
+  for (current = 0; current < limit && current < list.length; current++) {
+    iterator(list[current], next);
+  }
+}
+
+function resizeTiled (from, to, options, resizer, callback) {
+  var regions = createRegions(from.width, from.height, to.width, to.height);
+  var toCtx = to.getContext('2d');
+
+  var canvasPool  = [];
+  var i, tileData;
+
+  for (i = 0; i < resizer.concurrency; i++) {
+    tileData = {
+      src: document.createElement('canvas'),
+      dest: document.createElement('canvas')
+    };
+    tileData.src.width = SRC_TILE_SIZE;
+    tileData.src.height = SRC_TILE_SIZE;
+    tileData.dest.width = Math.floor(SRC_TILE_SIZE * to.width / from.width);
+    tileData.dest.height = Math.floor(SRC_TILE_SIZE * to.height / from.height);
+
+    canvasPool.push(tileData);
+  }
+
+  eachLimit(regions, resizer.concurrency, function (tile, next) {
+    var canvases = canvasPool.pop();
+
+    canvases.src.getContext('2d').drawImage(from,
+      tile.x, tile.y, tile.width, tile.height,
+      0, 0, tile.width, tile.height);
+
+    var _opts = {
+      width:    tile.width,
+      height:   tile.height,
+      toWidth:  tile.toWidth,
+      toHeight: tile.toHeight,
+      scaleX:   tile.scaleX,
+      scaleY:   tile.scaleY,
+      offsetX:  tile.offsetX,
+      offsetY:  tile.offsetY,
+      quality:  options.quality,
+      alpha:    options.alpha,
+      unsharpAmount: options.unsharpAmount,
+      unsharpRadius: options.unsharpRadius,
+      unsharpThreshold: options.unsharpThreshold
+    };
+
+    resizer.resize(canvases.src, canvases.dest, _opts, function (err) {
+      if (!err) {
+        toCtx.drawImage(canvases.dest,
+          tile.toInnerX - tile.toX, tile.toInnerY - tile.toY,
+          tile.toInnerWidth, tile.toInnerHeight,
+          tile.toInnerX, tile.toInnerY,
+          tile.toInnerWidth, tile.toInnerHeight);
+      }
+
+      canvasPool.push(canvases);
+      next(err);
+    });
+  }, function (err) {
+    resizer.cleanup();
+    callback(err);
+  });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // API methods
 
-
-// RGBA buffer async resize
-//
-function resizeBuffer(options, callback) {
-  var wr;
-
-  var _opts = {
-    src:      options.src,
-    dest:     null,
-    width:    options.width|0,
-    height:   options.height|0,
-    toWidth:  options.toWidth|0,
-    toHeight: options.toHeight|0,
-    quality:  options.quality,
-    alpha:    options.alpha,
-    unsharpAmount:    options.unsharpAmount,
-    unsharpRadius:    options.unsharpRadius,
-    unsharpThreshold: options.unsharpThreshold
-  };
-
-  // Force flag reset to simplify status check
-  if (!WORKER) { exports.WW = false; }
-
-  if (WORKER && exports.WW) {
-    exports.debug('Resize buffer in WebWorker');
-
-    wr = require('webworkify')(resizeWorker);
-
-    wr.onmessage = function(ev) {
-      var i, l,
-          dest = options.dest,
-          output = ev.data.output;
-
-      // If we got output buffer by reference, we should copy data,
-      // because WW returns independent instance
-      if (dest) {
-        // IE ImageData can return old-style CanvasPixelArray
-        // without .set() method. Copy manually for such case.
-        if (dest.set) {
-          dest.set(output);
-        } else {
-          for (i = 0, l = output.length; i < l; i++) {
-            dest[i] = output[i];
-          }
-        }
-      }
-      callback(ev.data.err, output);
-      wr.terminate();
-    };
-
-    if (options.transferable) {
-      wr.postMessage(_opts, [ options.src.buffer ]);
-    } else {
-      wr.postMessage(_opts);
-    }
-    // Expose worker when available, to allow early termination.
-    return wr;
-  }
-
-  // Fallback to sync call, if WebWorkers not available
-  exports.debug('Resize buffer sync (freeze event loop)');
-
-  _opts.dest = options.dest;
-  resize(_opts, callback);
-  return null;
-}
-
-
 // Canvas async resize
 //
 function resizeCanvas(from, to, options, callback) {
-  var w = from.width,
-      h = from.height,
-      w2 = to.width,
-      h2 = to.height;
-  var ctxTo, imageDataTo;
-
   if (isFunction(options)) {
     callback = options;
     options = {};
@@ -140,52 +219,34 @@ function resizeCanvas(from, to, options, callback) {
   if (WEBGL && exports.WEBGL) {
     exports.debug('Resize canvas with WebGL');
 
-    return resizeWebgl(from, to, options, function (err) {
+    return resizeTiled(from, to, options, new ResizerWebgl(), function (err) {
       if (err) {
         exports.debug('WebGL resize failed, do fallback and cancel next attempts');
         exports.debug(err);
 
         WEBGL = false;
-        return resizeCanvas(from, to, options, callback);
+        resizeCanvas(from, to, options, callback);
       }
       callback();
     });
-
   }
 
-  exports.debug('Resize canvas: prepare data');
+  // Force flag reset to simplify status check
+  if (!WORKER) { exports.WW = false; }
 
-  ctxTo = to.getContext('2d');
-  imageDataTo = ctxTo.createImageData(w2, h2);
+  if (WORKER && exports.WW) {
+    exports.debug('Resize buffer in WebWorker');
 
-  var _opts = {
-    src:      from.getContext('2d').getImageData(0, 0, w, h).data,
-    dest:     imageDataTo.data,
-    width:    from.width,
-    height:   from.height,
-    toWidth:  to.width,
-    toHeight: to.height,
-    quality:  options.quality,
-    alpha:    options.alpha,
-    unsharpAmount:    options.unsharpAmount,
-    unsharpRadius:    options.unsharpRadius,
-    unsharpThreshold: options.unsharpThreshold,
-    transferable: true
-  };
+    return resizeTiled(from, to, options, new ResizerJSWW(), callback);
+  }
 
-  return resizeBuffer(_opts, function (err/*, output*/) {
-    if (err) {
-      callback(err);
-      return;
-    }
+  // Fallback to sync call, if WebWorkers not available
+  exports.debug('Resize buffer sync (freeze event loop)');
 
-    ctxTo.putImageData(imageDataTo, 0, 0);
-    callback();
-  });
+  return resizeTiled(from, to, options, new ResizerJS(), callback);
 }
 
 
-exports.resizeBuffer = resizeBuffer;
 exports.resizeCanvas = resizeCanvas;
 exports.WW = WORKER;
 exports.WEBGL = false; // WEBGL;

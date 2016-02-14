@@ -3,7 +3,7 @@
 'use strict';
 
 
-var resize = require('../lib/pure/resize');
+var resize = require('../lib/js/resize_array');
 var assert = require('assert');
 var format = require('util').format;
 
