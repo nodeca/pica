@@ -1,6 +1,6 @@
 'use strict';
 
-var unsharp = require('../../../lib/pure/unsharp');
+var unsharp = require('../../../lib/js/unsharp');
 
 exports.run = function(data) {
   var b;

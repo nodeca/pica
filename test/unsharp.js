@@ -1,7 +1,7 @@
 'use strict';
 /* globals describe, it */
 
-var unsharp = require('../lib/pure/unsharp');
+var unsharp = require('../lib/js/unsharp');
 var assert = require('assert');
 
 describe('Unsharp mask', function () {
