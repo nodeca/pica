@@ -34,6 +34,8 @@ try {
   __cvs = null;
 }
 
+var createCanvas  = require('./lib/util/create_canvas.js');
+
 var ResizerJS     = require('./lib/resizer_js');
 var ResizerJSWW   = require('./lib/resizer_js_ww');
 var ResizerWebgl  = require('./lib/resizer_webgl');
@@ -146,8 +148,8 @@ function resizeTiled (from, to, options, resizer, callback) {
 
   for (i = 0; i < resizer.concurrency; i++) {
     tileData = {
-      src: document.createElement('canvas'),
-      dest: document.createElement('canvas')
+      src: createCanvas(),
+      dest: createCanvas()
     };
     tileData.src.width = SRC_TILE_SIZE;
     tileData.src.height = SRC_TILE_SIZE;
