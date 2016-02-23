@@ -30,7 +30,7 @@
     ]
   },
   "browser": {
-    "./lib/util/create_canvas.js": "./lib/util/create_canvas_browser.js"
+    "./lib/js/create_canvas.js": "./lib/js/create_canvas_browser.js"
   },
   "dependencies": {
     "glur": "^1.1.1",
