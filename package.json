@@ -34,6 +34,7 @@
   },
   "dependencies": {
     "glur": "^1.1.1",
+    "object-assign": "^4.0.1",
     "webworkify": "1.0.2"
   },
   "devDependencies": {

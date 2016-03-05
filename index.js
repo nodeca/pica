@@ -37,6 +37,7 @@ try {
 var resize_js     = require('./lib/resize_js');
 var resize_js_ww  = require('./lib/resize_js_ww');
 var resize_webgl  = require('./lib/resize_webgl');
+var assign        = require('object-assign');
 
 ////////////////////////////////////////////////////////////////////////////////
 // Helpers
@@ -64,16 +65,18 @@ function resizeCanvas(from, to, options, callback) {
   if (WEBGL && exports.WEBGL) {
     exports.debug('Resize canvas with WebGL');
 
-    return resize_webgl(from, to, options, function (err) {
+    var id = resize_webgl(from, to, options, function (err) {
       if (err) {
         exports.debug('WebGL resize failed, do fallback and cancel next attempts');
         exports.debug(err);
 
         WEBGL = false;
-        resizeCanvas(from, to, options, callback);
+        resizeCanvas(from, to, assign({}, options, { _id: id }), callback);
+      } else {
+        callback();
       }
-      callback();
     });
+    return id;
   }
 
   // Force flag reset to simplify status check
@@ -91,8 +94,14 @@ function resizeCanvas(from, to, options, callback) {
   return resize_js(from, to, options, callback);
 }
 
+function terminate(id) {
+  resize_js.terminate(id);
+  resize_js_ww.terminate(id);
+  resize_webgl.terminate(id);
+}
 
 exports.resizeCanvas = resizeCanvas;
+exports.terminate = terminate;
 exports.WW = WORKER;
 exports.WEBGL = false; // WEBGL;
 exports.debug = function () {};
