@@ -14,14 +14,16 @@ When you resize images using modern browsers' `canvas`
 low quality interpolation algorythms are used by default. That's why we wrote `pica`.
 
 - It's not as fast as canvas, but still reasonably fast. With Lanczos filter and
-  `window=3` huge image resize (5000x3000px) takes ~1s on desktop and ~3s on
+  `window=3` huge image resize (5000x3000px) takes ~0.5s on desktop and ~2s on
   mobile.
-- If your browser supports [Webworkers](http://caniuse.com/#feat=webworkers), `pica` automatically uses it to avoid
-  interface freeze.
+- In modern browsers pica automatically uses
+  [Webworkers](http://caniuse.com/#feat=webworkers), to avoid interface freeze
+  and use multiple CPU cores in parallel.
 
 Why it's useful:
 
-- reduces upload size for large images to pre-process in browser, saving time and bandwidth
+- reduces upload size for large images to pre-process in browser, saving time
+  and bandwidth
 - saves server resources on image processing
 - [HiDPI image technique](http://www.html5rocks.com/en/mobile/high-dpi/#toc-tech-overview) for responsive and retina
 - use single image for both thumbnail and detailed view
@@ -39,8 +41,8 @@ save it back to blob). Here is a short list of problems you can face:
     domain or local files. If you load images from remote domain use proper
     `Access-Control-Allow-Origin` header.
   - iOS has resource limits for canvas size & image size.
-    Look [here](https://github.com/stomita/ios-imagefile-megapixel) for details and possible
-    solutions.
+    Look [here](https://github.com/stomita/ios-imagefile-megapixel) for details
+    and possible solutions.
   - If you plan to show images on screen after load, you must parse `exif` header
     to get proper orientation. Images can be rotated.
 - Saving image:
@@ -73,54 +75,45 @@ bower:
 bower install pica
 ```
 
-!!! Experimental WebGL support !!!
-----------------------------------
-
-_Pica can use WebGL to significantly improve resize speed.
-This support is experimental and disabled by default._
-
-To allow WebGL use, use sources from the master branch and set:
-
-```js
-pica.WEBGL = true;
-pica.debug = console.log.bind(console);
-```
-
-If error happens, pica will reset `.WEBGL` property and dump error. Then in will
-fallback to more safe methods.
-
-We encourage you to help us test this mode! We need your feedback!
-
 
 API
 ---
 
-### .resizeCanvas(from, to, options, callback)
+### .resizeCanvas(from, to, options, callback) -> task_id
 
-Resize image from one canvas to another. Sizes are taken from canvas.
+Resize image from one canvas (or image) to another. Sizes are taken from
+source and destination objects. Return task ID to be able terminate it early.
 
-- __from__ - source canvas.
+- __from__ - source canvas or image.
 - __to__ - destination canvas.
 - __options__ - quality (number) or object:
   - __quality__ - 0..3. Default = `3` (lanczos, win=3).
   - __alpha__ - use alpha channel. Default = `false`.
   - __unsharpAmount__ - >=0, in percents. Default = `0` (off). Usually
     between 50 to 100 is good.
-  - __unsharpRadius__ - >=0.5. Radius of Gaussian blur. If it is less than 0.5,
-    Unsharp Mask is off.
+  - __unsharpRadius__ - 0.5..2.0. Radius of Gaussian blur.
+    If it is less than 0.5, Unsharp Mask is off. Big values are clamped to 2.0.
   - __unsharpThreshold__ - 0..255. Default = `0`. Threshold for applying
     unsharp mask.
 - __callback(err)__ - function to call after resize complete:
   - __err__ - error if happened
 
-__(!)__ If WebWorker available, it's returned as function result (not via
-  callback) to allow early termination.
+__(!)__ If you need to process multiple images, do it sequentially to optimize
+CPU & memory use. Pica already knows how to use multiple cores (if browser
+allows).
+
+
+### .terminate(task_id)
+
+Terminate resizing task by id, returned from resize function.
 
 
 ### .resizeBuffer(options, callback)
 
-Async resize Uint8Array with raw RGBA bitmap (don't confuse with jpeg / png  / ...
-binaries).
+Supplementary method, not recommended for direct use. Resize Uint8Array with
+raw RGBA bitmap (don't confuse with jpeg / png  / ... binaries). It does not
+use tiles & webworkers. Left for special cases when you really need to process
+raw binary data (for example, if you decode jpeg files "manually").
 
 - __options:__
   - __src__ - Uint8Array with source data.
@@ -132,40 +125,51 @@ binaries).
   - __alpha__ - use alpha channel. Default = `false`.
   - __unsharpAmount__ - >=0, in percents. Default = `0` (off). Usually
     between 50 to 100 is good.
-  - __usnharpRadius__ - >=0.5. Radius of Gaussian blur. If it is less than 0.5,
-    Unsharp Mask is off.
+  - __unsharpRadius__ - 0.5..2.0. Radius of Gaussian blur.
+    If it is less than 0.5, Unsharp Mask is off. Big values are clamped to 2.0.
   - __unsharpThreshold__ - 0..255. Default = `0`. Threshold for applying
     unsharp mask.
-  - __dest__ - Optional. Output buffer to write data. Help to avoid data copy
-    if no WebWorkers available. Callback will return result buffer anyway.
-  - __transferable__ - Optional. Default = `false`. Whether to use
-    [transferable objects](http://updates.html5rocks.com/2011/12/Transferable-Objects-Lightning-Fast).
-    with webworkers. Can be faster sometime, but you cannot use the source
-    buffer afterward.
+  - __dest__ - Optional. Output buffer to write data (callback will return
+    result buffer anyway).
 - __callback(err, output)__ - function to call after resize complete:
   - __err__ - error if happened.
   - __output__ - Uint8Array with resized RGBA image data.
-
-__(!)__ If WebWorker available, it's returned as function result (not via
-  callback) to allow early termination.
 
 
 ### .WW - true/false
 
 `true` if webworkers are [supported](http://caniuse.com/#feat=webworkers).
-You can use it for browser capabilities detection.
-Also, you can set it to `false` for debuging, so `pica` will use direct
-function calls.
+You can use it for browser capabilities detection. Also, you can set it to
+`false` for debuging.
+
+
+### .WEBGL - true/false (experimental)
+
+`false` by default. Pica can use WebGL when available, if you enable
+this feature. But current implementation is not complete and not recommended
+for production. Result is noisy and code can crash.
+
+Though, you can enable it to investigate technology, test on different devices
+and provide feedback.
+
+```js
+pica.WEBGL = true;
+pica.debug = console.log.bind(console);
+```
 
 
 ### What is quality
 
-Pica has presets, to adjust speed/quality ratio. Simply use `quality` option param:
+Pica has presets, to adjust speed/quality ratio. Simply use `quality` option
+param:
 
 - 0 - Box filter, window 0.5px
 - 1 - Hamming filter, window 1.0px
 - 2 - Lanczos filter, window 2.0px
 - 3 - Lanczos filter, window 3.0px
+
+In real world you will never need to change default (max) quality. All this
+variations were implemented to better understand resize math :)
 
 
 ### Unsharp mask
@@ -173,10 +177,11 @@ Pica has presets, to adjust speed/quality ratio. Simply use `quality` option par
 Pica has built-in unsharp mask. Set `unsharpAmount` to positive number to
 activate the filter.
 
-The parameters of it are similar to ones from Photoshop. We recommend to start from
-`unsharpAmount = 80`, `unsharpRadius = 0.6`, `unsharpThreshop = 2`.
+The parameters of it are similar to ones from Photoshop. We recommend to start
+with `unsharpAmount = 80`, `unsharpRadius = 0.6`, `unsharpThreshold = 2`.
 There is [a correspondence between UnsharpMask parameters in popular graphics
 software](https://github.com/nodeca/pica/wiki#editing-unsharp-mask-params-relations-in-pupular-softare).
+
 
 Browser support
 ----------------
