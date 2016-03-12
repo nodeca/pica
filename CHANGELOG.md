@@ -1,16 +1,16 @@
 2.0.0 / 2016-03-12
------------------
+------------------
 
 - Support `Image()` as input src.
-- Images are now splitted to tiles to restrict memory use and allow parallel
-  processing.
+- Architecture rework: images are now splitted to tiles to restrict memory use
+  and allow parallel processing.
 - Built-in WebWorkers manager to use all available CPU cores.
 - Feature flags (WW, WEBGL) are forced to `false` after resize call,
   if feature not supported or disabled due fatal error.
 - `unsharpRadius` range restricted to 0.5..2.0.
-- Deprecated `transferable` options - this feature is used automatically
-  when available.
 - Experimental code for WebGL support (noisy & buggy, disabled by default).
+- `.resizeBuffer()` is no longer recommended for use. It does not use webworkers
+  anymore (and option `transferable` is not used too).
 
 
 1.1.1 / 2015-11-10
