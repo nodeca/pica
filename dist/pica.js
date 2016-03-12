@@ -1,15 +1,91 @@
-/* pica 1.1.1 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+/* pica 2.0.0 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+'use strict';
+
+/* global document */
+
+module.exports = function () {
+  return document.createElement('canvas');
+};
+
+},{}],2:[function(require,module,exports){
+'use strict';
+
+var lastId = 1;
+
+module.exports = function () {
+  return lastId++;
+};
+
+},{}],3:[function(require,module,exports){
+'use strict';
+
+var IDLE = 2000;
+var TIMEOUT = 500;
+
+function Pool(create) {
+  this.create = create;
+
+  this.available = [];
+  this.acquired = {};
+  this.lastId = 1;
+
+  this.timeoutId = 0;
+}
+
+Pool.prototype.acquire = function () {
+  var self = this;
+  var resource;
+  if (this.available.length !== 0) {
+    resource = this.available.pop();
+  } else {
+    resource = this.create();
+    resource.id = this.lastId++;
+    resource.release = function () {
+      self.release(resource);
+    };
+  }
+  this.acquired[resource.id] = resource;
+  return resource;
+};
+
+Pool.prototype.release = function (resource) {
+  delete this.acquired[resource.id];
+  resource.lastUsed = Date.now();
+  this.available.push(resource);
+
+  if (this.timeoutId === 0) {
+    this.timeoutId = setTimeout(this.gc.bind(this), TIMEOUT);
+  }
+};
+
+Pool.prototype.gc = function () {
+  var now = Date.now();
+
+  this.available = this.available.filter(function (resource) {
+    if (now - resource.lastUsed > IDLE) {
+      resource.destroy();
+      return false;
+    }
+    return true;
+  });
+
+  if (this.available.length !== 0) {
+    this.timeoutId = setTimeout(this.gc.bind(this), TIMEOUT);
+  } else {
+    this.timeoutId = 0;
+  }
+};
+
+module.exports = Pool;
+
+},{}],4:[function(require,module,exports){
 // High speed resize with tuneable speed/quality ratio
 
 'use strict';
 
 
-var unsharp = require('./unsharp');
-
-
 // Precision of fixed FP values
 var FIXED_FRAC_BITS = 14;
-var FIXED_FRAC_VAL  = 1 << FIXED_FRAC_BITS;
 
 
 //
@@ -53,7 +129,7 @@ var FILTER_INFO = [
 
 function clampTo8(i) { return i < 0 ? 0 : (i > 255 ? 255 : i); }
 
-function toFixedPoint(num) { return Math.floor(num * FIXED_FRAC_VAL); }
+function toFixedPoint(num) { return Math.round(num * ((1 << FIXED_FRAC_BITS) - 1)); }
 
 
 // Calculate convolution filters for each destination point,
@@ -65,11 +141,10 @@ function toFixedPoint(num) { return Math.floor(num * FIXED_FRAC_VAL); }
 // - length - filter length (in src points)
 // - data - filter values sequence
 //
-function createFilters(quality, srcSize, destSize) {
+function createFilters(quality, srcSize, destSize, scale, offset) {
 
   var filterFunction = FILTER_INFO[quality].filter;
 
-  var scale         = destSize / srcSize;
   var scaleInverted = 1.0 / scale;
   var scaleClamped  = Math.min(1.0, scale); // For upscale
 
@@ -77,7 +152,7 @@ function createFilters(quality, srcSize, destSize) {
   var srcWindow = FILTER_INFO[quality].win / scaleClamped;
 
   var destPixel, srcPixel, srcFirst, srcLast, filterElementSize,
-      floatFilter, fxpFilter, total, fixedTotal, pxl, idx, floatVal, fixedVal;
+      floatFilter, fxpFilter, total, pxl, idx, floatVal, filterTotal, filterVal;
   var leftNotEmpty, rightNotEmpty, filterShift, filterSize;
 
   var maxFilterElementSize = Math.floor((srcWindow + 1) * 2);
@@ -88,7 +163,7 @@ function createFilters(quality, srcSize, destSize) {
   for (destPixel = 0; destPixel < destSize; destPixel++) {
 
     // Scaling should be done relative to central pixel point
-    srcPixel = (destPixel + 0.5) * scaleInverted;
+    srcPixel = (destPixel + 0.5) * scaleInverted + offset;
 
     srcFirst = Math.max(0, Math.floor(srcPixel - srcWindow));
     srcLast  = Math.min(srcSize - 1, Math.ceil(srcPixel + srcWindow));
@@ -107,16 +182,16 @@ function createFilters(quality, srcSize, destSize) {
     }
 
     // Normalize filter, convert to fixed point and accumulate conversion error
-    fixedTotal = 0;
+    filterTotal = 0;
 
     for (idx = 0; idx < floatFilter.length; idx++) {
-      fixedVal = toFixedPoint(floatFilter[idx] / total);
-      fixedTotal += fixedVal;
-      fxpFilter[idx] = fixedVal;
+      filterVal = floatFilter[idx] / total;
+      filterTotal += filterVal;
+      fxpFilter[idx] = toFixedPoint(filterVal);
     }
 
     // Compensate normalization error, to minimize brightness drift
-    fxpFilter[destSize >> 1] += toFixedPoint(1.0) - fixedTotal;
+    fxpFilter[destSize >> 1] += toFixedPoint(1.0 - filterTotal);
 
     //
     // Now pack filter to useable form
@@ -291,17 +366,18 @@ function resize(options) {
   var srcH  = options.height;
   var destW = options.toWidth;
   var destH = options.toHeight;
+  var scaleX = options.scaleX || options.toWidth / options.width;
+  var scaleY = options.scaleY || options.toHeight / options.height;
+  var offsetX = options.offsetX || 0;
+  var offsetY = options.offsetY || 0;
   var dest  = options.dest || new Uint8Array(destW * destH * 4);
   var quality = typeof options.quality === 'undefined' ? 3 : options.quality;
   var alpha = options.alpha || false;
-  var unsharpAmount = typeof options.unsharpAmount === 'undefined' ? 0 : (options.unsharpAmount|0);
-  var unsharpRadius = typeof options.unsharpRadius === 'undefined' ? 0 : (options.unsharpRadius);
-  var unsharpThreshold = typeof options.unsharpThreshold === 'undefined' ? 0 : (options.unsharpThreshold|0);
 
   if (srcW < 1 || srcH < 1 || destW < 1 || destH < 1) { return []; }
 
-  var filtersX = createFilters(quality, srcW, destW),
-      filtersY = createFilters(quality, srcH, destH);
+  var filtersX = createFilters(quality, srcW, destW, scaleX, offsetX),
+      filtersY = createFilters(quality, srcH, destH, scaleY, offsetY);
 
   var tmp  = new Uint8Array(destW * srcH * 4);
 
@@ -320,17 +396,13 @@ function resize(options) {
     resetAlpha(dest, destW, destH);
   }
 
-  if (unsharpAmount) {
-    unsharp(dest, destW, destH, unsharpAmount, unsharpRadius, unsharpThreshold);
-  }
-
   return dest;
 }
 
 
 module.exports = resize;
 
-},{"./unsharp":2}],2:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 // Unsharp mask filter
 //
 // http://stackoverflow.com/a/23322820/1031804
@@ -369,6 +441,9 @@ function unsharp(img, width, height, amount, radius, threshold) {
 
   if (amount === 0 || radius < 0.5) {
     return;
+  }
+  if (radius > 2.0) {
+    radius = 2.0;
   }
 
   var lightness = getLightness(img, width, height);
@@ -461,24 +536,346 @@ function unsharp(img, width, height, amount, radius, threshold) {
 module.exports = unsharp;
 module.exports.lightness = getLightness;
 
-},{"glur/mono16":6}],3:[function(require,module,exports){
-// Proxy to simplify split between webworker/plain calls
+},{"glur/mono16":11}],6:[function(require,module,exports){
 'use strict';
 
-var resize = require('./pure/resize');
+module.exports.createRegions = function createRegions(options) {
+  var scaleX = options.toWidth / options.width;
+  var scaleY = options.toHeight / options.height;
 
-module.exports = function (options, callback) {
-  var output = resize(options);
+  var innerTileWidth = Math.floor(options.srcTileSize * scaleX) - 2 * options.destTileBorder;
+  var innerTileHeight = Math.floor(options.srcTileSize * scaleY) - 2 * options.destTileBorder;
 
-  callback(null, output);
+  var x, y;
+  var innerX, innerY, toTileWidth, toTileHeight;
+  var tiles = [];
+  var tile;
+
+  // we go top-to-down instead of left-to-right to make image displayed from top to
+  // doesn in the browser
+  for (innerY = 0; innerY < options.toHeight; innerY += innerTileHeight) {
+    for (innerX = 0; innerX < options.toWidth; innerX += innerTileWidth) {
+      x = innerX - options.destTileBorder;
+      if (x < 0) { x = 0; }
+      toTileWidth = innerX + innerTileWidth + options.destTileBorder - x;
+      if (x + toTileWidth >= options.toWidth) {
+        toTileWidth = options.toWidth - x;
+      }
+
+      y = innerY - options.destTileBorder;
+      if (y < 0) { y = 0; }
+      toTileHeight = innerY + innerTileHeight + options.destTileBorder - y;
+      if (y + toTileHeight >= options.toHeight) {
+        toTileHeight = options.toHeight - y;
+      }
+
+      tile = {
+        toX: x,
+        toY: y,
+        toWidth: toTileWidth,
+        toHeight: toTileHeight,
+
+        toInnerX: innerX,
+        toInnerY: innerY,
+        toInnerWidth: innerTileWidth,
+        toInnerHeight: innerTileHeight,
+
+        offsetX: x / scaleX - Math.floor(x / scaleX),
+        offsetY: y / scaleY - Math.floor(y / scaleY),
+        scaleX: scaleX,
+        scaleY: scaleY,
+
+        x: Math.floor(x / scaleX),
+        y: Math.floor(y / scaleY),
+        width: Math.ceil(toTileWidth / scaleX),
+        height: Math.ceil(toTileHeight / scaleY)
+      };
+
+      tiles.push(tile);
+    }
+  }
+
+  return tiles;
 };
 
-},{"./pure/resize":1}],4:[function(require,module,exports){
+module.exports.eachLimit = function eachLimit(list, limit, iterator, callback) {
+  if (list.length === 0) {
+    callback();
+  }
+
+  var executed = 0;
+  var finished = 0;
+  var failed = false;
+
+  var next = function (err) {
+    if (failed) {
+      return;
+    }
+    if (err) {
+      failed = true;
+      callback(err);
+      return;
+    }
+
+    finished++;
+    if (finished === list.length) {
+      callback();
+    } else if (executed < list.length) {
+      iterator(list[executed++], next);
+    }
+  };
+
+  while (executed < limit && executed < list.length) {
+    iterator(list[executed++], next);
+  }
+};
+
+},{}],7:[function(require,module,exports){
+// Web Worker wrapper for image resize function
+
+'use strict';
+
+module.exports = function(self) {
+  var resize = require('./resize_array');
+  var unsharp = require('./unsharp');
+
+  self.onmessage = function (ev) {
+    var options = ev.data;
+    options.dest = new Uint8Array(options.toWidth * options.toHeight * 4);
+
+    resize(options);
+
+    if (options.unsharpAmount) {
+      unsharp(options.dest, options.toWidth, options.toHeight,
+        options.unsharpAmount, options.unsharpRadius, options.unsharpThreshold);
+    }
+
+    self.postMessage({ output: options.dest }, [ options.dest.buffer ]);
+  };
+};
+
+},{"./resize_array":4,"./unsharp":5}],8:[function(require,module,exports){
+/*eslint space-infix-ops:0*/
+
+'use strict';
+
+var resize        = require('./js/resize_array');
+var unsharp       = require('./js/unsharp');
+var createRegions = require('./js/utils').createRegions;
+var eachLimit     = require('./js/utils').eachLimit;
+var generateId    = require('./js/generate_id');
+var createCanvas  = require('./js/create_canvas');
+
+var SRC_TILE_SIZE = 1024;
+var DEST_TILE_BORDER = 3;
+
+function resize_js(from, to, options, callback) {
+  var toCtx = to.getContext('2d', { alpha: Boolean(options.alpha) });
+
+  // We use intermediate canvases because, getImageData() from canvas region
+  // is 8x times slower in FF than getImageData() from whole canvas.
+  // That adds ~20% delay in Chrome :(.
+  //
+  // See https://bugzilla.mozilla.org/show_bug.cgi?id=1001069
+
+  var fromTile = createCanvas();
+
+  fromTile.width = Math.min(SRC_TILE_SIZE, from.width);
+  fromTile.height = Math.min(SRC_TILE_SIZE, from.height);
+
+  var fromTileCtx = fromTile.getContext('2d', { alpha: Boolean(options.alpha) });
+
+  var regions = createRegions({
+    width: from.naturalWidth || from.width,
+    height: from.naturalHeight || from.height,
+    srcTileSize: SRC_TILE_SIZE,
+    toWidth: to.width,
+    toHeight: to.height,
+    destTileBorder: Math.ceil(Math.max(DEST_TILE_BORDER, 2.5 * options.unsharpRadius|0))
+  });
+
+  eachLimit(regions, 1, function (tile, next) {
+    fromTileCtx.drawImage(from, tile.x, tile.y, tile.width, tile.height,
+      0, 0, tile.width, tile.height);
+
+    var fromImageData = fromTileCtx.getImageData(0, 0, tile.width, tile.height);
+    var toImageData   = toCtx.createImageData(tile.toWidth, tile.toHeight);
+
+    var _opts = {
+      src:      fromImageData.data,
+      dest:     toImageData.data,
+      width:    tile.width,
+      height:   tile.height,
+      toWidth:  tile.toWidth,
+      toHeight: tile.toHeight,
+      scaleX:   tile.scaleX,
+      scaleY:   tile.scaleY,
+      offsetX:  tile.offsetX,
+      offsetY:  tile.offsetY,
+      quality:  options.quality,
+      alpha:    options.alpha,
+      unsharpAmount:    options.unsharpAmount,
+      unsharpRadius:    options.unsharpRadius,
+      unsharpThreshold: options.unsharpThreshold
+    };
+
+    resize(_opts);
+
+    if (options.unsharpAmount) {
+      unsharp(_opts.dest, _opts.toWidth, _opts.toHeight,
+        _opts.unsharpAmount, _opts.unsharpRadius, _opts.unsharpThreshold);
+    }
+
+    toCtx.putImageData(toImageData, tile.toX, tile.toY,
+      tile.toInnerX - tile.toX, tile.toInnerY - tile.toY,
+      tile.toInnerWidth, tile.toInnerHeight);
+    next();
+  }, callback);
+
+  return generateId();
+}
+
+module.exports = resize_js;
+module.exports.terminate = function () {};
+
+},{"./js/create_canvas":1,"./js/generate_id":2,"./js/resize_array":4,"./js/unsharp":5,"./js/utils":6}],9:[function(require,module,exports){
+/* global navigator */
+/*eslint space-infix-ops:0*/
+
+'use strict';
+
+
+var webworkify    = require('webworkify');
+var resizeWorker  = require('./js/worker.js');
+var createRegions = require('./js/utils').createRegions;
+var eachLimit     = require('./js/utils').eachLimit;
+var generateId    = require('./js/generate_id');
+var createCanvas  = require('./js/create_canvas');
+var Pool          = require('./js/pool');
+
+var SRC_TILE_SIZE = 1024;
+var DEST_TILE_BORDER = 3;
+
+var workersPool = new Pool(function () {
+  return {
+    value: webworkify(resizeWorker),
+    destroy: function () {
+      this.value.terminate();
+    }
+  };
+});
+
+var running = {};
+
+function resize_js_ww(from, to, options, callback) {
+  var toCtx = to.getContext('2d', { alpha: Boolean(options.alpha) });
+  /* We use intermediate canvases because without it Firefox resizes 8x times slower
+   * than with it. It makes resize 20% slower in Chrome */
+  var fromTile = createCanvas();
+
+  fromTile.width = Math.min(SRC_TILE_SIZE, from.naturalWidth || from.width);
+  fromTile.height = Math.min(SRC_TILE_SIZE, from.naturalHeight || from.height);
+
+  var fromTileCtx = fromTile.getContext('2d', { alpha: Boolean(options.alpha) });
+
+  var regions = createRegions({
+    width: from.naturalWidth || from.width,
+    height: from.naturalHeight || from.height,
+    srcTileSize: SRC_TILE_SIZE,
+    toWidth: to.width,
+    toHeight: to.height,
+    destTileBorder: Math.ceil(Math.max(DEST_TILE_BORDER, 2.5 * options.unsharpRadius|0))
+  });
+
+  var concurrency = navigator && navigator.hardwareConcurrency || 4;
+  var id = options._id || generateId();
+
+  running[id] = true;
+  eachLimit(regions, concurrency, function (tile, next) {
+    fromTileCtx.drawImage(from, tile.x, tile.y, tile.width, tile.height,
+      0, 0, tile.width, tile.height);
+
+    var fromImageData = fromTileCtx.getImageData(0, 0, tile.width, tile.height);
+
+    var _opts = {
+      src:      fromImageData.data,
+      width:    tile.width,
+      height:   tile.height,
+      toWidth:  tile.toWidth,
+      toHeight: tile.toHeight,
+      scaleX:   tile.scaleX,
+      scaleY:   tile.scaleY,
+      offsetX:  tile.offsetX,
+      offsetY:  tile.offsetY,
+      quality:  options.quality,
+      alpha:    options.alpha,
+      unsharpAmount:    options.unsharpAmount,
+      unsharpRadius:    options.unsharpRadius,
+      unsharpThreshold: options.unsharpThreshold
+    };
+
+    var worker = workersPool.acquire();
+
+    worker.value.onmessage = function (ev) {
+      var i, l;
+      var imageDataTo, output, dest;
+
+      worker.release();
+
+      if (!running[id]) {
+        next(true);
+        return;
+      }
+      if (ev.data.err) {
+        next(ev.data.err);
+        return;
+      }
+
+      imageDataTo = toCtx.createImageData(tile.toWidth, tile.toHeight);
+      output = ev.data.output;
+      dest = imageDataTo.data;
+
+      if (dest.set) {
+        dest.set(output);
+      } else {
+        for (i = 0, l = output.length; i < l; i++) {
+          dest[i] = output[i];
+        }
+      }
+
+      toCtx.putImageData(imageDataTo, tile.toX, tile.toY,
+        tile.toInnerX - tile.toX, tile.toInnerY - tile.toY,
+        tile.toInnerWidth, tile.toInnerHeight);
+      next();
+    };
+
+    worker.value.postMessage(_opts, [ _opts.src.buffer ]);
+  }, function (err) {
+    if (running[id]) {
+      delete running[id];
+      callback(err);
+    }
+  });
+
+  return id;
+}
+
+function terminate(id) {
+  if (running[id]) {
+    delete running[id];
+  }
+}
+
+module.exports = resize_js_ww;
+module.exports.terminate = terminate;
+
+},{"./js/create_canvas":1,"./js/generate_id":2,"./js/pool":3,"./js/utils":6,"./js/worker.js":7,"webworkify":13}],10:[function(require,module,exports){
 /*global window,document*/
 'use strict';
 
 
-var unsharp = require('./pure/unsharp');
+var unsharp = require('./js/unsharp');
+var generateId = require('./js/generate_id');
 
 var shadersContent = {};
 
@@ -658,8 +1055,8 @@ function convolve(gl, texUnit0, texWidth, texHeight, texUnit, fsh, destW, destH,
 
 function webglProcessResize(from, gl, options) {
 
-  var srcW = from.width,
-      srcH = from.height,
+  var srcW = from.naturalWidth || from.width,
+      srcH = from.naturalHeight || from.height,
       dstW = gl.canvas.width,
       dstH = gl.canvas.height;
 
@@ -753,30 +1150,12 @@ module.exports = function (from, to, options, callback) {
     callback(e);
   }
 
-  return null; // No webworker
+  return generateId();
 };
 
-},{"./pure/unsharp":2}],5:[function(require,module,exports){
-// Web Worker wrapper for image resize function
+module.exports.terminate = function () {};
 
-'use strict';
-
-module.exports = function(self) {
-  var resize = require('./resize');
-
-  self.onmessage = function (ev) {
-    resize(ev.data, function(err, output) {
-      if (err) {
-        self.postMessage({ err: err });
-        return;
-      }
-
-      self.postMessage({ output: output }, [ output.buffer ]);
-    });
-  };
-};
-
-},{"./resize":3}],6:[function(require,module,exports){
+},{"./js/generate_id":2,"./js/unsharp":5}],11:[function(require,module,exports){
 // Calculate Gaussian blur of an image using IIR filter
 // The method is taken from Intel's white paper and code example attached to it:
 // https://software.intel.com/en-us/articles/iir-gaussian-blur-filter
@@ -897,7 +1276,48 @@ function blurMono16(src, width, height, radius) {
 
 module.exports = blurMono16;
 
-},{}],7:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
+/* eslint-disable no-unused-vars */
+'use strict';
+var hasOwnProperty = Object.prototype.hasOwnProperty;
+var propIsEnumerable = Object.prototype.propertyIsEnumerable;
+
+function toObject(val) {
+	if (val === null || val === undefined) {
+		throw new TypeError('Object.assign cannot be called with null or undefined');
+	}
+
+	return Object(val);
+}
+
+module.exports = Object.assign || function (target, source) {
+	var from;
+	var to = toObject(target);
+	var symbols;
+
+	for (var s = 1; s < arguments.length; s++) {
+		from = Object(arguments[s]);
+
+		for (var key in from) {
+			if (hasOwnProperty.call(from, key)) {
+				to[key] = from[key];
+			}
+		}
+
+		if (Object.getOwnPropertySymbols) {
+			symbols = Object.getOwnPropertySymbols(from);
+			for (var i = 0; i < symbols.length; i++) {
+				if (propIsEnumerable.call(from, symbols[i])) {
+					to[symbols[i]] = from[symbols[i]];
+				}
+			}
+		}
+	}
+
+	return to;
+};
+
+},{}],13:[function(require,module,exports){
 var bundleFn = arguments[3];
 var sources = arguments[4];
 var cache = arguments[5];
@@ -991,97 +1411,24 @@ try {
   __cvs = null;
 }
 
-var resize       = require('./lib/resize');
-var resizeWorker = require('./lib/resize_worker');
-var resizeWebgl  = require('./lib/resize_webgl');
-
+var resize_js     = require('./lib/resize_js');
+var resize_js_ww  = require('./lib/resize_js_ww');
+var resize_webgl  = require('./lib/resize_webgl');
+var resize_array  = require('./lib/js/resize_array');
+var unsharp       = require('./lib/js/unsharp');
+var assign        = require('object-assign');
 
 ////////////////////////////////////////////////////////////////////////////////
 // Helpers
 function _class(obj) { return Object.prototype.toString.call(obj); }
 function isFunction(obj) { return _class(obj) === '[object Function]'; }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 // API methods
-
-
-// RGBA buffer async resize
-//
-function resizeBuffer(options, callback) {
-  var wr;
-
-  var _opts = {
-    src:      options.src,
-    dest:     null,
-    width:    options.width|0,
-    height:   options.height|0,
-    toWidth:  options.toWidth|0,
-    toHeight: options.toHeight|0,
-    quality:  options.quality,
-    alpha:    options.alpha,
-    unsharpAmount:    options.unsharpAmount,
-    unsharpRadius:    options.unsharpRadius,
-    unsharpThreshold: options.unsharpThreshold
-  };
-
-  // Force flag reset to simplify status check
-  if (!WORKER) { exports.WW = false; }
-
-  if (WORKER && exports.WW) {
-    exports.debug('Resize buffer in WebWorker');
-
-    wr = require('webworkify')(resizeWorker);
-
-    wr.onmessage = function(ev) {
-      var i, l,
-          dest = options.dest,
-          output = ev.data.output;
-
-      // If we got output buffer by reference, we should copy data,
-      // because WW returns independent instance
-      if (dest) {
-        // IE ImageData can return old-style CanvasPixelArray
-        // without .set() method. Copy manually for such case.
-        if (dest.set) {
-          dest.set(output);
-        } else {
-          for (i = 0, l = output.length; i < l; i++) {
-            dest[i] = output[i];
-          }
-        }
-      }
-      callback(ev.data.err, output);
-      wr.terminate();
-    };
-
-    if (options.transferable) {
-      wr.postMessage(_opts, [ options.src.buffer ]);
-    } else {
-      wr.postMessage(_opts);
-    }
-    // Expose worker when available, to allow early termination.
-    return wr;
-  }
-
-  // Fallback to sync call, if WebWorkers not available
-  exports.debug('Resize buffer sync (freeze event loop)');
-
-  _opts.dest = options.dest;
-  resize(_opts, callback);
-  return null;
-}
-
 
 // Canvas async resize
 //
 function resizeCanvas(from, to, options, callback) {
-  var w = from.width,
-      h = from.height,
-      w2 = to.width,
-      h2 = to.height;
-  var ctxTo, imageDataTo;
-
   if (isFunction(options)) {
     callback = options;
     options = {};
@@ -1097,56 +1444,74 @@ function resizeCanvas(from, to, options, callback) {
   if (WEBGL && exports.WEBGL) {
     exports.debug('Resize canvas with WebGL');
 
-    return resizeWebgl(from, to, options, function (err) {
+    var id = resize_webgl(from, to, options, function (err) {
       if (err) {
         exports.debug('WebGL resize failed, do fallback and cancel next attempts');
         exports.debug(err);
 
         WEBGL = false;
-        return resizeCanvas(from, to, options, callback);
+        resizeCanvas(from, to, assign({}, options, { _id: id }), callback);
+      } else {
+        callback();
       }
-      callback();
     });
-
+    return id;
   }
 
-  exports.debug('Resize canvas: prepare data');
+  // Force flag reset to simplify status check
+  if (!WORKER) { exports.WW = false; }
 
-  ctxTo = to.getContext('2d');
-  imageDataTo = ctxTo.createImageData(w2, h2);
+  if (WORKER && exports.WW) {
+    exports.debug('Resize buffer in WebWorker');
 
+    return resize_js_ww(from, to, options, callback);
+  }
+
+  // Fallback to sync call, if WebWorkers not available
+  exports.debug('Resize buffer sync (freeze event loop)');
+
+  return resize_js(from, to, options, callback);
+}
+
+// RGBA buffer resize
+//
+function resizeBuffer(options, callback) {
   var _opts = {
-    src:      from.getContext('2d').getImageData(0, 0, w, h).data,
-    dest:     imageDataTo.data,
-    width:    from.width,
-    height:   from.height,
-    toWidth:  to.width,
-    toHeight: to.height,
+    src:      options.src,
+    dest:     options.dest,
+    width:    options.width|0,
+    height:   options.height|0,
+    toWidth:  options.toWidth|0,
+    toHeight: options.toHeight|0,
     quality:  options.quality,
     alpha:    options.alpha,
     unsharpAmount:    options.unsharpAmount,
     unsharpRadius:    options.unsharpRadius,
-    unsharpThreshold: options.unsharpThreshold,
-    transferable: true
+    unsharpThreshold: options.unsharpThreshold
   };
 
-  return resizeBuffer(_opts, function (err/*, output*/) {
-    if (err) {
-      callback(err);
-      return;
-    }
+  _opts.dest = resize_array(_opts);
 
-    ctxTo.putImageData(imageDataTo, 0, 0);
-    callback();
-  });
+  if (_opts.unsharpAmount) {
+    unsharp(_opts.dest, _opts.toWidth, _opts.toHeight,
+      _opts.unsharpAmount, _opts.unsharpRadius, _opts.unsharpThreshold);
+  }
+
+  callback(null, _opts.dest);
 }
 
+function terminate(id) {
+  resize_js.terminate(id);
+  resize_js_ww.terminate(id);
+  resize_webgl.terminate(id);
+}
 
-exports.resizeBuffer = resizeBuffer;
 exports.resizeCanvas = resizeCanvas;
+exports.resizeBuffer = resizeBuffer;
+exports.terminate = terminate;
 exports.WW = WORKER;
 exports.WEBGL = false; // WEBGL;
 exports.debug = function () {};
 
-},{"./lib/resize":3,"./lib/resize_webgl":4,"./lib/resize_worker":5,"webworkify":7}]},{},[])("/")
+},{"./lib/js/resize_array":4,"./lib/js/unsharp":5,"./lib/resize_js":8,"./lib/resize_js_ww":9,"./lib/resize_webgl":10,"object-assign":12,"webworkify":13}]},{},[])("/")
 });
