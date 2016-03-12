@@ -37,6 +37,8 @@ try {
 var resize_js     = require('./lib/resize_js');
 var resize_js_ww  = require('./lib/resize_js_ww');
 var resize_webgl  = require('./lib/resize_webgl');
+var resize_array  = require('./lib/js/resize_array');
+var unsharp       = require('./lib/js/unsharp');
 var assign        = require('object-assign');
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,6 +96,33 @@ function resizeCanvas(from, to, options, callback) {
   return resize_js(from, to, options, callback);
 }
 
+// RGBA buffer resize
+//
+function resizeBuffer(options, callback) {
+  var _opts = {
+    src:      options.src,
+    dest:     options.dest,
+    width:    options.width|0,
+    height:   options.height|0,
+    toWidth:  options.toWidth|0,
+    toHeight: options.toHeight|0,
+    quality:  options.quality,
+    alpha:    options.alpha,
+    unsharpAmount:    options.unsharpAmount,
+    unsharpRadius:    options.unsharpRadius,
+    unsharpThreshold: options.unsharpThreshold
+  };
+
+  _opts.dest = resize_array(_opts);
+
+  if (_opts.unsharpAmount) {
+    unsharp(_opts.dest, _opts.toWidth, _opts.toHeight,
+      _opts.unsharpAmount, _opts.unsharpRadius, _opts.unsharpThreshold);
+  }
+
+  callback(null, _opts.dest);
+}
+
 function terminate(id) {
   resize_js.terminate(id);
   resize_js_ww.terminate(id);
@@ -101,6 +130,7 @@ function terminate(id) {
 }
 
 exports.resizeCanvas = resizeCanvas;
+exports.resizeBuffer = resizeBuffer;
 exports.terminate = terminate;
 exports.WW = WORKER;
 exports.WEBGL = false; // WEBGL;
