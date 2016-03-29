@@ -1,4 +1,4 @@
-/* pica 2.0.1 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+/* pica 2.0.2 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 'use strict';
 
 /* global document */
@@ -685,6 +685,9 @@ function resize_js(from, to, options, callback) {
 
   var fromTileCtx = fromTile.getContext('2d', { alpha: Boolean(options.alpha) });
 
+  // Should not use previous content of reused canvas when alpha exists.
+  fromTileCtx.globalCompositeOperation = 'copy';
+
   var regions = createRegions({
     width: from.naturalWidth || from.width,
     height: from.naturalHeight || from.height,
@@ -695,8 +698,6 @@ function resize_js(from, to, options, callback) {
   });
 
   eachLimit(regions, 1, function (tile, next) {
-    // Clear content of reused canvas to avoid garbage when alpha used
-    fromTileCtx.clearRect(0, 0, fromTile.width, fromTile.height);
     fromTileCtx.drawImage(from, tile.x, tile.y, tile.width, tile.height,
       0, 0, tile.width, tile.height);
 
@@ -780,6 +781,9 @@ function resize_js_ww(from, to, options, callback) {
 
   var fromTileCtx = fromTile.getContext('2d', { alpha: Boolean(options.alpha) });
 
+  // Should not use previous content of reused canvas when alpha exists.
+  fromTileCtx.globalCompositeOperation = 'copy';
+
   var regions = createRegions({
     width: from.naturalWidth || from.width,
     height: from.naturalHeight || from.height,
@@ -794,8 +798,6 @@ function resize_js_ww(from, to, options, callback) {
 
   running[id] = true;
   eachLimit(regions, concurrency, function (tile, next) {
-    // Clear content of reused canvas to avoid garbage when alpha used
-    fromTileCtx.clearRect(0, 0, fromTile.width, fromTile.height);
     fromTileCtx.drawImage(from, tile.x, tile.y, tile.width, tile.height,
       0, 0, tile.width, tile.height);
 
