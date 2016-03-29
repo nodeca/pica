@@ -1,3 +1,9 @@
+2.0.1 / 2016-03-30
+------------------
+
+- Fixed garbage on image edge tiles when alpha exists.
+
+
 2.0.0 / 2016-03-12
 ------------------
 
