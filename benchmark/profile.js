@@ -31,7 +31,7 @@ for (var i = 0; i < 10; i++) {
     toWidth: 300,
     toHeight: 225,
     quality: 3
-  }, function(/*__, result*/) {
+  }, function (/*__, result*/) {
   });
 }
 /*

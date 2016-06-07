@@ -1,5 +1,3 @@
-PATH        := ./node_modules/.bin:${PATH}
-
 NPM_PACKAGE := $(shell node -e 'process.stdout.write(require("./package.json").name)')
 NPM_VERSION := $(shell node -e 'process.stdout.write(require("./package.json").version)')
 
@@ -23,11 +21,11 @@ help:
 
 
 lint:
-	./node_modules/.bin/eslint --reset ./
+	./node_modules/.bin/eslint .
 
 
 test: lint
-	mocha
+	./node_modules/.bin/mocha
 
 
 browserify:
@@ -35,10 +33,10 @@ browserify:
 	mkdir dist
 	# Browserify
 	( printf "/* ${NPM_PACKAGE} ${NPM_VERSION} ${GITHUB_PROJ} */" ; \
-		browserify -r ./ -s pica \
+		./node_modules/.bin/browserify -r ./ -s pica \
 		) > dist/pica.js
 	# Minify
-	uglifyjs dist/pica.js -c -m \
+	./node_modules/.bin/uglifyjs dist/pica.js -c -m \
 		--preamble "/* ${NPM_PACKAGE} ${NPM_VERSION} ${GITHUB_PROJ} */" \
 		> dist/pica.min.js
 

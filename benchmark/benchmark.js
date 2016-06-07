@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-/*eslint-env node */
+
+/* eslint-disable no-console */
 
 'use strict';
 
@@ -88,7 +89,7 @@ fs.readdirSync(SAMPLES_DIRECTORY).sort().forEach(function (sample) {
 
       fn: function (deferred) {
         if (impl.code.async) {
-          impl.code.run(content, function() {
+          impl.code.run(content, function () {
             deferred.resolve();
             return;
           });
