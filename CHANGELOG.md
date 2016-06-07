@@ -1,3 +1,9 @@
+2.0.3 / 2016-06-07
+------------------
+
+- Deps bump. Use fresh `webworkify` with proper ObjectURL release, #55.
+
+
 2.0.2 / 2016-03-30
 ------------------
 
