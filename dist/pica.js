@@ -1,4 +1,4 @@
-/* pica 2.0.2 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+/* pica 2.0.3 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 'use strict';
 
 /* global document */
@@ -607,7 +607,7 @@ module.exports.eachLimit = function eachLimit(list, limit, iterator, callback) {
   var finished = 0;
   var failed = false;
 
-  var next = function (err) {
+  function next(err) {
     if (failed) {
       return;
     }
@@ -623,7 +623,7 @@ module.exports.eachLimit = function eachLimit(list, limit, iterator, callback) {
     } else if (executed < list.length) {
       iterator(list[executed++], next);
     }
-  };
+  }
 
   while (executed < limit && executed < list.length) {
     iterator(list[executed++], next);
@@ -635,7 +635,7 @@ module.exports.eachLimit = function eachLimit(list, limit, iterator, callback) {
 
 'use strict';
 
-module.exports = function(self) {
+module.exports = function (self) {
   var resize = require('./resize_array');
   var unsharp = require('./unsharp');
 
@@ -1283,8 +1283,8 @@ function blurMono16(src, width, height, radius) {
 module.exports = blurMono16;
 
 },{}],12:[function(require,module,exports){
-/* eslint-disable no-unused-vars */
 'use strict';
+/* eslint-disable no-unused-vars */
 var hasOwnProperty = Object.prototype.hasOwnProperty;
 var propIsEnumerable = Object.prototype.propertyIsEnumerable;
 
@@ -1296,7 +1296,51 @@ function toObject(val) {
 	return Object(val);
 }
 
-module.exports = Object.assign || function (target, source) {
+function shouldUseNative() {
+	try {
+		if (!Object.assign) {
+			return false;
+		}
+
+		// Detect buggy property enumeration order in older V8 versions.
+
+		// https://bugs.chromium.org/p/v8/issues/detail?id=4118
+		var test1 = new String('abc');  // eslint-disable-line
+		test1[5] = 'de';
+		if (Object.getOwnPropertyNames(test1)[0] === '5') {
+			return false;
+		}
+
+		// https://bugs.chromium.org/p/v8/issues/detail?id=3056
+		var test2 = {};
+		for (var i = 0; i < 10; i++) {
+			test2['_' + String.fromCharCode(i)] = i;
+		}
+		var order2 = Object.getOwnPropertyNames(test2).map(function (n) {
+			return test2[n];
+		});
+		if (order2.join('') !== '0123456789') {
+			return false;
+		}
+
+		// https://bugs.chromium.org/p/v8/issues/detail?id=3056
+		var test3 = {};
+		'abcdefghijklmnopqrst'.split('').forEach(function (letter) {
+			test3[letter] = letter;
+		});
+		if (Object.keys(Object.assign({}, test3)).join('') !==
+				'abcdefghijklmnopqrst') {
+			return false;
+		}
+
+		return true;
+	} catch (e) {
+		// We don't expect any of the above to throw, but better to be safe.
+		return false;
+	}
+}
+
+module.exports = shouldUseNative() ? Object.assign : function (target, source) {
 	var from;
 	var to = toObject(target);
 	var symbols;
@@ -1330,19 +1374,23 @@ var cache = arguments[5];
 
 var stringify = JSON.stringify;
 
-module.exports = function (fn) {
-    var keys = [];
+module.exports = function (fn, options) {
     var wkey;
     var cacheKeys = Object.keys(cache);
-    
+
     for (var i = 0, l = cacheKeys.length; i < l; i++) {
         var key = cacheKeys[i];
-        if (cache[key].exports === fn) {
+        var exp = cache[key].exports;
+        // Using babel as a transpiler to use esmodule, the export will always
+        // be an object with the default export as a property of it. To ensure
+        // the existing api and babel esmodule exports are both supported we
+        // check for both
+        if (exp === fn || exp && exp.default === fn) {
             wkey = key;
             break;
         }
     }
-    
+
     if (!wkey) {
         wkey = Math.floor(Math.pow(16, 8) * Math.random()).toString(16);
         var wcache = {};
@@ -1356,13 +1404,18 @@ module.exports = function (fn) {
         ];
     }
     var skey = Math.floor(Math.pow(16, 8) * Math.random()).toString(16);
-    
+
     var scache = {}; scache[wkey] = wkey;
     sources[skey] = [
-        Function(['require'],'require(' + stringify(wkey) + ')(self)'),
+        Function(['require'], (
+            // try to call default if defined to also support babel esmodule
+            // exports
+            'var f = require(' + stringify(wkey) + ');' +
+            '(f.default ? f.default : f)(self);'
+        )),
         scache
     ];
-    
+
     var src = '(' + bundleFn + ')({'
         + Object.keys(sources).map(function (key) {
             return stringify(key) + ':['
@@ -1372,12 +1425,17 @@ module.exports = function (fn) {
         }).join(',')
         + '},{},[' + stringify(skey) + '])'
     ;
-    
+
     var URL = window.URL || window.webkitURL || window.mozURL || window.msURL;
-    
-    return new Worker(URL.createObjectURL(
-        new Blob([src], { type: 'text/javascript' })
-    ));
+
+    var blob = new Blob([src], { type: 'text/javascript' });
+    if (options && options.bare) { return blob; }
+    var workerUrl = URL.createObjectURL(blob);
+    var worker = new Worker(workerUrl);
+    if (typeof URL.revokeObjectURL == "function") {
+      URL.revokeObjectURL(workerUrl);
+    }
+    return worker;
 };
 
 },{}],"/":[function(require,module,exports){
