@@ -1,3 +1,9 @@
+2.0.4 / 2016-06-24
+------------------
+
+- Deps bump (`webworkify`). Previous version had problems with IE Edge, #56.
+
+
 2.0.3 / 2016-06-07
 ------------------
 
