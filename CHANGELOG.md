@@ -1,3 +1,9 @@
+2.0.5 / 2016-07-19
+------------------
+
+- Fix mem leak: release objectURL, used to create Web Workers.
+
+
 2.0.4 / 2016-06-24
 ------------------
 
