@@ -539,7 +539,13 @@ module.exports.lightness = getLightness;
 },{"glur/mono16":11}],6:[function(require,module,exports){
 'use strict';
 
+function fixPrecision(x) {
+  var nearest = Math.round(x);
+  return (Math.abs(x - nearest) < 1e-8) ? nearest : x;
+}
+
 module.exports.createRegions = function createRegions(options) {
+
   var scaleX = options.toWidth / options.width;
   var scaleY = options.toHeight / options.height;
 
@@ -580,15 +586,15 @@ module.exports.createRegions = function createRegions(options) {
         toInnerWidth: innerTileWidth,
         toInnerHeight: innerTileHeight,
 
-        offsetX: x / scaleX - Math.floor(x / scaleX),
-        offsetY: y / scaleY - Math.floor(y / scaleY),
+        offsetX: x / scaleX - Math.floor(fixPrecision(x / scaleX)),
+        offsetY: y / scaleY - Math.floor(fixPrecision(y / scaleY)),
         scaleX: scaleX,
         scaleY: scaleY,
 
-        x: Math.floor(x / scaleX),
-        y: Math.floor(y / scaleY),
-        width: Math.ceil(toTileWidth / scaleX),
-        height: Math.ceil(toTileHeight / scaleY)
+        x: Math.floor(fixPrecision(x / scaleX)),
+        y: Math.floor(fixPrecision(y / scaleY)),
+        width: Math.min(options.width, Math.ceil(fixPrecision(toTileWidth / scaleX))),
+        height: Math.min(options.height, Math.ceil(fixPrecision(toTileHeight / scaleY)))
       };
 
       tiles.push(tile);
