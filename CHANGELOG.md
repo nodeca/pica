@@ -1,3 +1,9 @@
+2.0.6 / 2016-08-04
+------------------
+
+- Fix tiler math: bad rounding could produce tiles out of src area, #61.
+
+
 2.0.5 / 2016-07-19
 ------------------
 
