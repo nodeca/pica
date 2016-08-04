@@ -1,4 +1,4 @@
-/* pica 2.0.5 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+/* pica 2.0.6 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 'use strict';
 
 /* global document */
@@ -539,12 +539,36 @@ module.exports.lightness = getLightness;
 },{"glur/mono16":11}],6:[function(require,module,exports){
 'use strict';
 
+/*
+ * pixelFloor and pixelCeil are modified versions of Math.floor and Math.ceil
+ * functions which take into account floating point arithmetic errors.
+ * Those errors can cause undesired increments/decrements of sizes and offsets:
+ * Math.ceil(36 / (36 / 500)) = 501
+ * pixelCeil(36 / (36 / 500)) = 500
+ */
+
+var PIXEL_EPSILON = 1e-5;
+
+function pixelFloor(x) {
+  var nearest = Math.round(x);
+
+  if (Math.abs(x - nearest) < PIXEL_EPSILON) { return nearest; }
+  return Math.floor(x);
+}
+
+function pixelCeil(x) {
+  var nearest = Math.round(x);
+
+  if (Math.abs(x - nearest) < PIXEL_EPSILON) { return nearest; }
+  return Math.ceil(x);
+}
+
 module.exports.createRegions = function createRegions(options) {
   var scaleX = options.toWidth / options.width;
   var scaleY = options.toHeight / options.height;
 
-  var innerTileWidth = Math.floor(options.srcTileSize * scaleX) - 2 * options.destTileBorder;
-  var innerTileHeight = Math.floor(options.srcTileSize * scaleY) - 2 * options.destTileBorder;
+  var innerTileWidth = pixelFloor(options.srcTileSize * scaleX) - 2 * options.destTileBorder;
+  var innerTileHeight = pixelFloor(options.srcTileSize * scaleY) - 2 * options.destTileBorder;
 
   var x, y;
   var innerX, innerY, toTileWidth, toTileHeight;
@@ -580,15 +604,15 @@ module.exports.createRegions = function createRegions(options) {
         toInnerWidth: innerTileWidth,
         toInnerHeight: innerTileHeight,
 
-        offsetX: x / scaleX - Math.floor(x / scaleX),
-        offsetY: y / scaleY - Math.floor(y / scaleY),
+        offsetX: x / scaleX - pixelFloor(x / scaleX),
+        offsetY: y / scaleY - pixelFloor(y / scaleY),
         scaleX: scaleX,
         scaleY: scaleY,
 
-        x: Math.floor(x / scaleX),
-        y: Math.floor(y / scaleY),
-        width: Math.ceil(toTileWidth / scaleX),
-        height: Math.ceil(toTileHeight / scaleY)
+        x: pixelFloor(x / scaleX),
+        y: pixelFloor(y / scaleY),
+        width: pixelCeil(toTileWidth / scaleX),
+        height: pixelCeil(toTileHeight / scaleY)
       };
 
       tiles.push(tile);
