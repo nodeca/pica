@@ -1,3 +1,10 @@
+2.0.8 / 2016-10-01
+------------------
+
+- Set default number of CPUs (workers) to 1 if `navigator.hardwareConcurrency`
+  not supported (ancient browsers).
+
+
 2.0.7 / 2016-10-01
 ------------------
 
