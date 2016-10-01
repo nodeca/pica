@@ -1,8 +1,7 @@
 language: node_js
 node_js:
-  - '0.12'
   - '4'
-  - stable
+  - '6'
 
 # Needed for node_canvas build
 addons:
