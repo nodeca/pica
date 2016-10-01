@@ -1,3 +1,10 @@
+2.0.7 / 2016-10-01
+------------------
+
+- Fix Safary bug (grid could appear on downscaled image).
+- WEBGL shaders rework (still buggy, not for production).
+
+
 2.0.6 / 2016-08-04
 ------------------
 
