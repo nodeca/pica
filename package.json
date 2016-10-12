@@ -29,6 +29,7 @@
       "brfs"
     ]
   },
+  "main": "./dist/pica.js",
   "browser": {
     "./lib/js/create_canvas.js": "./lib/js/create_canvas_browser.js"
   },
