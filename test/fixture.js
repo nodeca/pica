@@ -1,36 +1,23 @@
 'use strict';
 /* global it, describe */
 
-var Canvas  = require('canvas');
-var Image   = Canvas.Image;
-var fs      = require('fs');
-var path    = require('path');
-var pica    = require('../');
-var resemble = require('node-resemble');
+var Canvas     = require('canvas');
+var Image      = Canvas.Image;
+var fs         = require('fs');
+var path       = require('path');
+var pica       = require('../');
+var pixelmatch = require('pixelmatch');
 
 var FIXTURES_DIRECTORY = path.join(__dirname, 'fixtures');
 var OUTPUT_DIRECTORY = path.join(__dirname, '..');
 
-function saveDataUrlToFile(dataUrl, fileName) {
-  var image, canvas;
-
-  image = new Image();
-  image.src = dataUrl;
-  canvas = new Canvas();
-  canvas.width = image.width;
-  canvas.height = image.height;
-  canvas.getContext('2d').drawImage(image, 0, 0);
-
-  canvas
-    .pngStream()
-    .pipe(fs.createWriteStream(path.join(OUTPUT_DIRECTORY, fileName)));
-}
-
 describe('Fixtures', function () {
   it('algorithm should be correct for the given fixture', function (done) {
     var srcImage, srcCanvas, srcCtx,
-        fixtureImage, fixtureCanvas, fixtureCtx,
-        destCanvas;
+        fixtureImage, fixtureCanvas, fixtureCtx, fixtureImageData,
+        destCanvas, destCtx, destImageData,
+        diffCanvas, diffCtx, diffImageData,
+        numDiffPixels;
 
     this.timeout(3000);
 
@@ -50,10 +37,18 @@ describe('Fixtures', function () {
     fixtureCanvas.height = fixtureImage.height;
     fixtureCtx = fixtureCanvas.getContext('2d');
     fixtureCtx.drawImage(fixtureImage, 0, 0);
+    fixtureImageData = fixtureCtx.getImageData(0, 0, fixtureCanvas.width, fixtureCanvas.height);
 
     destCanvas = new Canvas();
     destCanvas.width = fixtureImage.width;
     destCanvas.height = fixtureImage.height;
+    destCtx = destCanvas.getContext('2d');
+
+    diffCanvas = new Canvas();
+    diffCanvas.width = fixtureImage.width;
+    diffCanvas.height = fixtureImage.height;
+    diffCtx = diffCanvas.getContext('2d');
+    diffImageData = diffCtx.createImageData(diffCanvas.width, diffCanvas.height);
 
     pica.WEBGL = false;
     pica.WW = false;
@@ -66,22 +61,32 @@ describe('Fixtures', function () {
         throw err;
       }
 
-      resemble(destCanvas.toDataURL())
-        .compareTo(fixtureCanvas.toDataURL())
-        .onComplete(function (data) {
-          if (data.misMatchPercentage !== '0.00') {
-            saveDataUrlToFile(data.getImageDataUrl(), 'fixture-test-diff.png');
-            destCanvas
-              .pngStream()
-              .pipe(fs.createWriteStream(path.join(OUTPUT_DIRECTORY, 'fixture-test-output.png')));
-            fixtureCanvas
-              .pngStream()
-              .pipe(fs.createWriteStream(path.join(OUTPUT_DIRECTORY, 'fixture-test-expected.png')));
-            done(new Error('Images mismatch in ' + data.misMatchPercentage + '% of pixels'));
-          } else {
-            done();
-          }
-        });
+      destImageData = destCtx.getImageData(0, 0, destCanvas.width, destCanvas.height);
+
+      numDiffPixels = pixelmatch(
+        destImageData.data,
+        fixtureImageData.data,
+        diffImageData.data,
+        fixtureCanvas.width,
+        fixtureCanvas.height,
+        { threshold: 0, includeAA: true }
+      );
+
+      if (numDiffPixels > 0) {
+        diffCtx.putImageData(diffImageData, 0, 0);
+        diffCanvas
+          .pngStream()
+          .pipe(fs.createWriteStream(path.join(OUTPUT_DIRECTORY, 'fixture-test-diff.png')));
+        destCanvas
+          .pngStream()
+          .pipe(fs.createWriteStream(path.join(OUTPUT_DIRECTORY, 'fixture-test-output.png')));
+        fixtureCanvas
+          .pngStream()
+          .pipe(fs.createWriteStream(path.join(OUTPUT_DIRECTORY, 'fixture-test-expected.png')));
+        done(new Error('Images mismatch in ' + numDiffPixels + ' pixels'));
+      } else {
+        done();
+      }
     });
   });
 });
