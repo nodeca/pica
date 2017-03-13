@@ -65,15 +65,21 @@ Install
 
 node.js (to develop, build via browserify and so on):
 
-```bash
-npm install pica
-```
-
 bower:
 
 ```bash
 bower install pica
 ```
+
+```bash
+npm install pica
+```
+
+__Attention!__. Compiled files are in `/dist` folder! If you wish to load module
+in node.js style as `require('pica')` - your project MUST be compiled
+with `Broserify` to properly use Web Workers. In other case - use
+`require('pica/dist/pica')`.
+
 
 
 API
