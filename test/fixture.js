@@ -11,6 +11,16 @@ var pixelmatch = require('pixelmatch');
 var FIXTURES_DIRECTORY = path.join(__dirname, 'fixtures');
 var OUTPUT_DIRECTORY = path.join(__dirname, '..');
 
+//
+// Shim browser method
+//
+global.document = global.document || {};
+global.document.createElement = global.document.createElement || function (name) {
+  if (name === 'canvas') return new Canvas();
+  throw new Error('createElement(' + name + ') not shimmed');
+};
+
+
 describe('Fixtures', function () {
   it('algorithm should be correct for the given fixture', function (done) {
     var srcImage, srcCanvas, srcCtx,

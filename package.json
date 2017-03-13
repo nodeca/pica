@@ -29,9 +29,6 @@
       "brfs"
     ]
   },
-  "browser": {
-    "./lib/js/create_canvas.js": "./lib/js/create_canvas_browser.js"
-  },
   "dependencies": {
     "glur": "^1.1.2",
     "object-assign": "^4.1.0",
