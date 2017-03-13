@@ -1,8 +1,5 @@
 'use strict';
 
-/*global window, document*/
-/*eslint space-infix-ops:0*/
-
 // Feature detect
 var WORKER = (typeof window !== 'undefined') && ('Worker' in window);
 if (WORKER) {

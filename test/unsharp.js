@@ -1,5 +1,4 @@
 'use strict';
-/* globals describe, it */
 
 var unsharp = require('../lib/js/unsharp');
 var assert = require('assert');

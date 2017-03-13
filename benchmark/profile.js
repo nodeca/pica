@@ -22,8 +22,9 @@ var data = ctx.getImageData(0, 0, image.width, image.height).data;
 
 pica.WW = false;
 
+function noop() {}
+
 for (var i = 0; i < 10; i++) {
-  /*eslint no-loop-func:0*/
   pica.resizeBuffer({
     src: data,
     width: image.width,
@@ -31,8 +32,7 @@ for (var i = 0; i < 10; i++) {
     toWidth: 300,
     toHeight: 225,
     quality: 3
-  }, function (/*__, result*/) {
-  });
+  }, noop);
 }
 /*
 var unsharp = require('../lib/pure/unsharp');

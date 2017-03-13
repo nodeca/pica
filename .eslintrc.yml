@@ -1,6 +1,15 @@
 env:
   node: true
-  es6:  true
+  browser: true
+
+parserOptions:
+  ecmaVersion: 5
+
+globals:
+  Uint8Array:   false
+  Int16Array:   false
+  Uint16Array:  false
+  Float32Array: false
 
 rules:
   accessor-pairs:         2
@@ -128,7 +137,7 @@ rules:
   semi-spacing:           2
   space-before-function-paren: [ 2, { "anonymous": "always", "named": "never" } ]
   space-in-parens:        [ 2, never ]
-  space-infix-ops:        2
+  space-infix-ops:        [ 2, { int32Hint: true } ]
   space-unary-ops:        2
   # Postponed
   #spaced-comment:         [ 1, always, { exceptions: [ '/', '=' ] } ]

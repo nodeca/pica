@@ -1,5 +1,6 @@
+// Algorythm should not change. Use fixtures to check.
+//
 'use strict';
-/* global it, describe */
 
 var Canvas     = require('canvas');
 var Image      = Canvas.Image;

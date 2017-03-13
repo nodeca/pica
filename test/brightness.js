@@ -1,5 +1,5 @@
 // Check that brightness is not changes after rescale
-/*global describe, it*/
+//
 'use strict';
 
 
@@ -26,8 +26,12 @@ function createTest(color) {
   fill(src, color);
   fill(correct, color);
 
-  /*eslint-disable max-len*/
-  it(format('test %sx%s -> %sx%s with color #%s%s%s', SRC_W, SRC_H, DEST_W, DEST_H, hexColor, hexColor, hexColor), function () {
+  var test_name = format(
+    'test %sx%s -> %sx%s with color #%s%s%s',
+    SRC_W, SRC_H, DEST_W, DEST_H, hexColor, hexColor, hexColor
+  );
+
+  it(test_name, function () {
     var result = resize({
       src:      src,
       width:    SRC_W,
