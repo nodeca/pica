@@ -13,30 +13,12 @@ if (WORKER) {
   }
 }
 
-var WEBGL = false,
-    __cvs;
-try {
-  if (typeof document !== 'undefined' &&
-      typeof window !== 'undefined' &&
-      window.WebGLRenderingContext) {
-
-    __cvs = document.createElement('canvas');
-
-    if (__cvs.getContext('webgl') || __cvs.getContext('experimental-webgl')) {
-      WEBGL = true;
-    }
-  }
-} catch (__) {
-} finally {
-  __cvs = null;
-}
 
 var resize_js     = require('./lib/resize_js');
 var resize_js_ww  = require('./lib/resize_js_ww');
-var resize_webgl  = require('./lib/resize_webgl');
 var resize_array  = require('./lib/js/resize_array');
 var unsharp       = require('./lib/js/unsharp');
-var assign        = require('object-assign');
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Helpers
@@ -56,26 +38,6 @@ function resizeCanvas(from, to, options, callback) {
 
   if (!isNaN(options)) {
     options = { quality: options, alpha: false };
-  }
-
-  // Force flag reset to simplify status check
-  if (!WEBGL) { exports.WEBGL = false; }
-
-  if (WEBGL && exports.WEBGL) {
-    exports.debug('Resize canvas with WebGL');
-
-    var id = resize_webgl(from, to, options, function (err) {
-      if (err) {
-        exports.debug('WebGL resize failed, do fallback and cancel next attempts');
-        exports.debug(err);
-
-        WEBGL = false;
-        resizeCanvas(from, to, assign({}, options, { _id: id }), callback);
-      } else {
-        callback();
-      }
-    });
-    return id;
   }
 
   // Force flag reset to simplify status check
@@ -123,7 +85,6 @@ function resizeBuffer(options, callback) {
 function terminate(id) {
   resize_js.terminate(id);
   resize_js_ww.terminate(id);
-  resize_webgl.terminate(id);
 }
 
 exports.resizeCanvas = resizeCanvas;

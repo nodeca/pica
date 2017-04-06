@@ -149,21 +149,6 @@ You can use it for browser capabilities detection. Also, you can set it to
 `false` for debuging.
 
 
-### .WEBGL - true/false (experimental)
-
-`false` by default. Pica can use WebGL when available, if you enable
-this feature. But current implementation is not complete and not recommended
-for production. Result is noisy and code can crash.
-
-Though, you can enable it to investigate technology, test on different devices
-and provide feedback.
-
-```js
-pica.WEBGL = true;
-pica.debug = console.log.bind(console);
-```
-
-
 ### What is quality
 
 Pica has presets, to adjust speed/quality ratio. Simply use `quality` option
