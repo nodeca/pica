@@ -1,3 +1,14 @@
+3.0.0 / WIP
+------------------
+
+- Major rewrite. New API, promise-based.
+- Drop WebGL resizer.
+- Add createImageBitmap() resizer.
+- Add WebAssembly resizer.
+- Add async image decode via createImageBitmap().
+- Add .toBlob() method.
+
+
 2.0.8 / 2016-10-01
 ------------------
 

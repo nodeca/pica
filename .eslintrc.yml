@@ -1,15 +1,17 @@
 env:
-  node: true
+  node:    true
   browser: true
+  es6:     true
 
-parserOptions:
-  ecmaVersion: 5
+#parserOptions:
+#  ecmaVersion: 6
 
 globals:
-  Uint8Array:   false
-  Int16Array:   false
-  Uint16Array:  false
-  Float32Array: false
+  createImageBitmap: false
+#  Uint8Array:   false
+#  Int16Array:   false
+#  Uint16Array:  false
+#  Float32Array: false
 
 rules:
   accessor-pairs:         2
@@ -30,7 +32,7 @@ rules:
   dot-notation:           2
   eol-last:               2
   eqeqeq:                 2
-  func-style:             [ 2, declaration ]
+  #func-style:             [ 2, declaration ]
   # Postponed
   #global-require:         2
   guard-for-in:           2
@@ -42,7 +44,7 @@ rules:
   keyword-spacing:        2
   linebreak-style:        2
   max-depth:              [ 1, 6 ]
-  max-nested-callbacks:   [ 1, 4 ]
+  #max-nested-callbacks:   [ 1, 4 ]
   # string can exceed 80 chars, but should not overflow github website :)
   max-len:                [ 2, 120, 1000 ]
   new-cap:                2

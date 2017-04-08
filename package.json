@@ -10,10 +10,6 @@
     "canvas"
   ],
   "homepage": "https://github.com/nodeca/pica",
-  "contributors": [
-    "Loïc Faure-Lacroix <lamerstar@gmail.com>",
-    "Vitaly Puzrin (https://github.com/puzrin)"
-  ],
   "license": "MIT",
   "repository": "nodeca/pica",
   "scripts": {
@@ -26,7 +22,14 @@
   ],
   "browserify": {
     "transform": [
-      "brfs"
+      [
+        "babelify",
+        {
+          "presets": [
+            "es2015"
+          ]
+        }
+      ]
     ]
   },
   "dependencies": {
@@ -35,8 +38,9 @@
   },
   "devDependencies": {
     "ansi": "^0.3.1",
+    "babel-preset-es2015": "^6.24.1",
+    "babelify": "^7.3.0",
     "benchmark": "^2.1.0",
-    "brfs": "^1.4.3",
     "browserify": "^13.0.1",
     "canvas": "^1.3.16",
     "eslint": "^3.7.0",

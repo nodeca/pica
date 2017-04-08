@@ -7,6 +7,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/2.4.1/lodash.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.2.0/js/bootstrap.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.2.0/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/fontawesome/4.7.0/css/font-awesome.min.css">
 
     <link rel="stylesheet" href="./index.css">
     <script src="../dist/pica.js"></script>
@@ -15,7 +16,13 @@
 
   <body>
     <div class="container">
-      <h1>Pica demo</h1>
+      <h1>
+        Pica demo
+        <a href="https://github.com/nodeca/pica"
+          class="fa fa-github pull-right"
+          target="_blank"
+          style="color:inherit;text-decoration:none;"></a>
+      </h1>
       <p>High quality image resize in browser.
          Click on resized images to reload, or click on original to upload new image</p>
       <hr>
@@ -60,7 +67,12 @@
           </div>
           <div class="pica-options">
             <label>
-              <input id="pica-use-webgl" type="checkbox"> Use WebGL if possible
+              <input id="pica-use-cib" type="checkbox" checked> Use createImageBitmap if possible
+            </label>
+          </div>
+          <div class="pica-options">
+            <label>
+              <input id="pica-use-wasm" type="checkbox" checked> Use WebAssembly if possible
             </label>
           </div>
 
@@ -88,9 +100,6 @@
 
     <input id="upload" type="file" style="position: absolute; left: -2000px">
 
-    <div class="gh-ribbon"><a href="https://github.com/nodeca/pica">Fork me on GitHub</a></div>
-
     <script src="./index.js"></script>
-
   </body>
 </html>

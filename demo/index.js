@@ -19,6 +19,9 @@ window.performance.now = function() { return +(new Date()); };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+window.pica.prototype.debug = console.log.bind(console);
+
+
 var qualityInfo = [
   'Box (win 0.5px)',
   'Hamming (win 1px)',
@@ -26,8 +29,27 @@ var qualityInfo = [
   'Lanczos (win 3px)',
 ]
 
-var ww_supported    = window.pica.WW;
-var webgl_supported = window.pica.WEBGL;
+
+var resizer;
+
+
+var resizer_mode = {
+  js:   true,
+  wasm: true,
+  cib:  true,
+  ww:   true
+};
+
+
+function create_resizer() {
+  var opts = [];
+
+  Object.keys(resizer_mode).forEach(function (k) {
+    if (resizer_mode[k]) opts.push(k);
+  });
+
+  resizer = window.pica({ features: opts });
+}
 
 
 function updateOrig() {
@@ -61,6 +83,7 @@ var updateResized = _.debounce(function () {
 
   ctx = dst.getContext("2d")
   ctx.drawImage(img, 0, 0, dst.width, dst.height);
+
   time = (performance.now() - start).toFixed(2);
 
   $('#dst-cvs-info').text(_.template('<%= time %>ms, <%= w %> x <%= h %>', {
@@ -75,26 +98,39 @@ var updateResized = _.debounce(function () {
   dst.width = width;
   dst.height = img.height * width / img.width;
 
+  var offScreenCanvas = document.createElement('canvas')
+  offScreenCanvas.width  = dst.width;
+  offScreenCanvas.height = dst.height;
+
   start = performance.now();
 
-  window.pica.resizeCanvas($('#src')[0], dst, {
+  //resizer.resize(img, offScreenCanvas, {
+  resizer.resize($('#src')[0], offScreenCanvas, {
     quality: quality,
     alpha: alpha,
     unsharpAmount: unsharpAmount,
     unsharpRadius: unsharpRadius,
     unsharpThreshold: unsharpThreshold,
     transferable: true
-  }, function (err) {
+  })
+  .then(() => {
     time = (performance.now() - start).toFixed(2);
+
+    // Copy buffer to visible element
+    dst.getContext('2d', { alpha: Boolean(alpha) }).drawImage(offScreenCanvas, 0, 0);
 
     var features;
 
-    if (window.pica.WEBGL) {
-      features = 'WebGL';
-    } else if (window.pica.WW) {
-      features = 'no WebGL, use WebWorker';
+    if (resizer.features.cib) {
+      features = 'method: CIB';
+    } else if (resizer.features.wasm) {
+      features = 'method: WASM';
     } else {
-      features = 'no WebGL, no WebWorkers :(';
+      features = 'method: JS';
+    }
+
+    if (!resizer.features.cib) {
+      if (resizer.features.ww) features += ', use WebWorker';
     }
 
     $('#dst-features').text(features);
@@ -119,9 +155,6 @@ var updateResized = _.debounce(function () {
 //
 // Init
 //
-window.pica.debug = console.log.bind(console);
-window.pica.WEBGL = true;
-
 var img = new Image();
 
 var quality           = Number($('#pica-quality').val());
@@ -130,9 +163,11 @@ var unsharpRadius     = Number($('#pica-unsharp-radius').val());
 var unsharpThreshold  = Number($('#pica-unsharp-threshold').val());
 var alpha             = $('#pica-use-alpha').is(":checked")
 
-window.pica.WW        = $('#pica-use-ww').is(":checked");
-window.pica.WEBGL     = $('#pica-use-webgl').is(":checked");
+resizer_mode.ww   = $('#pica-use-ww').is(":checked");
+resizer_mode.cib  = $('#pica-use-cib').is(":checked");
+resizer_mode.wasm = $('#pica-use-wasm').is(":checked");
 
+create_resizer();
 
 img.src = imageEncoded;
 
@@ -166,12 +201,20 @@ $('#pica-use-alpha').on('change', function () {
   alpha = $(this).is(":checked");
   updateResized();
 });
+
 $('#pica-use-ww').on('change', function () {
-  window.pica.WW = $(this).is(":checked");
+  resizer_mode.ww = $(this).is(":checked");
+  create_resizer();
   updateResized();
 });
-$('#pica-use-webgl').on('change', function () {
-  window.pica.WEBGL = $(this).is(":checked");
+$('#pica-use-cib').on('change', function () {
+  resizer_mode.cib = $(this).is(":checked");
+  create_resizer();
+  updateResized();
+});
+$('#pica-use-wasm').on('change', function () {
+  resizer_mode.wasm = $(this).is(":checked");
+  create_resizer();
   updateResized();
 });
 

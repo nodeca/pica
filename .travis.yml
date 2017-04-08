@@ -1,7 +1,7 @@
 language: node_js
 node_js:
-  - '4'
   - '6'
+  - '7'
 
 # Needed for node_canvas build
 addons:

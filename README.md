@@ -10,15 +10,19 @@ in browser as fast as possible.
 
 [__demo__](http://nodeca.github.io/pica/demo/)
 
-When you resize images using modern browsers' `canvas`
-low quality interpolation algorythms are used by default. That's why we wrote `pica`.
+When you resize images using modern browsers' `canvas` low quality
+interpolation algorythms are used by default. That's why we wrote `pica`.
 
-- It's not as fast as canvas, but still reasonably fast. With Lanczos filter and
-  `window=3` huge image resize (5000x3000px) takes ~0.5s on desktop and ~2s on
-  mobile.
+- It's not as fast as canvas, but still reasonably fast. With Lanczos filter
+  and `window=3` big image resize (5000x3000px) inpure JS takes ~0.5s on
+  desktop and ~2s on mobile.
 - In modern browsers pica automatically uses
   [Webworkers](http://caniuse.com/#feat=webworkers), to avoid interface freeze
   and use multiple CPU cores in parallel.
+- Pica selects the best resize method of available:
+  - `createImageBitmap()`
+  - WebAssembly
+  - pure JavaScript
 
 Why it's useful:
 
@@ -85,10 +89,42 @@ with `Broserify` to properly use Web Workers. In other case - use
 API
 ---
 
-### .resizeCanvas(from, to, options, callback) -> task_id
+### new Pica(config)
+
+Create resizer instance with given config
+
+```js
+const pica = require('pica')({
+  tile:     768,        // Tile size.
+
+  features: [ 'all' ],  // Mostly for testing, restricts
+                        // available features. Can be:
+                        // 'js', 'wasm', 'cib', 'ww' or 'all'
+
+  idle: 2000,           // Cache timeout, ms. Webworkers create
+                        // is not fast. This option allow reuse
+                        // webworkers effectively.
+
+  concurrency: 4        // Max webworkers pool size. Default is
+                        // autodetected CPU count, but not more than 4.
+});
+
+
+// Resize from Camvas/Image to another Canvas
+pica.resize(from, to)
+  .then(result => console.log('resize done!'));
+
+
+// Resize & convert to blob
+pica.resize(from, to)
+  .then(result => pica.toBlob(result, 'image/jpeg', 90))
+  .then(blob => console.log('resized to canvas & created blob!'));
+```
+
+### .resize(from, to, options) -> Promise
 
 Resize image from one canvas (or image) to another. Sizes are taken from
-source and destination objects. Return task ID to be able terminate it early.
+source and destination objects.
 
 - __from__ - source canvas or image.
 - __to__ - destination canvas.
@@ -101,20 +137,23 @@ source and destination objects. Return task ID to be able terminate it early.
     If it is less than 0.5, Unsharp Mask is off. Big values are clamped to 2.0.
   - __unsharpThreshold__ - 0..255. Default = `0`. Threshold for applying
     unsharp mask.
-- __callback(err)__ - function to call after resize complete:
-  - __err__ - error if happened
+  - __cancelToken__ - Promise instance. If defined, current operation will be
+    termitated on rejection.
 
 __(!)__ If you need to process multiple images, do it sequentially to optimize
 CPU & memory use. Pica already knows how to use multiple cores (if browser
 allows).
 
-
-### .terminate(task_id)
-
-Terminate resizing task by id, returned from resize function.
+Result is Promise, resolved with `to` param on success.
 
 
-### .resizeBuffer(options, callback)
+### .toBlob(canvas, mimeType [, quality]) -> Promise
+
+Convenience method, similar to `canvas.toBlob()`, but with promise
+interface & polyfill for old browsers.
+
+
+### .resizeBuffer(options) -> Promise
 
 Supplementary method, not recommended for direct use. Resize Uint8Array with
 raw RGBA bitmap (don't confuse with jpeg / png  / ... binaries). It does not
@@ -137,16 +176,8 @@ raw binary data (for example, if you decode jpeg files "manually").
     unsharp mask.
   - __dest__ - Optional. Output buffer to write data (callback will return
     result buffer anyway).
-- __callback(err, output)__ - function to call after resize complete:
-  - __err__ - error if happened.
-  - __output__ - Uint8Array with resized RGBA image data.
 
-
-### .WW - true/false
-
-`true` if webworkers are [supported](http://caniuse.com/#feat=webworkers).
-You can use it for browser capabilities detection. Also, you can set it to
-`false` for debuging.
+Result it Promise, resolved with resized rgba buffer.
 
 
 ### What is quality
@@ -189,7 +220,7 @@ We didn't have time to test all possible combinations, but in general:
 
 __Note.__ Though you can run this package on `node.js`, browsers are the main
 target platform. On server side we recommend to use
-[sharp](https://github.com/lovell/sharp) for better speed.
+[sharp](https://github.com/lovell/sharp).
 
 
 References
