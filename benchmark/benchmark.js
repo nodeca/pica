@@ -5,7 +5,7 @@
 'use strict';
 
 
-const benchmark   = require('benchmark');
+const Benchmark   = require('benchmark');
 const pica        = require('../')();
 const lightness16 = require('../lib/mathlib/lightness16_js');
 const filter_gen  = require('../lib/mathlib/resize_filter_gen');
@@ -22,7 +22,7 @@ sample.lightness = lightness16(sample.buffer, sample.width, sample.height);
 
 
 /* eslint-disable new-cap */
-benchmark.Suite()
+Benchmark.Suite()
 
 .add(`Resize of ${sample.width}x${sample.height}`, {
   defer: true,
@@ -35,8 +35,7 @@ benchmark.Suite()
       toHeight: (sample.height * 0.15)|0,
       quality:  3
     })
-    .then(() => defer.resolve())
-    .catch(err => console.log(err));
+    .then(() => defer.resolve());
   }
 })
 
@@ -98,7 +97,6 @@ benchmark.Suite()
 })
 
 .on('cycle', event => {
-  //console.log(event);
   console.log(`> ${event.target}`);
 })
 
