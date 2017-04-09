@@ -2,10 +2,6 @@
   "name": "pica",
   "main": "dist/pica.js",
   "homepage": "https://github.com/nodeca/pica",
-  "authors": [
-    "Loïc Faure-Lacroix <lamerstar@gmail.com>",
-    "Vitaly Puzrin <vitaly@rcdesign.ru>"
-  ],
   "description": "High quality image resize in browser.",
   "keywords": ["resize", "scale", "image", "lanczos", "canvas"],
   "license": "MIT",

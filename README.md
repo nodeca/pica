@@ -242,7 +242,6 @@ Authors
 
 - Vitaly Puzrin [@puzrin](https://github.com/puzrin)
 - Alexander Rodin [@a-rodin](https://github.com/a-rodin)
-- [@d08ble](https://github.com/d08ble)
 - Loïc Faure-Lacroix [@llacroix](https://github.com/llacroix)
 
 
