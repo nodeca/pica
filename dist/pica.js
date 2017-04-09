@@ -1,137 +1,381 @@
 /* pica 2.0.8 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+// Collection of math functions
+//
+// 1. Combine components together
+// 2. Has async init to load wasm modules
+//
 'use strict';
 
-/* global document */
+var base64decode = require('./utils').base64decode;
+var math_wasm_base64 = require('./mathlib/wasm/math_wasm_base64');
 
-module.exports = function () {
-  return document.createElement('canvas');
+function MathLib(requested_features, preload) {
+  this.__requested_features = requested_features || [];
+  this.__initPromise = null;
+  this.__wasm_module = preload && preload.wasm_module ? preload : null;
+
+  // List of supported features, according to options & browser/node.js
+  this.features = {
+    js: false, // pure JS implementation, can be disabled for testing
+    wasm: false // webassembly implementation for heavy functions
+  };
+}
+
+MathLib.prototype.init = function init() {
+  var _this = this;
+
+  this.__initPromise = Promise.resolve().then(function () {
+    // Map supported implementations
+    _this.unsharp = _this.unsharp_js; // That's in JS only for a while
+
+    if (_this.__requested_features.indexOf('js') >= 0) {
+      _this.features.js = true;
+      _this.resize = _this.resize_js;
+    }
+
+    if (typeof WebAssembly !== 'undefined' && _this.__requested_features.indexOf('wasm') >= 0) {
+
+      if (_this.__wasm_module) {
+        _this.features.wasm = true;
+        _this.resize = _this.resize_wasm;
+        return null;
+      }
+
+      return WebAssembly.compile(base64decode(math_wasm_base64)).then(function (wasm_module) {
+        _this.__wasm_module = wasm_module;
+        _this.features.wasm = true;
+        _this.resize = _this.resize_wasm;
+      })
+      // Suppress init errors
+      .catch(function () {});
+    }
+
+    return null;
+  }).then(function () {
+    if (!_this.features.wasm && !_this.features.js) {
+      throw new Error('Pica mathlib: no supported methods found');
+    }
+
+    return _this;
+  });
+
+  return this.__initPromise;
 };
 
-},{}],2:[function(require,module,exports){
+MathLib.prototype.resizeAndUnsharp = function resizeAndUnsharp(options, cache) {
+  var result = this.resize(options, cache);
+
+  if (options.unsharpAmount) {
+    this.unsharp(result, options.toWidth, options.toHeight, options.unsharpAmount, options.unsharpRadius, options.unsharpThreshold);
+  }
+
+  return result;
+};
+
+// Pin implementations
+MathLib.prototype.unsharp_js = require('./mathlib/unsharp_js');
+MathLib.prototype.resize_js = require('./mathlib/resize_js');
+
+////////////////////////////////////////////////////////////////////////////////
+// WebAssembly wrapper
+
+var createFilters = require('./mathlib/resize_filter_gen');
+
+function resetAlpha(dst, width, height) {
+  var ptr = 3,
+      len = width * height * 4 | 0;
+  while (ptr < len) {
+    dst[ptr] = 0xFF;ptr = ptr + 4 | 0;
+  }
+}
+
+function asUint8Array(src) {
+  return new Uint8Array(src.buffer, 0, src.byteLength);
+}
+
+var IS_LE = new Uint32Array(new Uint8Array([1, 0, 0, 0]).buffer)[0] === 1;
+
+function copyInt16asLE(src, target, target_offset) {
+  if (IS_LE) {
+    target.set(asUint8Array(src), target_offset);
+    return;
+  }
+
+  for (var ptr = target_offset, i = 0; i < src.length; i++) {
+    var data = src[i];
+    target[ptr++] = data & 0xFF;
+    target[ptr++] = data >> 8 & 0xFF;
+  }
+}
+
+MathLib.prototype.resize_wasm = function resize_wasm(options, cache) {
+  var src = options.src;
+  var srcW = options.width;
+  var srcH = options.height;
+  var destW = options.toWidth;
+  var destH = options.toHeight;
+  var scaleX = options.scaleX || options.toWidth / options.width;
+  var scaleY = options.scaleY || options.toHeight / options.height;
+  var offsetX = options.offsetX || 0.0;
+  var offsetY = options.offsetY || 0.0;
+  var dest = options.dest || new Uint8Array(destW * destH * 4);
+  var quality = typeof options.quality === 'undefined' ? 3 : options.quality;
+  var alpha = options.alpha || false;
+
+  if (!cache) cache = {};
+
+  var fx_key = 'filter_' + quality + '|' + srcW + '|' + destW + '|' + scaleX + '|' + offsetX;
+  var fy_key = 'filter_' + quality + '|' + srcH + '|' + destH + '|' + scaleY + '|' + offsetY;
+
+  var filtersX = cache[fx_key] || createFilters(quality, srcW, destW, scaleX, offsetX),
+      filtersY = cache[fy_key] || createFilters(quality, srcH, destH, scaleY, offsetY);
+
+  //if (!cache[fx_key]) cache[fx_key] = filtersX;
+  //if (!cache[fy_key]) cache[fy_key] = filtersY;
+
+  var alloc_bytes = src.byteLength + filtersX.byteLength + filtersY.byteLength + srcH * destW * 4; // Buffer between convolve passes
+
+  var alloc_pages = Math.ceil(alloc_bytes / (64 * 1024));
+
+  var wasm_imports = cache.wasm_imports || {
+    env: {
+      memoryBase: 0,
+      tableBase: 0,
+      memory: new WebAssembly.Memory({
+        // Compiled wasm has 256 min memory value limit.
+        // Atempt to provide less memory size will cause linking error
+        initial: Math.max(256, alloc_pages)
+      }),
+      table: new WebAssembly.Table({
+        initial: 100,
+        element: 'anyfunc'
+      })
+    }
+  };
+
+  // Increase memory size if needed
+  var memory = wasm_imports.env.memory,
+      mem_pages = memory.buffer.byteLength / (64 * 1024);
+
+  if (alloc_pages > mem_pages) {
+    // increase to delta + 1MB
+    memory.grow(alloc_pages - mem_pages + 16);
+  }
+
+  var wasm_instance = cache.wasm_instance || new WebAssembly.Instance(this.__wasm_module, wasm_imports);
+
+  if (!cache.wasm_imports) cache.wasm_imports = wasm_imports;
+  if (!cache.wasm_instance) cache.wasm_instance = wasm_instance;
+
+  //
+  // Fill memory block with data to process
+  //
+
+  var mem = new Uint8Array(wasm_imports.env.memory.buffer);
+  var mem32 = new Uint32Array(wasm_imports.env.memory.buffer);
+
+  // mem.set(src)
+  // 32-bit copy is much faster in chrome
+  var src32 = new Uint32Array(src.buffer);
+  mem32.set(src32);
+
+  // Place tmp buffer after src to have 4x byte align.
+  // That doesn't seems to make sence but costs nothing.
+  var tmp_offset = src.byteLength;
+
+  var filtersX_offset = tmp_offset + srcH * destW * 4;
+  var filtersY_offset = filtersX_offset + filtersX.byteLength;
+
+  // We should guarantee LE bytes order. Filters are not big, so
+  // speed difference is not significant vs direct .set()
+  copyInt16asLE(filtersX, mem, filtersX_offset);
+  copyInt16asLE(filtersY, mem, filtersY_offset);
+
+  //
+  // Now call webassembly method
+  //
+
+  wasm_instance.exports._convolveHV(filtersX_offset, filtersY_offset, tmp_offset, srcW, srcH, destW, destH);
+
+  //
+  // Copy data back to typed array
+  //
+
+  // 32-bit copy is much faster in chrome
+  var dest32 = new Uint32Array(dest.buffer);
+  dest32.set(mem32.subarray(0, dest32.length));
+
+  // That's faster than doing checks in convolver.
+  // !!! Note, canvas data is not premultipled. We don't need other
+  // alpha corrections.
+
+  if (!alpha) resetAlpha(dest, destW, destH);
+
+  return dest;
+};
+
+module.exports = MathLib;
+
+},{"./mathlib/resize_filter_gen":4,"./mathlib/resize_js":6,"./mathlib/unsharp_js":7,"./mathlib/wasm/math_wasm_base64":8,"./utils":11}],2:[function(require,module,exports){
+// Calculates 16-bit precision lightness from 8-bit rgba buffer
+//
 'use strict';
 
-var lastId = 1;
-
-module.exports = function () {
-  return lastId++;
+module.exports = function lightness16_js(img, width, height) {
+  var size = width * height;
+  var out = new Uint16Array(size);
+  var r, g, b, min, max;
+  for (var i = 0; i < size; i++) {
+    r = img[4 * i];
+    g = img[4 * i + 1];
+    b = img[4 * i + 2];
+    max = r >= g && r >= b ? r : g >= b && g >= r ? g : b;
+    min = r <= g && r <= b ? r : g <= b && g <= r ? g : b;
+    out[i] = (max + min) * 257 >> 1;
+  }
+  return out;
 };
 
 },{}],3:[function(require,module,exports){
+// Resize convolvers, pure JS implementation
+//
 'use strict';
-
-var IDLE = 2000;
-var TIMEOUT = 500;
-
-function Pool(create) {
-  this.create = create;
-
-  this.available = [];
-  this.acquired = {};
-  this.lastId = 1;
-
-  this.timeoutId = 0;
-}
-
-Pool.prototype.acquire = function () {
-  var self = this;
-  var resource;
-  if (this.available.length !== 0) {
-    resource = this.available.pop();
-  } else {
-    resource = this.create();
-    resource.id = this.lastId++;
-    resource.release = function () {
-      self.release(resource);
-    };
-  }
-  this.acquired[resource.id] = resource;
-  return resource;
-};
-
-Pool.prototype.release = function (resource) {
-  delete this.acquired[resource.id];
-  resource.lastUsed = Date.now();
-  this.available.push(resource);
-
-  if (this.timeoutId === 0) {
-    this.timeoutId = setTimeout(this.gc.bind(this), TIMEOUT);
-  }
-};
-
-Pool.prototype.gc = function () {
-  var now = Date.now();
-
-  this.available = this.available.filter(function (resource) {
-    if (now - resource.lastUsed > IDLE) {
-      resource.destroy();
-      return false;
-    }
-    return true;
-  });
-
-  if (this.available.length !== 0) {
-    this.timeoutId = setTimeout(this.gc.bind(this), TIMEOUT);
-  } else {
-    this.timeoutId = 0;
-  }
-};
-
-module.exports = Pool;
-
-},{}],4:[function(require,module,exports){
-// High speed resize with tuneable speed/quality ratio
-
-'use strict';
-
 
 // Precision of fixed FP values
-var FIXED_FRAC_BITS = 14;
+//var FIXED_FRAC_BITS = 14;
 
 
+function clampTo8(i) {
+  return i < 0 ? 0 : i > 255 ? 255 : i;
+}
+
+// Convolve image in horizontal directions and transpose output. In theory,
+// transpose allow:
 //
-// Presets for quality 0..3. Filter functions + window size
+// - use the same convolver for both passes (this fails due different
+//   types of input array and temporary buffer)
+// - making vertical pass by horisonltal lines inprove CPU cache use.
 //
-var FILTER_INFO = [
-  { // Nearest neibor (Box)
-    win: 0.5,
-    filter: function (x) {
-      return (x >= -0.5 && x < 0.5) ? 1.0 : 0.0;
+// But in real life this doesn't work :)
+//
+function convolveHorizontally(src, dest, srcW, srcH, destW, filters) {
+
+  var r, g, b, a;
+  var filterPtr, filterShift, filterSize;
+  var srcPtr, srcY, destX, filterVal;
+  var srcOffset = 0,
+      destOffset = 0;
+
+  // For each row
+  for (srcY = 0; srcY < srcH; srcY++) {
+    filterPtr = 0;
+
+    // Apply precomputed filters to each destination row point
+    for (destX = 0; destX < destW; destX++) {
+      // Get the filter that determines the current output pixel.
+      filterShift = filters[filterPtr++];
+      filterSize = filters[filterPtr++];
+
+      srcPtr = srcOffset + filterShift * 4 | 0;
+
+      r = g = b = a = 0;
+
+      // Apply the filter to the row to get the destination pixel r, g, b, a
+      for (; filterSize > 0; filterSize--) {
+        filterVal = filters[filterPtr++];
+
+        // Use reverse order to workaround deopts in old v8 (node v.10)
+        // Big thanks to @mraleph (Vyacheslav Egorov) for the tip.
+        a = a + filterVal * src[srcPtr + 3] | 0;
+        b = b + filterVal * src[srcPtr + 2] | 0;
+        g = g + filterVal * src[srcPtr + 1] | 0;
+        r = r + filterVal * src[srcPtr] | 0;
+        srcPtr = srcPtr + 4 | 0;
+      }
+
+      // Bring this value back in range. All of the filter scaling factors
+      // are in fixed point with FIXED_FRAC_BITS bits of fractional part.
+      //
+      // (!) Add 1/2 of value before clamping to get proper rounding. In other
+      // case brightness loss will be noticeable if you resize image with white
+      // border and place it on white background.
+      //
+      dest[destOffset + 3] = clampTo8(a + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
+      dest[destOffset + 2] = clampTo8(b + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
+      dest[destOffset + 1] = clampTo8(g + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
+      dest[destOffset] = clampTo8(r + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
+      destOffset = destOffset + srcH * 4 | 0;
     }
-  },
-  { // Hamming
-    win: 1.0,
-    filter: function (x) {
-      if (x <= -1.0 || x >= 1.0) { return 0.0; }
-      if (x > -1.19209290E-07 && x < 1.19209290E-07) { return 1.0; }
-      var xpi = x * Math.PI;
-      return ((Math.sin(xpi) / xpi) *  (0.54 + 0.46 * Math.cos(xpi / 1.0)));
-    }
-  },
-  { // Lanczos, win = 2
-    win: 2.0,
-    filter: function (x) {
-      if (x <= -2.0 || x >= 2.0) { return 0.0; }
-      if (x > -1.19209290E-07 && x < 1.19209290E-07) { return 1.0; }
-      var xpi = x * Math.PI;
-      return (Math.sin(xpi) / xpi) * Math.sin(xpi / 2.0) / (xpi / 2.0);
-    }
-  },
-  { // Lanczos, win = 3
-    win: 3.0,
-    filter: function (x) {
-      if (x <= -3.0 || x >= 3.0) { return 0.0; }
-      if (x > -1.19209290E-07 && x < 1.19209290E-07) { return 1.0; }
-      var xpi = x * Math.PI;
-      return (Math.sin(xpi) / xpi) * Math.sin(xpi / 3.0) / (xpi / 3.0);
-    }
+
+    destOffset = (srcY + 1) * 4 | 0;
+    srcOffset = (srcY + 1) * srcW * 4 | 0;
   }
-];
+}
 
-function clampTo8(i) { return i < 0 ? 0 : (i > 255 ? 255 : i); }
+// Technically, convolvers are the same. But input array and temporary
+// buffer can be of different type (especially, in old browsers). So,
+// keep code in separate functions to avoid deoptimizations & speed loss.
 
-function toFixedPoint(num) { return Math.round(num * ((1 << FIXED_FRAC_BITS) - 1)); }
+function convolveVertically(src, dest, srcW, srcH, destW, filters) {
 
+  var r, g, b, a;
+  var filterPtr, filterShift, filterSize;
+  var srcPtr, srcY, destX, filterVal;
+  var srcOffset = 0,
+      destOffset = 0;
 
+  // For each row
+  for (srcY = 0; srcY < srcH; srcY++) {
+    filterPtr = 0;
+
+    // Apply precomputed filters to each destination row point
+    for (destX = 0; destX < destW; destX++) {
+      // Get the filter that determines the current output pixel.
+      filterShift = filters[filterPtr++];
+      filterSize = filters[filterPtr++];
+
+      srcPtr = srcOffset + filterShift * 4 | 0;
+
+      r = g = b = a = 0;
+
+      // Apply the filter to the row to get the destination pixel r, g, b, a
+      for (; filterSize > 0; filterSize--) {
+        filterVal = filters[filterPtr++];
+
+        // Use reverse order to workaround deopts in old v8 (node v.10)
+        // Big thanks to @mraleph (Vyacheslav Egorov) for the tip.
+        a = a + filterVal * src[srcPtr + 3] | 0;
+        b = b + filterVal * src[srcPtr + 2] | 0;
+        g = g + filterVal * src[srcPtr + 1] | 0;
+        r = r + filterVal * src[srcPtr] | 0;
+        srcPtr = srcPtr + 4 | 0;
+      }
+
+      // Bring this value back in range. All of the filter scaling factors
+      // are in fixed point with FIXED_FRAC_BITS bits of fractional part.
+      //
+      // (!) Add 1/2 of value before clamping to get proper rounding. In other
+      // case brightness loss will be noticeable if you resize image with white
+      // border and place it on white background.
+      //
+      dest[destOffset + 3] = clampTo8(a + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
+      dest[destOffset + 2] = clampTo8(b + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
+      dest[destOffset + 1] = clampTo8(g + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
+      dest[destOffset] = clampTo8(r + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
+      destOffset = destOffset + srcH * 4 | 0;
+    }
+
+    destOffset = (srcY + 1) * 4 | 0;
+    srcOffset = (srcY + 1) * srcW * 4 | 0;
+  }
+}
+
+module.exports = {
+  convolveHorizontally: convolveHorizontally,
+  convolveVertically: convolveVertically
+};
+
+},{}],4:[function(require,module,exports){
 // Calculate convolution filters for each destination point,
 // and pack data to Int16Array:
 //
@@ -141,22 +385,32 @@ function toFixedPoint(num) { return Math.round(num * ((1 << FIXED_FRAC_BITS) - 1
 // - length - filter length (in src points)
 // - data - filter values sequence
 //
-function createFilters(quality, srcSize, destSize, scale, offset) {
+'use strict';
+
+var FILTER_INFO = require('./resize_filter_info');
+
+// Precision of fixed FP values
+var FIXED_FRAC_BITS = 14;
+
+function toFixedPoint(num) {
+  return Math.round(num * ((1 << FIXED_FRAC_BITS) - 1));
+}
+
+module.exports = function resizeFilterGen(quality, srcSize, destSize, scale, offset) {
 
   var filterFunction = FILTER_INFO[quality].filter;
 
   var scaleInverted = 1.0 / scale;
-  var scaleClamped  = Math.min(1.0, scale); // For upscale
+  var scaleClamped = Math.min(1.0, scale); // For upscale
 
   // Filter window (averaging interval), scaled to src image
   var srcWindow = FILTER_INFO[quality].win / scaleClamped;
 
-  var destPixel, srcPixel, srcFirst, srcLast, filterElementSize,
-      floatFilter, fxpFilter, total, pxl, idx, floatVal, filterTotal, filterVal;
+  var destPixel, srcPixel, srcFirst, srcLast, filterElementSize, floatFilter, fxpFilter, total, pxl, idx, floatVal, filterTotal, filterVal;
   var leftNotEmpty, rightNotEmpty, filterShift, filterSize;
 
   var maxFilterElementSize = Math.floor((srcWindow + 1) * 2);
-  var packedFilter    = new Int16Array((maxFilterElementSize + 2) * destSize);
+  var packedFilter = new Int16Array((maxFilterElementSize + 2) * destSize);
   var packedFilterPtr = 0;
 
   // For each destination pixel calculate source range and built filter values
@@ -166,7 +420,7 @@ function createFilters(quality, srcSize, destSize, scale, offset) {
     srcPixel = (destPixel + 0.5) * scaleInverted + offset;
 
     srcFirst = Math.max(0, Math.floor(srcPixel - srcWindow));
-    srcLast  = Math.min(srcSize - 1, Math.ceil(srcPixel + srcWindow));
+    srcLast = Math.min(srcSize - 1, Math.ceil(srcPixel + srcWindow));
 
     filterElementSize = srcLast - srcFirst + 1;
     floatFilter = new Float32Array(filterElementSize);
@@ -176,7 +430,7 @@ function createFilters(quality, srcSize, destSize, scale, offset) {
 
     // Fill filter values for calculated range
     for (pxl = srcFirst, idx = 0; pxl <= srcLast; pxl++, idx++) {
-      floatVal = filterFunction(((pxl + 0.5) - srcPixel) * scaleClamped);
+      floatVal = filterFunction((pxl + 0.5 - srcPixel) * scaleClamped);
       total += floatVal;
       floatFilter[idx] = floatVal;
     }
@@ -228,158 +482,104 @@ function createFilters(quality, srcSize, destSize, scale, offset) {
     }
   }
   return packedFilter;
-}
+};
 
-// Convolve image in horizontal directions and transpose output. In theory,
-// transpose allow:
+},{"./resize_filter_info":5}],5:[function(require,module,exports){
+// Filter definitions to build tables for
+// resizing convolvers.
 //
-// - use the same convolver for both passes (this fails due different
-//   types of input array and temporary buffer)
-// - making vertical pass by horisonltal lines inprove CPU cache use.
+// Presets for quality 0..3. Filter functions + window size
 //
-// But in real life this doesn't work :)
-//
-function convolveHorizontally(src, dest, srcW, srcH, destW, filters) {
+'use strict';
 
-  var r, g, b, a;
-  var filterPtr, filterShift, filterSize;
-  var srcPtr, srcY, destX, filterVal;
-  var srcOffset = 0, destOffset = 0;
-
-  // For each row
-  for (srcY = 0; srcY < srcH; srcY++) {
-    filterPtr  = 0;
-
-    /*eslint-disable space-infix-ops*/
-
-    // Apply precomputed filters to each destination row point
-    for (destX = 0; destX < destW; destX++) {
-      // Get the filter that determines the current output pixel.
-      filterShift = filters[filterPtr++];
-      filterSize  = filters[filterPtr++];
-
-      srcPtr = (srcOffset + (filterShift * 4))|0;
-
-      r = g = b = a = 0;
-
-      // Apply the filter to the row to get the destination pixel r, g, b, a
-      for (; filterSize > 0; filterSize--) {
-        filterVal = filters[filterPtr++];
-
-        // Use reverse order to workaround deopts in old v8 (node v.10)
-        // Big thanks to @mraleph (Vyacheslav Egorov) for the tip.
-        a = (a + filterVal * src[srcPtr + 3])|0;
-        b = (b + filterVal * src[srcPtr + 2])|0;
-        g = (g + filterVal * src[srcPtr + 1])|0;
-        r = (r + filterVal * src[srcPtr])|0;
-        srcPtr = (srcPtr + 4)|0;
-      }
-
-      // Bring this value back in range. All of the filter scaling factors
-      // are in fixed point with FIXED_FRAC_BITS bits of fractional part.
-      //
-      // (!) Add 1/2 of value before clamping to get proper rounding. In other
-      // case brightness loss will be noticeable if you resize image with white
-      // border and place it on white background.
-      //
-      dest[destOffset + 3] = clampTo8((a + (1 << 13)) >> 14/*FIXED_FRAC_BITS*/);
-      dest[destOffset + 2] = clampTo8((b + (1 << 13)) >> 14/*FIXED_FRAC_BITS*/);
-      dest[destOffset + 1] = clampTo8((g + (1 << 13)) >> 14/*FIXED_FRAC_BITS*/);
-      dest[destOffset]     = clampTo8((r + (1 << 13)) >> 14/*FIXED_FRAC_BITS*/);
-      destOffset = (destOffset + srcH * 4)|0;
-    }
-
-    destOffset = ((srcY + 1) * 4)|0;
-    srcOffset  = ((srcY + 1) * srcW * 4)|0;
+module.exports = [{ // Nearest neibor (Box)
+  win: 0.5,
+  filter: function filter(x) {
+    return x >= -0.5 && x < 0.5 ? 1.0 : 0.0;
   }
-}
-
-// Technically, convolvers are the same. But input array and temporary
-// buffer can be of different type (especially, in old browsers). So,
-// keep code in separate functions to avoid deoptimizations & speed loss.
-
-function convolveVertically(src, dest, srcW, srcH, destW, filters) {
-
-  var r, g, b, a;
-  var filterPtr, filterShift, filterSize;
-  var srcPtr, srcY, destX, filterVal;
-  var srcOffset = 0, destOffset = 0;
-
-  // For each row
-  for (srcY = 0; srcY < srcH; srcY++) {
-    filterPtr  = 0;
-
-    /*eslint-disable space-infix-ops*/
-
-    // Apply precomputed filters to each destination row point
-    for (destX = 0; destX < destW; destX++) {
-      // Get the filter that determines the current output pixel.
-      filterShift = filters[filterPtr++];
-      filterSize  = filters[filterPtr++];
-
-      srcPtr = (srcOffset + (filterShift * 4))|0;
-
-      r = g = b = a = 0;
-
-      // Apply the filter to the row to get the destination pixel r, g, b, a
-      for (; filterSize > 0; filterSize--) {
-        filterVal = filters[filterPtr++];
-
-        // Use reverse order to workaround deopts in old v8 (node v.10)
-        // Big thanks to @mraleph (Vyacheslav Egorov) for the tip.
-        a = (a + filterVal * src[srcPtr + 3])|0;
-        b = (b + filterVal * src[srcPtr + 2])|0;
-        g = (g + filterVal * src[srcPtr + 1])|0;
-        r = (r + filterVal * src[srcPtr])|0;
-        srcPtr = (srcPtr + 4)|0;
-      }
-
-      // Bring this value back in range. All of the filter scaling factors
-      // are in fixed point with FIXED_FRAC_BITS bits of fractional part.
-      //
-      // (!) Add 1/2 of value before clamping to get proper rounding. In other
-      // case brightness loss will be noticeable if you resize image with white
-      // border and place it on white background.
-      //
-      dest[destOffset + 3] = clampTo8((a + (1 << 13)) >> 14/*FIXED_FRAC_BITS*/);
-      dest[destOffset + 2] = clampTo8((b + (1 << 13)) >> 14/*FIXED_FRAC_BITS*/);
-      dest[destOffset + 1] = clampTo8((g + (1 << 13)) >> 14/*FIXED_FRAC_BITS*/);
-      dest[destOffset]     = clampTo8((r + (1 << 13)) >> 14/*FIXED_FRAC_BITS*/);
-      destOffset = (destOffset + srcH * 4)|0;
+}, { // Hamming
+  win: 1.0,
+  filter: function filter(x) {
+    if (x <= -1.0 || x >= 1.0) {
+      return 0.0;
     }
-
-    destOffset = ((srcY + 1) * 4)|0;
-    srcOffset  = ((srcY + 1) * srcW * 4)|0;
+    if (x > -1.19209290E-07 && x < 1.19209290E-07) {
+      return 1.0;
+    }
+    var xpi = x * Math.PI;
+    return Math.sin(xpi) / xpi * (0.54 + 0.46 * Math.cos(xpi / 1.0));
   }
-}
+}, { // Lanczos, win = 2
+  win: 2.0,
+  filter: function filter(x) {
+    if (x <= -2.0 || x >= 2.0) {
+      return 0.0;
+    }
+    if (x > -1.19209290E-07 && x < 1.19209290E-07) {
+      return 1.0;
+    }
+    var xpi = x * Math.PI;
+    return Math.sin(xpi) / xpi * Math.sin(xpi / 2.0) / (xpi / 2.0);
+  }
+}, { // Lanczos, win = 3
+  win: 3.0,
+  filter: function filter(x) {
+    if (x <= -3.0 || x >= 3.0) {
+      return 0.0;
+    }
+    if (x > -1.19209290E-07 && x < 1.19209290E-07) {
+      return 1.0;
+    }
+    var xpi = x * Math.PI;
+    return Math.sin(xpi) / xpi * Math.sin(xpi / 3.0) / (xpi / 3.0);
+  }
+}];
 
+},{}],6:[function(require,module,exports){
+'use strict';
+
+var createFilters = require('./resize_filter_gen');
+var convolveHorizontally = require('./resize_convolve_js').convolveHorizontally;
+var convolveVertically = require('./resize_convolve_js').convolveVertically;
 
 function resetAlpha(dst, width, height) {
-  var ptr = 3, len = (width * height * 4)|0;
-  while (ptr < len) { dst[ptr] = 0xFF; ptr = (ptr + 4)|0; }
+  var ptr = 3,
+      len = width * height * 4 | 0;
+  while (ptr < len) {
+    dst[ptr] = 0xFF;ptr = ptr + 4 | 0;
+  }
 }
 
-
-function resize(options) {
-  var src   = options.src;
-  var srcW  = options.width;
-  var srcH  = options.height;
+function resize(options, cache) {
+  var src = options.src;
+  var srcW = options.width;
+  var srcH = options.height;
   var destW = options.toWidth;
   var destH = options.toHeight;
   var scaleX = options.scaleX || options.toWidth / options.width;
   var scaleY = options.scaleY || options.toHeight / options.height;
   var offsetX = options.offsetX || 0;
   var offsetY = options.offsetY || 0;
-  var dest  = options.dest || new Uint8Array(destW * destH * 4);
+  var dest = options.dest || new Uint8Array(destW * destH * 4);
   var quality = typeof options.quality === 'undefined' ? 3 : options.quality;
   var alpha = options.alpha || false;
 
-  if (srcW < 1 || srcH < 1 || destW < 1 || destH < 1) { return []; }
+  if (srcW < 1 || srcH < 1 || destW < 1 || destH < 1) {
+    return [];
+  }
 
-  var filtersX = createFilters(quality, srcW, destW, scaleX, offsetX),
-      filtersY = createFilters(quality, srcH, destH, scaleY, offsetY);
+  if (!cache) cache = {};
 
-  var tmp  = new Uint8Array(destW * srcH * 4);
+  var fx_key = 'filter_' + quality + '|' + srcW + '|' + destW + '|' + scaleX + '|' + offsetX;
+  var fy_key = 'filter_' + quality + '|' + srcH + '|' + destH + '|' + scaleY + '|' + offsetY;
+
+  var filtersX = cache[fx_key] || createFilters(quality, srcW, destW, scaleX, offsetX),
+      filtersY = cache[fy_key] || createFilters(quality, srcH, destH, scaleY, offsetY);
+
+  //if (!cache[fx_key]) cache[fx_key] = filtersX;
+  //if (!cache[fy_key]) cache[fy_key] = filtersY;
+
+  var tmp = new Uint8Array(destW * srcH * 4);
 
   // To use single function we need src & tmp of the same type.
   // But src can be CanvasPixelArray, and tmp - Uint8Array. So, keep
@@ -392,17 +592,14 @@ function resize(options) {
   // !!! Note, canvas data is not premultipled. We don't need other
   // alpha corrections.
 
-  if (!alpha) {
-    resetAlpha(dest, destW, destH);
-  }
+  if (!alpha) resetAlpha(dest, destW, destH);
 
   return dest;
 }
 
-
 module.exports = resize;
 
-},{}],5:[function(require,module,exports){
+},{"./resize_convolve_js":3,"./resize_filter_gen":4}],7:[function(require,module,exports){
 // Unsharp mask filter
 //
 // http://stackoverflow.com/a/23322820/1031804
@@ -411,28 +608,13 @@ module.exports = resize;
 //
 // Image is converted from RGB to HSL, unsharp mask is applied to the
 // lightness channel and then image is converted back to RGB.
-
+//
 'use strict';
 
-
 var glurMono16 = require('glur/mono16');
+var getLightness = require('./lightness16_js');
 
-function getLightness(img, width, height) {
-  var size = width * height;
-  var out = new Uint16Array(size);
-  var r, g, b, min, max;
-  for (var i = 0; i < size; i++) {
-    r = img[4 * i];
-    g = img[4 * i + 1];
-    b = img[4 * i + 2];
-    max = (r >= g && r >= b) ? r : (g >= b && g >= r) ? g : b;
-    min = (r <= g && r <= b) ? r : (g <= b && g <= r) ? g : b;
-    out[i] = (max + min) * 257 >> 1;
-  }
-  return out;
-}
-
-function unsharp(img, width, height, amount, radius, threshold) {
+module.exports = function unsharp(img, width, height, amount, radius, threshold) {
   var r, g, b;
   var h, s, l;
   var min, max;
@@ -452,9 +634,8 @@ function unsharp(img, width, height, amount, radius, threshold) {
 
   glurMono16(blured, width, height, radius);
 
-  /* eslint-disable space-infix-ops */
-  var amountFp = (amount / 100 * 0x1000 + 0.5)|0;
-  var thresholdFp = (threshold * 257)|0;
+  var amountFp = amount / 100 * 0x1000 + 0.5 | 0;
+  var thresholdFp = threshold * 257 | 0;
 
   var size = width * height;
 
@@ -472,24 +653,21 @@ function unsharp(img, width, height, amount, radius, threshold) {
       // save HSL, H and L are 16-bit unsigned integers, S is 12-bit unsigned integer
       // math is taken from here: http://www.easyrgb.com/index.php?X=MATH&H=18
       // and adopted to be integer (fixed point in fact) for sake of performance
-      max = (r >= g && r >= b) ? r : (g >= r && g >= b) ? g : b; // min and max are in [0..0xff]
-      min = (r <= g && r <= b) ? r : (g <= r && g <= b) ? g : b;
+      max = r >= g && r >= b ? r : g >= r && g >= b ? g : b; // min and max are in [0..0xff]
+      min = r <= g && r <= b ? r : g <= r && g <= b ? g : b;
       l = (max + min) * 257 >> 1; // l is in [0..0xffff] that is caused by multiplication by 257
 
       if (min === max) {
         h = s = 0;
       } else {
-        s = (l <= 0x7fff) ?
-          (((max - min) * 0xfff) / (max + min))|0 :
-          (((max - min) * 0xfff) / (2 * 0xff - max - min))|0; // s is in [0..0xfff]
+        s = l <= 0x7fff ? (max - min) * 0xfff / (max + min) | 0 : (max - min) * 0xfff / (2 * 0xff - max - min) | 0; // s is in [0..0xfff]
         // h could be less 0, it will be fixed in backward conversion to RGB, |h| <= 0xffff / 6
-        h = (r === max) ? (((g - b) * 0xffff) / (6 * (max - min)))|0
-          : (g === max) ? 0x5555 + ((((b - r) * 0xffff) / (6 * (max - min)))|0) // 0x5555 == 0xffff / 3
-          : 0xaaaa + ((((r - g) * 0xffff) / (6 * (max - min)))|0); // 0xaaaa == 0xffff * 2 / 3
+        h = r === max ? (g - b) * 0xffff / (6 * (max - min)) | 0 : g === max ? 0x5555 + ((b - r) * 0xffff / (6 * (max - min)) | 0) // 0x5555 == 0xffff / 3
+        : 0xaaaa + ((r - g) * 0xffff / (6 * (max - min)) | 0); // 0xaaaa == 0xffff * 2 / 3
       }
 
       // add unsharp mask mask to the lightness channel
-      l += (amountFp * diff + 0x800) >> 12;
+      l += amountFp * diff + 0x800 >> 12;
       if (l > 0xffff) {
         l = 0xffff;
       } else if (l < 0) {
@@ -501,29 +679,25 @@ function unsharp(img, width, height, amount, radius, threshold) {
       if (s === 0) {
         r = g = b = l >> 8;
       } else {
-        m2 = (l <= 0x7fff) ? (l * (0x1000 + s) + 0x800) >> 12 :
-          l  + (((0xffff - l) * s + 0x800) >>  12);
+        m2 = l <= 0x7fff ? l * (0x1000 + s) + 0x800 >> 12 : l + ((0xffff - l) * s + 0x800 >> 12);
         m1 = 2 * l - m2 >> 8;
         m2 >>= 8;
         // save result to RGB channels
         // R channel
-        hShifted = (h + 0x5555) & 0xffff; // 0x5555 == 0xffff / 3
-        r = (hShifted >= 0xaaaa) ? m1 // 0xaaaa == 0xffff * 2 / 3
-          : (hShifted >= 0x7fff) ?  m1 + ((m2 - m1) * 6 * (0xaaaa - hShifted) + 0x8000 >> 16)
-          : (hShifted >= 0x2aaa) ? m2 // 0x2aaa == 0xffff / 6
-          : m1 + ((m2 - m1) * 6 * hShifted + 0x8000 >> 16);
+        hShifted = h + 0x5555 & 0xffff; // 0x5555 == 0xffff / 3
+        r = hShifted >= 0xaaaa ? m1 // 0xaaaa == 0xffff * 2 / 3
+        : hShifted >= 0x7fff ? m1 + ((m2 - m1) * 6 * (0xaaaa - hShifted) + 0x8000 >> 16) : hShifted >= 0x2aaa ? m2 // 0x2aaa == 0xffff / 6
+        : m1 + ((m2 - m1) * 6 * hShifted + 0x8000 >> 16);
         // G channel
         hShifted = h & 0xffff;
-        g = (hShifted >= 0xaaaa) ? m1 // 0xaaaa == 0xffff * 2 / 3
-          : (hShifted >= 0x7fff) ?  m1 + ((m2 - m1) * 6 * (0xaaaa - hShifted) + 0x8000 >> 16)
-          : (hShifted >= 0x2aaa) ? m2 // 0x2aaa == 0xffff / 6
-          : m1 + ((m2 - m1) * 6 * hShifted + 0x8000 >> 16);
+        g = hShifted >= 0xaaaa ? m1 // 0xaaaa == 0xffff * 2 / 3
+        : hShifted >= 0x7fff ? m1 + ((m2 - m1) * 6 * (0xaaaa - hShifted) + 0x8000 >> 16) : hShifted >= 0x2aaa ? m2 // 0x2aaa == 0xffff / 6
+        : m1 + ((m2 - m1) * 6 * hShifted + 0x8000 >> 16);
         // B channel
-        hShifted = (h - 0x5555) & 0xffff;
-        b = (hShifted >= 0xaaaa) ? m1 // 0xaaaa == 0xffff * 2 / 3
-          : (hShifted >= 0x7fff) ?  m1 + ((m2 - m1) * 6 * (0xaaaa - hShifted) + 0x8000 >> 16)
-          : (hShifted >= 0x2aaa) ? m2 // 0x2aaa == 0xffff / 6
-          : m1 + ((m2 - m1) * 6 * hShifted + 0x8000 >> 16);
+        hShifted = h - 0x5555 & 0xffff;
+        b = hShifted >= 0xaaaa ? m1 // 0xaaaa == 0xffff * 2 / 3
+        : hShifted >= 0x7fff ? m1 + ((m2 - m1) * 6 * (0xaaaa - hShifted) + 0x8000 >> 16) : hShifted >= 0x2aaa ? m2 // 0x2aaa == 0xffff / 6
+        : m1 + ((m2 - m1) * 6 * hShifted + 0x8000 >> 16);
       }
 
       img[iTimes4] = r;
@@ -531,12 +705,91 @@ function unsharp(img, width, height, amount, radius, threshold) {
       img[iTimes4 + 2] = b;
     }
   }
+};
+
+},{"./lightness16_js":2,"glur/mono16":13}],8:[function(require,module,exports){
+// This is autogenerated file from math.wasm, don't edit.
+//
+'use strict';
+
+/* eslint-disable max-len */
+
+module.exports = 'AGFzbQEAAAAADAZkeWxpbmuAgMACAAGXgICAAANgBn9/f39/fwBgB39/f39/f38AYAAAAsGAgIAABANlbnYKbWVtb3J5QmFzZQN/AANlbnYGbWVtb3J5AgCAAgNlbnYFdGFibGUBcAAAA2Vudgl0YWJsZUJhc2UDfwADhYCAgAAEAAECAgaLgICAAAJ/AUEAC38BQQALB76AgIAABAlfY29udm9sdmUAABJfX3Bvc3RfaW5zdGFudGlhdGUAAwtydW5Qb3N0U2V0cwACC19jb252b2x2ZUhWAAEJgYCAgAAACvKEgIAABKCEgIAAARF/AkAgA0UgBEVyBEAPBUEAIRRBACEMCwNAIAwhD0EAIRVBACEGA0AgBkECaiELIAUgBkEBakEBdGouAQAiCCEWIAgEf0EAIQpBACENIAshCCAWIQdBACEJQQAhDiAFIAZBAXRqLgEAIBRqIQYDQCAIQQFqIRAgBkEBaiERIAAgBkECdGooAgAiEkH/AXEgBSAIQQF0ai4BACITbCAOaiEGIBJBCHZB/wFxIBNsIAlqIQkgEkEQdkH/AXEgE2wgDWohCCASQRh2IBNsIApqIQogB0F/aiIHBEAgCCENIBAhCCAGIQ4gESEGDAELCyAIIQcgCyAWagVBACEKQQAhB0EAIQlBACEGIAsLIQggBkGAwABqQQ51IgZBAEghDSAGQf8BSAR/IAYFQf8BCyELIAlBgMAAakEOdSIGQQBIIQ4gBkH/AU4EQEH/ASEGCyAHQYDAAGpBDnUiB0EASCEQIAdB/wFIBH8gBwVB/wELIQkgCkGAwABqQQ51IgdBAEghESAHQf8BTgRAQf8BIQcLIAtB/wFxIQogDQRAQQAhCgsgBkEIdEGA/gNxIQYgDgRAQQAhBgsgCUEQdEGAgPwHcSEJIAdBGHQhByABIA9BAnRqIBAEf0EABSAJCyARBH9BAAUgBwtyIAZyIApyNgIAIA8gA2ohDyAVQQFqIhUgBEcEQCAIIQYMAQsLIAxBAWoiDCACbCEUIAwgA0cNAAsLC6WAgIAAAQF/AkBBACACIgcgAyAEIAUgABAAIAdBACAEIAUgBiABEAALC4OAgIAAAAELlYCAgAAAAkAjACQCIwJBgIDAAmokAxACCwsAv4CAgAAEbmFtZQQJX2NvbnZvbHZlAAtfY29udm9sdmVIVgALcnVuUG9zdFNldHMAEl9fcG9zdF9pbnN0YW50aWF0ZQA=';
+
+},{}],9:[function(require,module,exports){
+'use strict';
+
+var GC_INTERVAL = 100;
+
+function Pool(create, idle) {
+  this.create = create;
+
+  this.available = [];
+  this.acquired = {};
+  this.lastId = 1;
+
+  this.timeoutId = 0;
+  this.idle = idle || 2000;
 }
 
-module.exports = unsharp;
-module.exports.lightness = getLightness;
+Pool.prototype.acquire = function () {
+  var _this = this;
 
-},{"glur/mono16":11}],6:[function(require,module,exports){
+  var resource = void 0;
+
+  if (this.available.length !== 0) {
+    resource = this.available.pop();
+  } else {
+    resource = this.create();
+    resource.id = this.lastId++;
+    resource.release = function () {
+      return _this.release(resource);
+    };
+  }
+  this.acquired[resource.id] = resource;
+  return resource;
+};
+
+Pool.prototype.release = function (resource) {
+  var _this2 = this;
+
+  delete this.acquired[resource.id];
+
+  resource.lastUsed = Date.now();
+  this.available.push(resource);
+
+  if (this.timeoutId === 0) {
+    this.timeoutId = setTimeout(function () {
+      return _this2.gc();
+    }, GC_INTERVAL);
+  }
+};
+
+Pool.prototype.gc = function () {
+  var _this3 = this;
+
+  var now = Date.now();
+
+  this.available = this.available.filter(function (resource) {
+    if (now - resource.lastUsed > _this3.idle) {
+      resource.destroy();
+      return false;
+    }
+    return true;
+  });
+
+  if (this.available.length !== 0) {
+    this.timeoutId = setTimeout(function () {
+      return _this3.gc();
+    }, GC_INTERVAL);
+  } else {
+    this.timeoutId = 0;
+  }
+};
+
+module.exports = Pool;
+
+},{}],10:[function(require,module,exports){
 'use strict';
 
 /*
@@ -552,18 +805,22 @@ var PIXEL_EPSILON = 1e-5;
 function pixelFloor(x) {
   var nearest = Math.round(x);
 
-  if (Math.abs(x - nearest) < PIXEL_EPSILON) { return nearest; }
+  if (Math.abs(x - nearest) < PIXEL_EPSILON) {
+    return nearest;
+  }
   return Math.floor(x);
 }
 
 function pixelCeil(x) {
   var nearest = Math.round(x);
 
-  if (Math.abs(x - nearest) < PIXEL_EPSILON) { return nearest; }
+  if (Math.abs(x - nearest) < PIXEL_EPSILON) {
+    return nearest;
+  }
   return Math.ceil(x);
 }
 
-module.exports.createRegions = function createRegions(options) {
+module.exports = function createRegions(options) {
   var scaleX = options.toWidth / options.width;
   var scaleY = options.toHeight / options.height;
 
@@ -580,14 +837,18 @@ module.exports.createRegions = function createRegions(options) {
   for (innerY = 0; innerY < options.toHeight; innerY += innerTileHeight) {
     for (innerX = 0; innerX < options.toWidth; innerX += innerTileWidth) {
       x = innerX - options.destTileBorder;
-      if (x < 0) { x = 0; }
+      if (x < 0) {
+        x = 0;
+      }
       toTileWidth = innerX + innerTileWidth + options.destTileBorder - x;
       if (x + toTileWidth >= options.toWidth) {
         toTileWidth = options.toWidth - x;
       }
 
       y = innerY - options.destTileBorder;
-      if (y < 0) { y = 0; }
+      if (y < 0) {
+        y = 0;
+      }
       toTileHeight = innerY + innerTileHeight + options.destTileBorder - y;
       if (y + toTileHeight >= options.toHeight) {
         toTileHeight = options.toHeight - y;
@@ -622,691 +883,160 @@ module.exports.createRegions = function createRegions(options) {
   return tiles;
 };
 
-module.exports.eachLimit = function eachLimit(list, limit, iterator, callback) {
-  if (list.length === 0) {
-    callback();
-  }
+},{}],11:[function(require,module,exports){
+'use strict';
 
-  var executed = 0;
-  var finished = 0;
-  var failed = false;
+function objClass(obj) {
+  return Object.prototype.toString.call(obj);
+}
 
-  function next(err) {
-    if (failed) {
-      return;
-    }
-    if (err) {
-      failed = true;
-      callback(err);
-      return;
-    }
+module.exports.isCanvas = function isCanvas(element) {
+  //return (element.nodeName && element.nodeName.toLowerCase() === 'canvas') ||
+  var cname = objClass(element);
 
-    finished++;
-    if (finished === list.length) {
-      callback();
-    } else if (executed < list.length) {
-      iterator(list[executed++], next);
-    }
-  }
-
-  while (executed < limit && executed < list.length) {
-    iterator(list[executed++], next);
-  }
+  return cname === '[object HTMLCanvasElement]' /* browser */ || cname === '[object Canvas]' /* node-canvas */;
 };
 
-},{}],7:[function(require,module,exports){
+module.exports.isImage = function isImage(element) {
+  //return element.nodeName && element.nodeName.toLowerCase() === 'img';
+  return objClass(element) === '[object HTMLImageElement]';
+};
+
+module.exports.limiter = function limiter(concurrency) {
+  var active = 0,
+      queue = [];
+
+  function roll() {
+    if (active < concurrency && queue.length) {
+      active++;
+      queue.shift()();
+    }
+  }
+
+  return function limit(fn) {
+    return new Promise(function (resolve, reject) {
+      queue.push(function () {
+        fn().then(function (result) {
+          resolve(result);
+          active--;
+          roll();
+        }, function (err) {
+          reject(err);
+          active--;
+          roll();
+        });
+      });
+
+      roll();
+    });
+  };
+};
+
+module.exports.cib_quality_name = function cib_quality_name(num) {
+  switch (num) {
+    case 0:
+      return 'pixelated';
+    case 1:
+      return 'low';
+    case 2:
+      return 'medium';
+  }
+  return 'high';
+};
+
+module.exports.cib_support = function cib_support() {
+  return Promise.resolve().then(function () {
+    if (typeof createImageBitmap === 'undefined' || typeof document === 'undefined') {
+      return false;
+    }
+
+    var c = document.createElement('canvas');
+    c.width = 100;
+    c.height = 100;
+
+    return createImageBitmap(c, 0, 0, 100, 100, {
+      resizeWidth: 10,
+      resizeHeight: 10,
+      resizeQuality: 'high'
+    }).then(function (bitmap) {
+      var status = bitmap.width === 10;
+      bitmap.close();
+      c = null;
+      return status;
+    });
+  }).catch(function () {
+    return false;
+  });
+};
+
+// [ 64, 65, 66 ] -> [ padding, CR, LF ]
+var BASE64_MAP = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\n\r';
+
+module.exports.base64decode = function base64decode(str) {
+  var input = str.replace(/[\r\n=]/g, ''),
+      // remove CR/LF & padding to simplify scan
+  max = input.length;
+  var result = [];
+
+  // Collect by 6*4 bits (3 bytes)
+
+  var bits = 0;
+
+  for (var idx = 0; idx < max; idx++) {
+    if (idx % 4 === 0 && idx) {
+      result.push(bits >> 16 & 0xFF);
+      result.push(bits >> 8 & 0xFF);
+      result.push(bits & 0xFF);
+    }
+
+    bits = bits << 6 | BASE64_MAP.indexOf(input.charAt(idx));
+  }
+
+  // Dump tail
+
+  var tailbits = max % 4 * 6;
+
+  if (tailbits === 0) {
+    result.push(bits >> 16 & 0xFF);
+    result.push(bits >> 8 & 0xFF);
+    result.push(bits & 0xFF);
+  } else if (tailbits === 18) {
+    result.push(bits >> 10 & 0xFF);
+    result.push(bits >> 2 & 0xFF);
+  } else if (tailbits === 12) {
+    result.push(bits >> 4 & 0xFF);
+  }
+
+  return new Uint8Array(result);
+};
+
+},{}],12:[function(require,module,exports){
 // Web Worker wrapper for image resize function
 
 'use strict';
 
-module.exports = function (self) {
-  var resize = require('./resize_array');
-  var unsharp = require('./unsharp');
+module.exports = function () {
+  var MathLib = require('./mathlib');
 
-  self.onmessage = function (ev) {
-    var options = ev.data;
-    options.dest = new Uint8Array(options.toWidth * options.toHeight * 4);
+  var mathLib = void 0;
+  var cache = {};
 
-    resize(options);
+  /* eslint-disable no-undef */
+  onmessage = function onmessage(ev) {
+    var opts = ev.data.opts;
 
-    if (options.unsharpAmount) {
-      unsharp(options.dest, options.toWidth, options.toHeight,
-        options.unsharpAmount, options.unsharpRadius, options.unsharpThreshold);
-    }
+    if (!mathLib) mathLib = new MathLib(ev.data.features, ev.data.preload);
 
-    self.postMessage({ output: options.dest }, [ options.dest.buffer ]);
+    mathLib.init().then(function () {
+      var result = mathLib.resizeAndUnsharp(opts, cache);
+      postMessage({ result: result }, [result.buffer]);
+    }).catch(function (err) {
+      postMessage({ err: err });
+    });
   };
 };
 
-},{"./resize_array":4,"./unsharp":5}],8:[function(require,module,exports){
-/*eslint space-infix-ops:0*/
-
-'use strict';
-
-var resize        = require('./js/resize_array');
-var unsharp       = require('./js/unsharp');
-var createRegions = require('./js/utils').createRegions;
-var eachLimit     = require('./js/utils').eachLimit;
-var generateId    = require('./js/generate_id');
-var createCanvas  = require('./js/create_canvas');
-
-var SRC_TILE_SIZE = 1024;
-var DEST_TILE_BORDER = 3;
-
-function resize_js(from, to, options, callback) {
-  var toCtx = to.getContext('2d', { alpha: Boolean(options.alpha) });
-
-  // We use intermediate canvases because, getImageData() from canvas region
-  // is 8x times slower in FF than getImageData() from whole canvas.
-  // That adds ~20% delay in Chrome :(.
-  //
-  // See https://bugzilla.mozilla.org/show_bug.cgi?id=1001069
-
-  var fromTile = createCanvas();
-
-  fromTile.width = Math.min(SRC_TILE_SIZE, from.width);
-  fromTile.height = Math.min(SRC_TILE_SIZE, from.height);
-
-  var fromTileCtx = fromTile.getContext('2d', { alpha: Boolean(options.alpha) });
-
-  // Should not use previous content of reused canvas when alpha exists.
-  fromTileCtx.globalCompositeOperation = 'copy';
-
-  var regions = createRegions({
-    width: from.naturalWidth || from.width,
-    height: from.naturalHeight || from.height,
-    srcTileSize: SRC_TILE_SIZE,
-    toWidth: to.width,
-    toHeight: to.height,
-    destTileBorder: Math.ceil(Math.max(DEST_TILE_BORDER, 2.5 * options.unsharpRadius|0))
-  });
-
-  eachLimit(regions, 1, function (tile, next) {
-    fromTileCtx.drawImage(from, tile.x, tile.y, tile.width, tile.height,
-      0, 0, tile.width, tile.height);
-
-    var fromImageData = fromTileCtx.getImageData(0, 0, tile.width, tile.height);
-    var toImageData   = toCtx.createImageData(tile.toWidth, tile.toHeight);
-
-    var _opts = {
-      src:      fromImageData.data,
-      dest:     toImageData.data,
-      width:    tile.width,
-      height:   tile.height,
-      toWidth:  tile.toWidth,
-      toHeight: tile.toHeight,
-      scaleX:   tile.scaleX,
-      scaleY:   tile.scaleY,
-      offsetX:  tile.offsetX,
-      offsetY:  tile.offsetY,
-      quality:  options.quality,
-      alpha:    options.alpha,
-      unsharpAmount:    options.unsharpAmount,
-      unsharpRadius:    options.unsharpRadius,
-      unsharpThreshold: options.unsharpThreshold
-    };
-
-    resize(_opts);
-
-    if (options.unsharpAmount) {
-      unsharp(_opts.dest, _opts.toWidth, _opts.toHeight,
-        _opts.unsharpAmount, _opts.unsharpRadius, _opts.unsharpThreshold);
-    }
-
-    toCtx.putImageData(toImageData, tile.toX, tile.toY,
-      tile.toInnerX - tile.toX, tile.toInnerY - tile.toY,
-      tile.toInnerWidth, tile.toInnerHeight);
-    next();
-  }, callback);
-
-  return generateId();
-}
-
-module.exports = resize_js;
-module.exports.terminate = function () {};
-
-},{"./js/create_canvas":1,"./js/generate_id":2,"./js/resize_array":4,"./js/unsharp":5,"./js/utils":6}],9:[function(require,module,exports){
-/* global navigator, window */
-/*eslint space-infix-ops:0*/
-
-'use strict';
-
-
-var webworkify    = require('webworkify');
-var resizeWorker  = require('./js/worker.js');
-var createRegions = require('./js/utils').createRegions;
-var eachLimit     = require('./js/utils').eachLimit;
-var generateId    = require('./js/generate_id');
-var createCanvas  = require('./js/create_canvas');
-var Pool          = require('./js/pool');
-
-var SRC_TILE_SIZE = 1024;
-var DEST_TILE_BORDER = 3;
-var NEED_SAFARI_FIX = false;
-try {
-  NEED_SAFARI_FIX = navigator.userAgent.indexOf('Safari') !== -1;
-} catch (e) {}
-
-var workersPool = new Pool(function () {
-  return {
-    value: webworkify(resizeWorker),
-    destroy: function () {
-      this.value.terminate();
-
-      if (typeof window !== 'undefined') {
-        var url = window.URL || window.webkitURL || window.mozURL || window.msURL;
-        if (url && url.revokeObjectURL && this.value.objectURL) {
-          url.revokeObjectURL(this.value.objectURL);
-        }
-      }
-    }
-  };
-});
-
-var running = {};
-
-function resize_js_ww(from, to, options, callback) {
-  var toCtx = to.getContext('2d', { alpha: Boolean(options.alpha) });
-  /* We use intermediate canvases because without it Firefox resizes 8x times slower
-   * than with it. It makes resize 20% slower in Chrome */
-  var fromTile = createCanvas();
-
-  fromTile.width = Math.min(SRC_TILE_SIZE, from.naturalWidth || from.width);
-  fromTile.height = Math.min(SRC_TILE_SIZE, from.naturalHeight || from.height);
-
-  var fromTileCtx = fromTile.getContext('2d', { alpha: Boolean(options.alpha) });
-
-  // Should not use previous content of reused canvas when alpha exists.
-  fromTileCtx.globalCompositeOperation = 'copy';
-
-  var regions = createRegions({
-    width: from.naturalWidth || from.width,
-    height: from.naturalHeight || from.height,
-    srcTileSize: SRC_TILE_SIZE,
-    toWidth: to.width,
-    toHeight: to.height,
-    destTileBorder: Math.ceil(Math.max(DEST_TILE_BORDER, 2.5 * options.unsharpRadius|0))
-  });
-
-  var concurrency = 1;
-  if (typeof navigator !== 'undefined') {
-    concurrency = navigator.hardwareConcurrency || 1;
-  }
-
-  var id = options._id || generateId();
-
-  running[id] = true;
-  eachLimit(regions, concurrency, function (tile, next) {
-    fromTileCtx.drawImage(from, tile.x, tile.y, tile.width, tile.height,
-      0, 0, tile.width, tile.height);
-
-    var fromImageData = fromTileCtx.getImageData(0, 0, tile.width, tile.height);
-
-    var _opts = {
-      src:      fromImageData.data,
-      width:    tile.width,
-      height:   tile.height,
-      toWidth:  tile.toWidth,
-      toHeight: tile.toHeight,
-      scaleX:   tile.scaleX,
-      scaleY:   tile.scaleY,
-      offsetX:  tile.offsetX,
-      offsetY:  tile.offsetY,
-      quality:  options.quality,
-      alpha:    options.alpha,
-      unsharpAmount:    options.unsharpAmount,
-      unsharpRadius:    options.unsharpRadius,
-      unsharpThreshold: options.unsharpThreshold
-    };
-
-    var worker = workersPool.acquire();
-
-    worker.value.onmessage = function (ev) {
-      var i, l;
-      var imageDataTo, output, dest;
-
-      worker.release();
-
-      if (!running[id]) {
-        next(true);
-        return;
-      }
-      if (ev.data.err) {
-        next(ev.data.err);
-        return;
-      }
-
-      imageDataTo = toCtx.createImageData(tile.toWidth, tile.toHeight);
-      output = ev.data.output;
-      dest = imageDataTo.data;
-
-      if (dest.set) {
-        dest.set(output);
-      } else {
-        for (i = 0, l = output.length; i < l; i++) {
-          dest[i] = output[i];
-        }
-      }
-
-      if (NEED_SAFARI_FIX) {
-        // Safari draws thin white stripes between tiles without this fix
-        toCtx.putImageData(imageDataTo, tile.toX, tile.toY,
-          tile.toInnerX - tile.toX, tile.toInnerY - tile.toY,
-          tile.toInnerWidth + 1e-5, tile.toInnerHeight + 1e-5);
-      } else {
-        toCtx.putImageData(imageDataTo, tile.toX, tile.toY,
-          tile.toInnerX - tile.toX, tile.toInnerY - tile.toY,
-          tile.toInnerWidth, tile.toInnerHeight);
-      }
-      next();
-    };
-
-    worker.value.postMessage(_opts, [ _opts.src.buffer ]);
-  }, function (err) {
-    if (running[id]) {
-      delete running[id];
-      callback(err);
-    }
-  });
-
-  return id;
-}
-
-function terminate(id) {
-  if (running[id]) {
-    delete running[id];
-  }
-}
-
-module.exports = resize_js_ww;
-module.exports.terminate = terminate;
-
-},{"./js/create_canvas":1,"./js/generate_id":2,"./js/pool":3,"./js/utils":6,"./js/worker.js":7,"webworkify":13}],10:[function(require,module,exports){
-/*global window,document*/
-'use strict';
-
-
-var unsharp = require('./js/unsharp');
-var generateId = require('./js/generate_id');
-
-// shaders
-
-var shadersContent = {};
-
-/*eslint-disable no-path-concat*/
-shadersContent['#vsh-basic'] =
-  "precision highp float;\nattribute vec2 a_position;\nattribute vec2 a_texCoord;\n\nuniform vec2 u_resolution;\n\nvarying vec2 v_texCoord;\n\nvoid main() {\n   vec2 clipSpace = a_position / u_resolution * 2.0 - 1.0;\n\n   gl_Position = vec4(clipSpace, 0, 1);\n   v_texCoord = a_texCoord;\n}\n";
-shadersContent['#fsh-lanczos1d-optimized-tpl'] =
-  "precision highp float;\n\nvarying vec2 v_texCoord;\n\nuniform sampler2D u_image;\n\n#define addPoint(offset, kv, total)   {vec2 pos = v_texCoord + offset; gl_FragColor += texture2D(u_image, pos) * kv; total += kv; }\n\nvoid main()\n{\n__CODE__\n}\n";
-
-// optimization
-
-var FILTER_INFO = [
-  { // Nearest neibor (Box)
-    win: 0.5,
-    filter: function (x) {
-      return (x >= -0.5 && x < 0.5) ? 1.0 : 0.0;
-    }
-  },
-  { // Hamming
-    win: 1.0,
-    filter: function (x) {
-      if (x <= -1.0 || x >= 1.0) { return 0.0; }
-      if (x > -1.19209290E-07 && x < 1.19209290E-07) { return 1.0; }
-      var xpi = x * Math.PI;
-      return ((Math.sin(xpi) / xpi) *  (0.54 + 0.46 * Math.cos(xpi / 1.0)));
-    }
-  },
-  { // Lanczos, win = 2
-    win: 2.0,
-    filter: function (x) {
-      if (x <= -2.0 || x >= 2.0) { return 0.0; }
-      if (x > -1.19209290E-07 && x < 1.19209290E-07) { return 1.0; }
-      var xpi = x * Math.PI;
-      return (Math.sin(xpi) / xpi) * Math.sin(xpi / 2.0) / (xpi / 2.0);
-    }
-  },
-  { // Lanczos, win = 3
-    win: 3.0,
-    filter: function (x) {
-      if (x <= -3.0 || x >= 3.0) { return 0.0; }
-      if (x > -1.19209290E-07 && x < 1.19209290E-07) { return 1.0; }
-      var xpi = x * Math.PI;
-      return (Math.sin(xpi) / xpi) * Math.sin(xpi / 3.0) / (xpi / 3.0);
-    }
-  }
-];
-
-// error
-
-function error(msg) {
-  try {
-    (window.console.error || window.console.log).call(window.console, msg);
-  } catch (__) {}
-}
-
-
-function checkGlError(gl) {
-  var e = gl.getError();
-  if (e !== gl.NO_ERROR) { throw new Error('gl error ' + e); }
-}
-
-// create
-
-function createGl(canvas) {
-  return canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-}
-
-
-function createShader(gl, type, src) {
-  var shader = gl.createShader(type);
-
-  gl.shaderSource(shader, src);
-  gl.compileShader(shader);
-
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    error('Shader compile error: ' + gl.getShaderInfoLog(shader) + '. Source: `' + src + '`');
-    gl.deleteShader(shader);
-    return null;
-  }
-
-  return shader;
-}
-
-function createProgram(gl, vertexShader, fragmentShader) {
-  var program = gl.createProgram();
-
-  gl.attachShader(program, vertexShader);
-  gl.attachShader(program, fragmentShader);
-
-  gl.linkProgram(program);
-
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    error('Program linking error: ' + gl.getProgramInfoLog(program));
-    gl.deleteProgram(program);
-  }
-
-  checkGlError(gl);
-  return program;
-}
-
-// shader params
-
-function setAttributeValues(gl, program, name, values, options) {
-  var a = gl.getAttribLocation(program, name);
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(values), gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(a);
-  gl.vertexAttribPointer(a, options.elementSize, gl.FLOAT, false, 0, 0);
-  checkGlError(gl);
-}
-
-
-function setUniform1i(gl, program, name, i0) {
-  var u = gl.getUniformLocation(program, name);
-  gl.uniform1i(u, i0);
-}
-
-
-function setUniform2f(gl, program, name, f0, f1) {
-  var u = gl.getUniformLocation(program, name);
-  gl.uniform2f(u, f0, f1);
-}
-
-// texture
-
-function loadTexture(gl, texUnit, data) {
-  var tex = gl.createTexture();
-  gl.activeTexture(gl.TEXTURE0 + texUnit);
-  gl.bindTexture(gl.TEXTURE_2D, tex);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, data);
-  checkGlError(gl);
-  return tex;
-}
-
-
-function createTextureSize(gl, texUnit, width, height) {
-  var tex = gl.createTexture();
-  gl.activeTexture(gl.TEXTURE0 + texUnit);
-  gl.bindTexture(gl.TEXTURE_2D, tex);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-  checkGlError(gl);
-  return tex;
-}
-
-
-function setupTextureFBO(gl, texUnit, width, height) {
-  var texture = createTextureSize(gl, texUnit, width, height);
-
-  var oldFbo = gl.getParameter(gl.FRAMEBUFFER_BINDING);
-
-  var fbo = gl.createFramebuffer();
-  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
-
-//  gl.viewport(0, 0, width, height);
-
-  checkGlError(gl);
-
-  return {
-    fbo: fbo,
-    texture: texture,
-    oldFbo: oldFbo
-  };
-}
-
-// process
-
-function vec2Rectangle(x, y, w, h) {
-  var x1 = x;
-  var x2 = x + w;
-  var y1 = y;
-  var y2 = y + h;
-  return [ x1, y1, x2, y1, x1, y2, x1, y2, x2, y1, x2, y2 ];
-}
-
-function generateFragmentShader(options) {
-  var template = shadersContent['#fsh-lanczos1d-optimized-tpl'];
-
-  var direction = options.direction;
-
-  var scaleW = options.texW / options.destW,
-      scaleH = options.texH / options.destH,
-      scale = direction === 'horizontal' ? scaleW : scaleH;
-
-  // filter
-
-  var quality = 3;
-
-  var filterFunction = FILTER_INFO[quality].filter;
-
-  var winSize = FILTER_INFO[quality].win;
-
-  // kernel processing
-
-  var isHorizontal = direction === 'horizontal';
-
-  var pixelSizeX = 1.0 / options.texW,
-      pixelSizeY = 1.0 / options.texH,
-      pixelSize = isHorizontal ? pixelSizeX : pixelSizeY;
-
-  var count = Math.ceil(winSize * scale) * 2.0;
-
-  var code = 'float total = 0.0;\ngl_FragColor = vec4(0.0);\n';
-
-  function float(v) {
-    return v.toFixed(20);
-  }
-
-  for (var i = 0; i < count + 1; i++) {
-    var offset = i - count / 2.0;
-    var x = (offset) / scale;
-    var kv = filterFunction(x);
-
-    var p = pixelSize * offset;
-    var px = isHorizontal ? p : 0.0;
-    var py = isHorizontal ? 0.0 : p;
-
-    code += 'addPoint(vec2(' + float(px) + ', ' + float(py) + '), ' + float(kv) + ', total);\n';
-  }
-
-  code += 'gl_FragColor /= vec4(total);';
-
-  var fragmentShader = template.replace('__CODE__', code);
-
-  return fragmentShader;
-}
-
-function createProgramOptimized(gl, options) {
-  var vertexShader = createShader(gl, gl.VERTEX_SHADER, shadersContent['#vsh-basic']);
-  var fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, generateFragmentShader(options));
-
-  return createProgram(gl, vertexShader, fragmentShader);
-}
-
-function convolveOptimized(gl, texUnit0, texW, texH, texUnit, direction, destW, destH, flipY) {
-
-  var programOptions = {
-    direction: direction,
-    texW: texW,
-    texH: texH,
-    destW: destW,
-    destH: destH
-  };
-
-  var program = createProgramOptimized(gl, programOptions);
-
-  gl.useProgram(program);
-
-  setUniform1i(gl, program, 'u_image', texUnit0);
-//  setUniform2f(gl, program, 'u_imageSize', texWidth, texHeight);
-  setUniform2f(gl, program, 'u_resolution', destW, destH);
-
-  setAttributeValues(gl, program, 'a_texCoord',
-    [ 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1 ], { elementSize: 2 });
-  setAttributeValues(gl, program, 'a_position',
-    !flipY ? vec2Rectangle(0, 0, destW, destH) : vec2Rectangle(0, destH, destW, -destH), { elementSize: 2 });
-
-  gl.viewport(0, 0, destW, destH);
-
-  var fboObject = setupTextureFBO(gl, texUnit, destW, destH);
-
-  gl.viewport(0, 0, destW, destH);
-  gl.drawArrays(gl.TRIANGLES, 0, 6);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, fboObject.oldFbo);
-
-  checkGlError(gl);
-
-  return fboObject;
-}
-
-
-function webglProcessResizeOptimized(from, gl, options) {
-  var srcW = from.naturalWidth || from.width,
-      srcH = from.naturalHeight || from.height,
-      dstW = gl.canvas.width,
-      dstH = gl.canvas.height;
-
-  var texUnit0 = 0;
-  var texUnit1 = 1;
-  var texUnit2 = 2;
-
-  loadTexture(gl, texUnit0, from);
-
-  convolveOptimized(gl, texUnit0, srcW, srcH, texUnit1, 'horizontal', dstW, srcH, false);
-
-  var finalFboObject = convolveOptimized(gl, texUnit1, dstW, srcH, texUnit2, 'vertical', dstW, dstH, true);
-
-  gl.flush();
-
-  var fb = gl.createFramebuffer();
-
-  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, finalFboObject.texture, 0);
-
-  var fb_status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
-
-  if (fb_status !== gl.FRAMEBUFFER_COMPLETE) {
-    throw new Error('Bad framebuffer status: ' + fb_status);
-  }
-
-  // Clear alpha for sure, if disabled.
-  if (!options.alpha) {
-    gl.clearColor(1, 1, 1, 1);
-    gl.colorMask(false, false, false, true);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-  }
-
-  var pixels = new Uint8Array(dstW * dstH * 4);
-
-  gl.readPixels(0, 0, dstW, dstH, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-
-  var unsharpAmount = typeof options.unsharpAmount === 'undefined' ? 0 : (options.unsharpAmount | 0);
-  var unsharpRadius = typeof options.unsharpRadius === 'undefined' ? 0 : (options.unsharpRadius);
-  var unsharpThreshold = typeof options.unsharpThreshold === 'undefined' ? 0 : (options.unsharpThreshold | 0);
-
-  if (unsharpAmount) {
-    unsharp(pixels, dstW, dstH, unsharpAmount, unsharpRadius, unsharpThreshold);
-  }
-
-  return pixels;
-}
-
-// exports
-
-module.exports = function (from, to, options, callback) {
-  var gl, canvas;
-
-  try {
-    // create temporarry canvas [
-
-    canvas = document.createElement('canvas');
-    canvas.id = 'pica-webgl-temporarry-canvas';
-    canvas.height = to.height;
-    canvas.width = to.width;
-    document.body.appendChild(canvas);
-
-    // create temporarry canvas ]
-
-    gl = createGl(canvas);
-
-    var data = webglProcessResizeOptimized(from, gl, options);
-
-
-    gl.finish();
-    document.body.removeChild(canvas);
-
-    var ctxTo = to.getContext('2d');
-    var imageDataTo = ctxTo.createImageData(to.width, to.height);
-
-    imageDataTo.data.set(data);
-    ctxTo.putImageData(imageDataTo, 0, 0);
-
-    callback(null, data);
-  } catch (e) {
-    error(e);
-    gl.finish();
-    document.body.removeChild(canvas);
-    callback(e);
-  }
-
-  return generateId();
-};
-
-module.exports.terminate = function () {};
-
-},{"./js/generate_id":2,"./js/unsharp":5}],11:[function(require,module,exports){
+},{"./mathlib":1}],13:[function(require,module,exports){
 // Calculate Gaussian blur of an image using IIR filter
 // The method is taken from Intel's white paper and code example attached to it:
 // https://software.intel.com/en-us/articles/iir-gaussian-blur-filter
@@ -1427,9 +1157,16 @@ function blurMono16(src, width, height, radius) {
 
 module.exports = blurMono16;
 
-},{}],12:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
+/*
+object-assign
+(c) Sindre Sorhus
+@license MIT
+*/
+
 'use strict';
 /* eslint-disable no-unused-vars */
+var getOwnPropertySymbols = Object.getOwnPropertySymbols;
 var hasOwnProperty = Object.prototype.hasOwnProperty;
 var propIsEnumerable = Object.prototype.propertyIsEnumerable;
 
@@ -1450,7 +1187,7 @@ function shouldUseNative() {
 		// Detect buggy property enumeration order in older V8 versions.
 
 		// https://bugs.chromium.org/p/v8/issues/detail?id=4118
-		var test1 = new String('abc');  // eslint-disable-line
+		var test1 = new String('abc');  // eslint-disable-line no-new-wrappers
 		test1[5] = 'de';
 		if (Object.getOwnPropertyNames(test1)[0] === '5') {
 			return false;
@@ -1479,7 +1216,7 @@ function shouldUseNative() {
 		}
 
 		return true;
-	} catch (e) {
+	} catch (err) {
 		// We don't expect any of the above to throw, but better to be safe.
 		return false;
 	}
@@ -1499,8 +1236,8 @@ module.exports = shouldUseNative() ? Object.assign : function (target, source) {
 			}
 		}
 
-		if (Object.getOwnPropertySymbols) {
-			symbols = Object.getOwnPropertySymbols(from);
+		if (getOwnPropertySymbols) {
+			symbols = getOwnPropertySymbols(from);
 			for (var i = 0; i < symbols.length; i++) {
 				if (propIsEnumerable.call(from, symbols[i])) {
 					to[symbols[i]] = from[symbols[i]];
@@ -1512,7 +1249,7 @@ module.exports = shouldUseNative() ? Object.assign : function (target, source) {
 	return to;
 };
 
-},{}],13:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 var bundleFn = arguments[3];
 var sources = arguments[4];
 var cache = arguments[5];
@@ -1598,141 +1335,381 @@ module.exports = function (fn, options) {
 },{}],"/":[function(require,module,exports){
 'use strict';
 
-/*global window, document*/
-/*eslint space-infix-ops:0*/
+var assign = require('object-assign');
+var webworkify = require('webworkify');
 
-// Feature detect
-var WORKER = (typeof window !== 'undefined') && ('Worker' in window);
-if (WORKER) {
-  // IE don't allow to create webworkers from string. We should check it.
-  // https://connect.microsoft.com/IE/feedback/details/801810/web-workers-from-blob-urls-in-ie-10-and-11
-  try {
-    var wkr = require('webworkify')(function () {});
-    wkr.terminate();
-  } catch (__) {
-    WORKER = false;
-  }
-}
+var MathLib = require('./lib/mathlib');
+var Pool = require('./lib/pool');
+var utils = require('./lib/utils');
+var worker = require('./lib/worker');
+var createRegions = require('./lib/tiler');
 
-var WEBGL = false,
-    __cvs;
+var NEED_SAFARI_FIX = false;
 try {
-  if (typeof document !== 'undefined' &&
-      typeof window !== 'undefined' &&
-      window.WebGLRenderingContext) {
-
-    __cvs = document.createElement('canvas');
-
-    if (__cvs.getContext('webgl') || __cvs.getContext('experimental-webgl')) {
-      WEBGL = true;
-    }
+  if (typeof navigator !== 'undefined' && navigator.userAgent) {
+    NEED_SAFARI_FIX = navigator.userAgent.indexOf('Safari') >= 0;
   }
-} catch (__) {
-} finally {
-  __cvs = null;
+} catch (e) {}
+
+var concurrency = 1;
+if (typeof navigator !== 'undefined') {
+  concurrency = Math.min(navigator.hardwareConcurrency || 1, 4);
 }
 
-var resize_js     = require('./lib/resize_js');
-var resize_js_ww  = require('./lib/resize_js_ww');
-var resize_webgl  = require('./lib/resize_webgl');
-var resize_array  = require('./lib/js/resize_array');
-var unsharp       = require('./lib/js/unsharp');
-var assign        = require('object-assign');
+var DEFAULT_PICA_OPTS = {
+  tile: 1024,
+  concurrency: concurrency,
+  features: ['all'],
+  idle: 2000
+};
 
-////////////////////////////////////////////////////////////////////////////////
-// Helpers
-function _class(obj) { return Object.prototype.toString.call(obj); }
-function isFunction(obj) { return _class(obj) === '[object Function]'; }
+var DEFAULT_RESIZE_OPTS = {
+  quality: 3,
+  alpha: false,
+  unsharpAmount: 0,
+  unsharpRadius: 0.0,
+  unsharpThreshold: 0
+};
+
+function workerFablic() {
+  return {
+    value: webworkify(worker),
+    destroy: function destroy() {
+      this.value.terminate();
+
+      if (typeof window !== 'undefined') {
+        var url = window.URL || window.webkitURL || window.mozURL || window.msURL;
+        if (url && url.revokeObjectURL && this.value.objectURL) {
+          url.revokeObjectURL(this.value.objectURL);
+        }
+      }
+    }
+  };
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // API methods
 
-// Canvas async resize
-//
-function resizeCanvas(from, to, options, callback) {
-  if (isFunction(options)) {
-    callback = options;
-    options = {};
+function Pica(options) {
+  if (!(this instanceof Pica)) return new Pica(options);
+
+  this.options = assign(DEFAULT_PICA_OPTS, options || {});
+
+  this.__limit = utils.limiter(this.options.concurrency);
+
+  // List of supported features, according to options & browser/node.js
+  this.features = {
+    js: false, // pure JS implementation, can be disabled for testing
+    wasm: false, // webassembly implementation for heavy functions
+    cib: false, // resize via createImageBitmap (only FF at this moment)
+    ww: false // webworkers
+  };
+
+  this.__workersPool = null;
+
+  // Store requested features for webworkers
+  this.__requested_features = [];
+
+  this.__mathlib = null;
+}
+
+Pica.prototype.init = function () {
+  var _this = this;
+
+  if (this.__initPromise) return this.__initPromise;
+
+  var features = this.options.features.slice();
+
+  if (features.indexOf('all') >= 0) {
+    features = ['cib', 'wasm', 'js', 'ww'];
   }
+
+  this.__requested_features = features;
+
+  this.__mathlib = new MathLib(features);
+
+  // Check WebWorker support if requested
+  if (features.indexOf('ww') >= 0) {
+    if (typeof window !== 'undefined' && 'Worker' in window) {
+      // IE <= 11 don't allow to create webworkers from string. We should check it.
+      // https://connect.microsoft.com/IE/feedback/details/801810/web-workers-from-blob-urls-in-ie-10-and-11
+      try {
+        var wkr = require('webworkify')(function () {});
+        wkr.terminate();
+        this.features.ww = true;
+        this.__workersPool = new Pool(workerFablic, this.options.idle);
+      } catch (__) {}
+    }
+  }
+
+  var initMath = this.__mathlib.init().then(function (mathlib) {
+    // Copy detected features
+    assign(_this.features, mathlib.features);
+  });
+
+  var checkCib = utils.cib_support().then(function (status) {
+    _this.features.cib = status;
+  });
+
+  // Init math lib. That's async because can load some
+  this.__initPromise = Promise.all([initMath, checkCib]).then(function () {
+    return _this;
+  });
+
+  return this.__initPromise;
+};
+
+Pica.prototype.resize = function (from, to, options) {
+  var _this2 = this;
+
+  var opts = DEFAULT_RESIZE_OPTS;
 
   if (!isNaN(options)) {
-    options = { quality: options, alpha: false };
+    opts = assign(opts, { quality: options });
+  } else if (options) {
+    opts = assign(opts, options);
   }
 
-  // Force flag reset to simplify status check
-  if (!WEBGL) { exports.WEBGL = false; }
+  opts.toWidth = to.width;
+  opts.toHeigth = to.height;
+  opts.width = from.naturalWidth || from.width;
+  opts.height = from.naturalHeight || from.height;
 
-  if (WEBGL && exports.WEBGL) {
-    exports.debug('Resize canvas with WebGL');
+  var toCtx = to.getContext('2d', { alpha: Boolean(opts.alpha) });
 
-    var id = resize_webgl(from, to, options, function (err) {
-      if (err) {
-        exports.debug('WebGL resize failed, do fallback and cancel next attempts');
-        exports.debug(err);
+  return this.init().then(function () {
+    // if createImageBitmap supports resize, just do it and return
+    if (_this2.feature_cib) {
+      return createImageBitmap(from, {
+        resizeWidth: opts.toWidth,
+        resizeHeight: opts.toHeigth,
+        resizeQuality: utils.cib_quality_name(opts.quality)
+      }).then(function (imageBitmap) {
+        // if no unsharp - draw directly to output canvas
+        if (!opts.unsharpAmount) {
+          toCtx.drawImage(imageBitmap, 0, 0);
+          imageBitmap.close();
+          toCtx = null;
+          return to;
+        }
 
-        WEBGL = false;
-        resizeCanvas(from, to, assign({}, options, { _id: id }), callback);
-      } else {
-        callback();
+        var tmpCanvas = document.createElement('canvas');
+
+        tmpCanvas.width = opts.toWidth;
+        tmpCanvas.height = opts.toHeigth;
+
+        var tmpCtx = tmpCanvas.getContext('2d', { alpha: Boolean(opts.alpha) });
+
+        tmpCtx.drawImage(imageBitmap, 0, 0);
+        imageBitmap.close();
+
+        var iData = tmpCtx.getImageData(0, 0, opts.toWidth, opts.toHeigth);
+
+        return _this2.__mathlib.unsharp(iData.data, opts.toWidth, opts.toHeigth, opts.unsharpAmount, opts.unsharpRadius, opts.unsharpThreshold).this(function (buffer) {
+          iData.data.set(buffer);
+          toCtx.putImageData(iData, 0, 0);
+          iData = tmpCtx = tmpCanvas = toCtx = null;
+          return to;
+        });
+      });
+    }
+
+    //
+    // No easy way, let's resize manually via arrays
+    //
+
+    var srcCtx = void 0;
+    var srcImageBitmap = void 0;
+
+    // Share cache between calls:
+    //
+    // - wasm instance
+    // - wasm memory object
+    //
+    var cache = {};
+
+    // Call resizer in webworker or locally, depending on config
+    var invokeResize = function invokeResize(opts) {
+      return Promise.resolve().then(function () {
+        if (!_this2.features.ww) return _this2.__mathlib.resizeAndUnsharp(opts, cache);
+
+        return new Promise(function (resolve, reject) {
+          var w = _this2.__workersPool.acquire();
+
+          w.value.onmessage = function (ev) {
+            w.release();
+
+            if (ev.data.err) reject(ev.data.err);else resolve(ev.data.result);
+          };
+
+          w.value.postMessage({
+            opts: opts,
+            features: _this2.__requested_features,
+            preload: {
+              wasm_nodule: _this2.__mathlib.__
+            }
+          }, [opts.src.buffer]);
+        });
+      });
+    };
+
+    var processTile = function processTile(tile) {
+      return _this2.__limit(function () {
+        var srcImageData = void 0;
+
+        // Extract tile RGBA buffer, depending on input type
+        if (utils.isCanvas(from)) {
+          // If input is Canvas - extract region data directly
+          srcImageData = srcCtx.getImageData(tile.x, tile.y, tile.width, tile.height);
+        } else {
+          // If input is Image or decoded to ImageBitmap,
+          // draw region to temporary canvas and extract data from it
+          //
+          // Note! Attempt to reuse this canvas causes significant slowdown in chrome
+          //
+          var tmpCanvas = document.createElement('canvas');
+          tmpCanvas.width = tile.width;
+          tmpCanvas.height = tile.height;
+
+          var tmpCtx = tmpCanvas.getContext('2d', { alpha: Boolean(opts.alpha) });
+          tmpCtx.globalCompositeOperation = 'copy';
+          tmpCtx.drawImage(srcImageBitmap || from, tile.x, tile.y, tile.width, tile.height, 0, 0, tile.width, tile.height);
+
+          srcImageData = tmpCtx.getImageData(0, 0, tile.width, tile.height);
+          tmpCtx = tmpCanvas = null;
+        }
+
+        var o = {
+          src: srcImageData.data,
+          width: tile.width,
+          height: tile.height,
+          toWidth: tile.toWidth,
+          toHeight: tile.toHeight,
+          scaleX: tile.scaleX,
+          scaleY: tile.scaleY,
+          offsetX: tile.offsetX,
+          offsetY: tile.offsetY,
+          quality: opts.quality,
+          alpha: opts.alpha,
+          unsharpAmount: opts.unsharpAmount,
+          unsharpRadius: opts.unsharpRadius,
+          unsharpThreshold: opts.unsharpThreshold
+        };
+
+        return Promise.resolve().then(function () {
+          return invokeResize(o);
+        }).then(function (result) {
+          srcImageData = null;
+
+          var toImageData = void 0;
+
+          if (typeof ImageData !== 'undefined') {
+            toImageData = new ImageData(new Uint8ClampedArray(result), tile.toWidth, tile.toHeight);
+          } else {
+            toImageData = toCtx.createImageData(tile.toWidth, tile.toHeight);
+            toImageData.data.set(result);
+          }
+
+          if (NEED_SAFARI_FIX) {
+            // Safari draws thin white stripes between tiles without this fix
+            toCtx.putImageData(toImageData, tile.toX, tile.toY, tile.toInnerX - tile.toX, tile.toInnerY - tile.toY, tile.toInnerWidth + 1e-5, tile.toInnerHeight + 1e-5);
+          } else {
+            toCtx.putImageData(toImageData, tile.toX, tile.toY, tile.toInnerX - tile.toX, tile.toInnerY - tile.toY, tile.toInnerWidth, tile.toInnerHeight);
+          }
+        });
+      });
+    };
+
+    // Need normalize data source first. It can be canvas or image.
+    // If image - try to decode in background if possible
+    return Promise.resolve().then(function () {
+      if (utils.isCanvas(from)) {
+        srcCtx = from.getContext('2d', { alpha: Boolean(opts.alpha) });
+        return null;
       }
+
+      if (utils.isImage(from)) {
+        // try do decode image in background for faster next operations
+        if (typeof createImageBitmap === 'undefined') return null;
+
+        return createImageBitmap(from).then(function (imageBitmap) {
+          srcImageBitmap = imageBitmap;
+        });
+      }
+
+      throw new Error('".from" should be image or canvas');
+    }).then(function () {
+      //
+      // Here we are with "normalized" source,
+      // follow to tiling
+      //
+
+      var DEST_TILE_BORDER = 3; // Max possible filter window size
+
+      var regions = createRegions({
+        width: opts.width,
+        height: opts.height,
+        srcTileSize: _this2.options.tile,
+        toWidth: opts.toWidth,
+        toHeight: opts.toHeigth,
+        destTileBorder: Math.ceil(Math.max(DEST_TILE_BORDER, 2.5 * opts.unsharpRadius | 0))
+      });
+
+      var jobs = regions.map(function (tile) {
+        return processTile(tile);
+      });
+
+      return Promise.all(jobs).then(function () {
+        if (srcImageBitmap) {
+          srcImageBitmap.close();
+          srcImageBitmap = null;
+        }
+
+        return to;
+      });
     });
-    return id;
-  }
-
-  // Force flag reset to simplify status check
-  if (!WORKER) { exports.WW = false; }
-
-  if (WORKER && exports.WW) {
-    exports.debug('Resize buffer in WebWorker');
-
-    return resize_js_ww(from, to, options, callback);
-  }
-
-  // Fallback to sync call, if WebWorkers not available
-  exports.debug('Resize buffer sync (freeze event loop)');
-
-  return resize_js(from, to, options, callback);
-}
+  });
+};
 
 // RGBA buffer resize
 //
-function resizeBuffer(options, callback) {
-  var _opts = {
-    src:      options.src,
-    dest:     options.dest,
-    width:    options.width|0,
-    height:   options.height|0,
-    toWidth:  options.toWidth|0,
-    toHeight: options.toHeight|0,
-    quality:  options.quality,
-    alpha:    options.alpha,
-    unsharpAmount:    options.unsharpAmount,
-    unsharpRadius:    options.unsharpRadius,
-    unsharpThreshold: options.unsharpThreshold
-  };
+Pica.prototype.resizeBuffer = function (options) {
+  var _this3 = this;
 
-  _opts.dest = resize_array(_opts);
+  var opts = assign(DEFAULT_RESIZE_OPTS, options);
 
-  if (_opts.unsharpAmount) {
-    unsharp(_opts.dest, _opts.toWidth, _opts.toHeight,
-      _opts.unsharpAmount, _opts.unsharpRadius, _opts.unsharpThreshold);
-  }
+  return this.init().then(function () {
+    return _this3.__mathlib.resizeAndUnsharp(opts);
+  });
+};
 
-  callback(null, _opts.dest);
-}
+Pica.prototype.toBlob = function (canvas, mimeType, quality) {
+  mimeType = mimeType || 'image/png';
 
-function terminate(id) {
-  resize_js.terminate(id);
-  resize_js_ww.terminate(id);
-  resize_webgl.terminate(id);
-}
+  return new Promise(function (resolve) {
+    if (canvas.toBlob) {
+      canvas.toBlob(function (blob) {
+        return resolve(blob);
+      }, mimeType, quality);
+      return;
+    }
 
-exports.resizeCanvas = resizeCanvas;
-exports.resizeBuffer = resizeBuffer;
-exports.terminate = terminate;
-exports.WW = WORKER;
-exports.WEBGL = false; // WEBGL;
-exports.debug = function () {};
+    // Fallback for old browsers
+    var asString = atob(canvas.toDataURL(mimeType, quality).split(',')[1]);
+    var len = asString.length;
+    var asBuffer = new Uint8Array(len);
 
-},{"./lib/js/resize_array":4,"./lib/js/unsharp":5,"./lib/resize_js":8,"./lib/resize_js_ww":9,"./lib/resize_webgl":10,"object-assign":12,"webworkify":13}]},{},[])("/")
+    for (var i = 0; i < len; i++) {
+      asBuffer[i] = asString.charCodeAt(i);
+    }
+
+    resolve(new Blob([asBuffer], { type: mimeType }));
+  });
+};
+
+Pica.prototype.debug = function () {};
+
+module.exports = Pica;
+
+},{"./lib/mathlib":1,"./lib/pool":9,"./lib/tiler":10,"./lib/utils":11,"./lib/worker":12,"object-assign":14,"webworkify":15}]},{},[])("/")
 });
