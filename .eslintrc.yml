@@ -8,6 +8,7 @@ env:
 
 globals:
   createImageBitmap: false
+  WebAssembly:       false
 #  Uint8Array:   false
 #  Int16Array:   false
 #  Uint16Array:  false

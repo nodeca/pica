@@ -176,7 +176,7 @@ img.onload = function () {
   updateResized();
 };
 
-$(window).on('resize', updateResized);
+$(window).on('resize', _.debounce(updateResized, 1000));
 $('#dst-pica').on('click', updateResized);
 $('#dst-cvs').on('click', updateResized);
 

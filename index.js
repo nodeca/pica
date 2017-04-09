@@ -27,7 +27,7 @@ if (typeof navigator !== 'undefined') {
 
 
 const DEFAULT_PICA_OPTS = {
-  tile: 768,
+  tile: 1024,
   concurrency,
   features: [ 'all' ],
   idle: 2000
@@ -79,6 +79,11 @@ function Pica(options) {
   };
 
   this.__workersPool = null;
+
+  // Store requested features for webworkers
+  this.__requested_features = [];
+
+  this.__mathlib = null;
 }
 
 
@@ -90,6 +95,8 @@ Pica.prototype.init = function () {
   if (features.indexOf('all') >= 0) {
     features = [ 'cib', 'wasm', 'js', 'ww' ];
   }
+
+  this.__requested_features = features;
 
   this.__mathlib = new MathLib(features);
 
@@ -192,11 +199,17 @@ Pica.prototype.resize = function (from, to, options) {
     let srcCtx;
     let srcImageBitmap;
 
+    // Share cache between calls:
+    //
+    // - wasm instance
+    // - wasm memory object
+    //
+    let cache = {};
 
     // Call resizer in webworker or locally, depending on config
     const invokeResize = opts => {
       return Promise.resolve().then(() => {
-        if (!this.features.ww) return this.__mathlib.resizeAndUnsharp(opts);
+        if (!this.features.ww) return this.__mathlib.resizeAndUnsharp(opts, cache);
 
         return new Promise((resolve, reject) => {
           let w = this.__workersPool.acquire();
@@ -208,7 +221,13 @@ Pica.prototype.resize = function (from, to, options) {
             else resolve(ev.data.result);
           };
 
-          w.value.postMessage(opts, [ opts.src.buffer ]);
+          w.value.postMessage({
+            opts,
+            features: this.__requested_features,
+            preload: {
+              wasm_nodule: this.__mathlib.__
+            }
+          }, [ opts.src.buffer ]);
         });
       });
     };

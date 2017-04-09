@@ -28,6 +28,12 @@ test: lint
 	./node_modules/.bin/mocha
 
 
+wasm:
+	emcc ./lib/mathlib/wasm/math.c -v -g3 -O3 -s WASM=1 -s SIDE_MODULE=1 -o ./lib/mathlib/wasm/math.wasm
+	node ./support/wasm_wrap.js
+	make browserify
+
+
 browserify:
 	rm -rf ./dist
 	mkdir dist
