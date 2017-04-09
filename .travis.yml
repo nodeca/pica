@@ -6,15 +6,7 @@ node_js:
 # Needed for node_canvas build
 addons:
   apt:
-    sources:
-      - ubuntu-toolchain-r-test
     packages:
-      - libcairo2-dev
-      - libjpeg8-dev
-      - libpango1.0-dev
       - libgif-dev
-      - g++-4.8
-env:
-  - CXX=g++-4.8
-
 sudo: false
+dist: trusty
