@@ -5,160 +5,101 @@
 'use strict';
 
 
-var Canvas    = require('canvas');
-var Image     = Canvas.Image;
-var path      = require('path');
-var fs        = require('fs');
-var util      = require('util');
-var Benchmark = require('benchmark');
-var ansi      = require('ansi');
-var cursor    = ansi(process.stdout);
-
-var IMPLS_DIRECTORY = path.join(__dirname, 'implementations');
-var IMPLS_PATHS = {};
-var IMPLS = [];
+const benchmark   = require('benchmark');
+const pica        = require('../')();
+const lightness16 = require('../lib/mathlib/lightness16_js');
+const filter_gen  = require('../lib/mathlib/resize_filter_gen');
+const resize_raw  = require('../lib/mathlib/resize_js');
+const glurMono16  = require('glur/mono16');
 
 
-fs.readdirSync(IMPLS_DIRECTORY).sort().forEach(function (name) {
-  var file = path.join(IMPLS_DIRECTORY, name);
-  var code = require(file);
-
-  IMPLS_PATHS[name] = file;
-  IMPLS.push({
-    name: name,
-    code: code
-  });
-});
+const sample = {
+  width:  3200,
+  height: 2500
+};
+sample.buffer    = new Uint8Array(sample.width * sample.height * 4);
+sample.lightness = lightness16(sample.buffer, sample.width, sample.height);
 
 
-var SAMPLES_DIRECTORY = path.join(__dirname, 'samples');
-var SAMPLES = [];
+/* eslint-disable new-cap */
+benchmark.Suite()
 
-fs.readdirSync(SAMPLES_DIRECTORY).sort().forEach(function (sample) {
-  var filepath = path.join(SAMPLES_DIRECTORY, sample),
-      extname  = path.extname(filepath),
-      basename = path.basename(filepath, extname);
-
-  var content = {}; // raw/compressed data in different formats
-
-  var image = new Image();
-  image.src = fs.readFileSync(filepath);
-
-  var canvas = new Canvas(image.width, image.height);
-  var ctx = canvas.getContext('2d');
-  ctx.drawImage(image, 0, 0, image.width, image.height);
-
-  content.buffer = ctx.getImageData(0, 0, image.width, image.height).data;
-  content.width  = image.width;
-  content.height = image.height;
-  content.scale  = 0.15;
-
-  var title  = util.format('(%d bytes raw / [%dx%d]px)',
-                           content.buffer.length, image.width, image.height);
-
-
-  function onComplete() {
-    cursor.write('\n');
+.add(`Resize of ${sample.width}x${sample.height}`, {
+  defer: true,
+  fn: function (defer) {
+    pica.resizeBuffer({
+      src:      sample.buffer,
+      width:    sample.width,
+      height:   sample.height,
+      toWidth:  (sample.width * 0.15)|0,
+      toHeight: (sample.height * 0.15)|0,
+      quality:  3
+    })
+    .then(() => defer.resolve())
+    .catch(err => console.log(err));
   }
+})
 
-
-  var suite = new Benchmark.Suite(title, {
-    onError: function (err) {
-      console.log(err.target.error);
-    },
-
-    onStart: function onStart() {
-      console.log('\nSample: %s %s', sample, title);
-    },
-
-    onComplete: onComplete
-  });
-
-  IMPLS.forEach(function (impl) {
-    suite.add(impl.name, {
-
-      onCycle: function onCycle(event) {
-        cursor.horizontalAbsolute();
-        cursor.eraseLine();
-        cursor.write(' > ' + event.target);
-      },
-
-      onComplete: onComplete,
-
-      defer: !!impl.code.async,
-
-      fn: function (deferred) {
-        if (impl.code.async) {
-          impl.code.run(content, function () {
-            deferred.resolve();
-            return;
-          });
-        } else {
-          impl.code.run(content);
-          return;
-        }
-      }
-    });
-  });
-
-
-  SAMPLES.push({
-    name: basename,
-    title: title,
-    content: content,
-    suite: suite
-  });
-});
-
-
-function select(patterns) {
-  var result = [];
-
-  if (!(patterns instanceof Array)) {
-    patterns = [ patterns ];
-  }
-
-  function checkName(name) {
-    return patterns.length === 0 || patterns.some(function (regexp) {
-      return regexp.test(name);
+.add(`Resize RAW of ${sample.width}x${sample.height}`, {
+  fn: function () {
+    resize_raw({
+      src:      sample.buffer,
+      width:    sample.width,
+      height:   sample.height,
+      toWidth:  (sample.width * 0.15)|0,
+      toHeight: (sample.height * 0.15)|0
     });
   }
+})
 
-  SAMPLES.forEach(function (sample) {
-    if (checkName(sample.name)) {
-      result.push(sample);
-    }
-  });
-
-  return result;
-}
-
-
-function run(files) {
-  var selected = select(files);
-
-  if (selected.length > 0) {
-    console.log('Selected samples: (%d of %d)', selected.length, SAMPLES.length);
-    selected.forEach(function (sample) {
-      console.log(' > %s', sample.name);
-    });
-  } else {
-    console.log('There isn\'t any sample matches any of these patterns: %s', util.inspect(files));
+.add(`Unsharp of ${sample.width}x${sample.height}`, {
+  fn: function () {
+    pica.__mathlib.unsharp(
+      sample.buffer, sample.width, sample.height,
+      80, 0.5, 4
+    );
   }
+})
 
-  selected.forEach(function (sample) {
-    sample.suite.run();
-  });
-}
+.add(`Lightness of ${sample.width}x${sample.height}`, {
+  fn: function () {
+    lightness16(sample.buffer, sample.width, sample.height);
+  }
+})
 
-module.exports.IMPLS_DIRECTORY   = IMPLS_DIRECTORY;
-module.exports.IMPLS_PATHS       = IMPLS_PATHS;
-module.exports.IMPLS             = IMPLS;
-module.exports.SAMPLES_DIRECTORY = SAMPLES_DIRECTORY;
-module.exports.SAMPLES           = SAMPLES;
-module.exports.select            = select;
-module.exports.run               = run;
+.add(`Gaus16 lightness blur of ${sample.width}x${sample.height}`, {
+  fn: function () {
+    glurMono16(
+      sample.lightness,
+      sample.width,
+      sample.height,
+      0.5
+    );
+  }
+})
 
-run(process.argv.slice(2).map(function (source) {
-  return new RegExp(source, 'i');
-}));
+.add(`Build filters for ${sample.width}x${sample.height}`, {
+  fn: function () {
+    filter_gen(
+      3,
+      sample.width,
+      (sample.width * 0.15)|0,
+      sample.width / ((sample.width * 0.15)|0),
+      0.0
+    );
+    filter_gen(
+      3,
+      sample.height,
+      (sample.height * 0.15)|0,
+      sample.height / ((sample.height * 0.15)|0),
+      0.0
+    );
+  }
+})
+
+.on('cycle', event => {
+  //console.log(event);
+  console.log(`> ${event.target}`);
+})
+
+.run();
