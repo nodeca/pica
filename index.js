@@ -144,9 +144,22 @@ Pica.prototype.resize = function (from, to, options) {
   opts.width    = from.naturalWidth || from.width;
   opts.height   = from.naturalHeight || from.height;
 
+  let canceled    = false;
+  let cancelToken = null;
+
+  if (opts.cancelToken) {
+    // Wrap cancelToken to avoid successive resolve & set flag
+    cancelToken = opts.cancelToken.then(
+      data => { canceled = true; throw data; },
+      err  => { canceled = true; throw err; }
+    );
+  }
+
   let toCtx = to.getContext('2d', { alpha: Boolean(opts.alpha) });
 
   return this.init().then(() => {
+    if (canceled) return cancelToken;
+
     // if createImageBitmap supports resize, just do it and return
     if (this.feature_cib) {
       return createImageBitmap(from, {
@@ -155,6 +168,8 @@ Pica.prototype.resize = function (from, to, options) {
         resizeQuality: utils.cib_quality_name(opts.quality)
       })
       .then(imageBitmap => {
+        if (canceled) return cancelToken;
+
         // if no unsharp - draw directly to output canvas
         if (!opts.unsharpAmount) {
           toCtx.drawImage(imageBitmap, 0, 0);
@@ -212,6 +227,8 @@ Pica.prototype.resize = function (from, to, options) {
         return new Promise((resolve, reject) => {
           let w = this.__workersPool.acquire();
 
+          if (cancelToken) cancelToken.catch(err => reject(err));
+
           w.value.onmessage = ev => {
             w.release();
 
@@ -232,6 +249,8 @@ Pica.prototype.resize = function (from, to, options) {
 
 
     const processTile = (tile => this.__limit(() => {
+      if (canceled) return cancelToken;
+
       let srcImageData;
 
       // Extract tile RGBA buffer, depending on input type
@@ -278,6 +297,8 @@ Pica.prototype.resize = function (from, to, options) {
       return Promise.resolve()
         .then(() => invokeResize(o))
         .then(result => {
+          if (canceled) return cancelToken;
+
           srcImageData = null;
 
           let toImageData;
@@ -301,6 +322,8 @@ Pica.prototype.resize = function (from, to, options) {
               tile.toInnerX - tile.toX, tile.toInnerY - tile.toY,
               tile.toInnerWidth, tile.toInnerHeight);
           }
+
+          return null;
         });
     }));
 
@@ -326,6 +349,8 @@ Pica.prototype.resize = function (from, to, options) {
       throw new Error('".from" should be image or canvas');
     })
     .then(() => {
+      if (canceled) return cancelToken;
+
       //
       // Here we are with "normalized" source,
       // follow to tiling
@@ -344,14 +369,17 @@ Pica.prototype.resize = function (from, to, options) {
 
       let jobs = regions.map(tile => processTile(tile));
 
-      return Promise.all(jobs).then(() => {
+      function cleanup() {
         if (srcImageBitmap) {
           srcImageBitmap.close();
           srcImageBitmap = null;
         }
+      }
 
-        return to;
-      });
+      return Promise.all(jobs).then(
+        () =>  { cleanup(); return to; },
+        err => { cleanup(); throw err; }
+      );
     });
   });
 };
