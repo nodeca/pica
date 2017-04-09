@@ -175,20 +175,18 @@ Pica.prototype.resize = function (from, to, options) {
 
         let iData = tmpCtx.getImageData(0, 0, opts.toWidth, opts.toHeigth);
 
-        return this.__mathlib.unsharp(
+        this.__mathlib.unsharp(
           iData.data,
           opts.toWidth,
           opts.toHeigth,
           opts.unsharpAmount,
           opts.unsharpRadius,
           opts.unsharpThreshold
-        )
-        .this(buffer => {
-          iData.data.set(buffer);
-          toCtx.putImageData(iData, 0, 0);
-          iData = tmpCtx = tmpCanvas = toCtx = null;
-          return to;
-        });
+        );
+
+        toCtx.putImageData(iData, 0, 0);
+        iData = tmpCtx = tmpCanvas = toCtx = null;
+        return to;
       });
     }
 
@@ -285,8 +283,10 @@ Pica.prototype.resize = function (from, to, options) {
           let toImageData;
 
           if (typeof ImageData !== 'undefined') {
+            // this branch is for browsers
             toImageData = new ImageData(new Uint8ClampedArray(result), tile.toWidth, tile.toHeight);
           } else {
+            // fallback for node-canvas
             toImageData = toCtx.createImageData(tile.toWidth, tile.toHeight);
             toImageData.data.set(result);
           }
