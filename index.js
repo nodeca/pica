@@ -12,6 +12,11 @@ const worker        = require('./lib/worker');
 const createRegions = require('./lib/tiler');
 
 
+// Deduplicate pools & limiters with the same configs
+// when user creates multiple pica instances.
+const singletones = {};
+
+
 let NEED_SAFARI_FIX = false;
 try {
   if (typeof navigator !== 'undefined' && navigator.userAgent) {
@@ -68,7 +73,13 @@ function Pica(options) {
 
   this.options = assign(DEFAULT_PICA_OPTS, options || {});
 
-  this.__limit = utils.limiter(this.options.concurrency);
+  let limiter_key = `lk_${this.options.concurrency}`;
+
+  // Share limiters to avoid multiple parallel workers when user creates
+  // multiple pica instances.
+  this.__limit = singletones[limiter_key] || utils.limiter(this.options.concurrency);
+
+  if (!singletones[limiter_key]) singletones[limiter_key] = this.__limit;
 
   // List of supported features, according to options & browser/node.js
   this.features = {
@@ -109,7 +120,16 @@ Pica.prototype.init = function () {
         let wkr = require('webworkify')(function () {});
         wkr.terminate();
         this.features.ww   = true;
-        this.__workersPool = new Pool(workerFablic, this.options.idle);
+
+        // pool uniqueness depends on pool config + webworker config
+        let wpool_key = `wp_${JSON.stringify(this.options)}`;
+
+        if (singletones[wpool_key]) {
+          this.__workersPool = singletones[wpool_key];
+        } else {
+          this.__workersPool = new Pool(workerFablic, this.options.idle);
+          singletones[wpool_key] = this.__workersPool;
+        }
       } catch (__) {}
     }
   }
