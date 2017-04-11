@@ -1,4 +1,4 @@
-3.0.0 / WIP
+3.0.0 / 2017-04-11
 ------------------
 
 - Major rewrite. New API, promise-based.
