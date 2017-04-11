@@ -1,4 +1,4 @@
-/* pica 2.0.8 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+/* pica 3.0.0 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 // Collection of math functions
 //
 // 1. Combine components together
@@ -77,7 +77,8 @@ MathLib.prototype.unsharp_js = require('./mathlib/unsharp_js');
 MathLib.prototype.resize_js = require('./mathlib/resize_js');
 
 ////////////////////////////////////////////////////////////////////////////////
-// WebAssembly wrapper
+// WebAssembly wrappers & helpers
+//
 
 var createFilters = require('./mathlib/resize_filter_gen');
 
@@ -93,7 +94,11 @@ function asUint8Array(src) {
   return new Uint8Array(src.buffer, 0, src.byteLength);
 }
 
-var IS_LE = new Uint32Array(new Uint8Array([1, 0, 0, 0]).buffer)[0] === 1;
+var IS_LE = true;
+// should not crash everything on module load in old browsers
+try {
+  IS_LE = new Uint32Array(new Uint8Array([1, 0, 0, 0]).buffer)[0] === 1;
+} catch (__) {}
 
 function copyInt16asLE(src, target, target_offset) {
   if (IS_LE) {
@@ -139,17 +144,19 @@ MathLib.prototype.resize_wasm = function resize_wasm(options, cache) {
 
   var wasm_imports = cache.wasm_imports || {
     env: {
-      memoryBase: 0,
-      tableBase: 0,
+      memory: new WebAssembly.Memory({ initial: alloc_pages })
+      // emsdk requires more import vars
+      /*memoryBase: 0,
+      tableBase:  0,
       memory: new WebAssembly.Memory({
         // Compiled wasm has 256 min memory value limit.
         // Atempt to provide less memory size will cause linking error
         initial: Math.max(256, alloc_pages)
       }),
       table: new WebAssembly.Table({
-        initial: 100,
+        initial:100,
         element: 'anyfunc'
-      })
+      })*/
     }
   };
 
@@ -195,7 +202,10 @@ MathLib.prototype.resize_wasm = function resize_wasm(options, cache) {
   // Now call webassembly method
   //
 
-  wasm_instance.exports._convolveHV(filtersX_offset, filtersY_offset, tmp_offset, srcW, srcH, destW, destH);
+  wasm_instance.exports.convolveHV(
+  // emsdk does method names with '_'
+  //wasm_instance.exports._convolveHV(
+  filtersX_offset, filtersY_offset, tmp_offset, srcW, srcH, destW, destH);
 
   //
   // Copy data back to typed array
@@ -413,6 +423,8 @@ module.exports = function resizeFilterGen(quality, srcSize, destSize, scale, off
   var packedFilter = new Int16Array((maxFilterElementSize + 2) * destSize);
   var packedFilterPtr = 0;
 
+  var slowCopy = !packedFilter.subarray || !packedFilter.set;
+
   // For each destination pixel calculate source range and built filter values
   for (destPixel = 0; destPixel < destSize; destPixel++) {
 
@@ -473,8 +485,15 @@ module.exports = function resizeFilterGen(quality, srcSize, destSize, scale, off
       packedFilter[packedFilterPtr++] = filterShift; // shift
       packedFilter[packedFilterPtr++] = filterSize; // size
 
-      packedFilter.set(fxpFilter.subarray(leftNotEmpty, rightNotEmpty + 1), packedFilterPtr);
-      packedFilterPtr += filterSize;
+      if (!slowCopy) {
+        packedFilter.set(fxpFilter.subarray(leftNotEmpty, rightNotEmpty + 1), packedFilterPtr);
+        packedFilterPtr += filterSize;
+      } else {
+        // fallback for old IE < 11, without subarray/set methods
+        for (idx = leftNotEmpty; idx <= rightNotEmpty; idx++) {
+          packedFilter[packedFilterPtr++] = fxpFilter[idx];
+        }
+      }
     } else {
       // zero data, write header only
       packedFilter[packedFilterPtr++] = 0; // shift
@@ -714,7 +733,7 @@ module.exports = function unsharp(img, width, height, amount, radius, threshold)
 
 /* eslint-disable max-len */
 
-module.exports = 'AGFzbQEAAAAADAZkeWxpbmuAgMACAAGXgICAAANgBn9/f39/fwBgB39/f39/f38AYAAAAsGAgIAABANlbnYKbWVtb3J5QmFzZQN/AANlbnYGbWVtb3J5AgCAAgNlbnYFdGFibGUBcAAAA2Vudgl0YWJsZUJhc2UDfwADhYCAgAAEAAECAgaLgICAAAJ/AUEAC38BQQALB76AgIAABAlfY29udm9sdmUAABJfX3Bvc3RfaW5zdGFudGlhdGUAAwtydW5Qb3N0U2V0cwACC19jb252b2x2ZUhWAAEJgYCAgAAACvKEgIAABKCEgIAAARF/AkAgA0UgBEVyBEAPBUEAIRRBACEMCwNAIAwhD0EAIRVBACEGA0AgBkECaiELIAUgBkEBakEBdGouAQAiCCEWIAgEf0EAIQpBACENIAshCCAWIQdBACEJQQAhDiAFIAZBAXRqLgEAIBRqIQYDQCAIQQFqIRAgBkEBaiERIAAgBkECdGooAgAiEkH/AXEgBSAIQQF0ai4BACITbCAOaiEGIBJBCHZB/wFxIBNsIAlqIQkgEkEQdkH/AXEgE2wgDWohCCASQRh2IBNsIApqIQogB0F/aiIHBEAgCCENIBAhCCAGIQ4gESEGDAELCyAIIQcgCyAWagVBACEKQQAhB0EAIQlBACEGIAsLIQggBkGAwABqQQ51IgZBAEghDSAGQf8BSAR/IAYFQf8BCyELIAlBgMAAakEOdSIGQQBIIQ4gBkH/AU4EQEH/ASEGCyAHQYDAAGpBDnUiB0EASCEQIAdB/wFIBH8gBwVB/wELIQkgCkGAwABqQQ51IgdBAEghESAHQf8BTgRAQf8BIQcLIAtB/wFxIQogDQRAQQAhCgsgBkEIdEGA/gNxIQYgDgRAQQAhBgsgCUEQdEGAgPwHcSEJIAdBGHQhByABIA9BAnRqIBAEf0EABSAJCyARBH9BAAUgBwtyIAZyIApyNgIAIA8gA2ohDyAVQQFqIhUgBEcEQCAIIQYMAQsLIAxBAWoiDCACbCEUIAwgA0cNAAsLC6WAgIAAAQF/AkBBACACIgcgAyAEIAUgABAAIAdBACAEIAUgBiABEAALC4OAgIAAAAELlYCAgAAAAkAjACQCIwJBgIDAAmokAxACCwsAv4CAgAAEbmFtZQQJX2NvbnZvbHZlAAtfY29udm9sdmVIVgALcnVuUG9zdFNldHMAEl9fcG9zdF9pbnN0YW50aWF0ZQA=';
+module.exports = 'AGFzbQEAAAABlICAgAACYAZ/f39/f38AYAd/f39/f39/AAKPgICAAAEDZW52Bm1lbW9yeQIAAQODgICAAAIAAQSEgICAAAFwAAAHmYCAgAACCGNvbnZvbHZlAAAKY29udm9sdmVIVgABCYGAgIAAAArtg4CAAALBg4CAAAEQfwJAIANFDQAgBEUNACAFQQRqIRVBACEMQQAhDQNAIA0hDkEAIRFBACEHA0AgB0ECaiESAn8gBSAHQQF0IgdqIgZBAmouAQAiEwRAQQAhCEEAIBNrIRQgFSAHaiEPIAAgDCAGLgEAakECdGohEEEAIQlBACEKQQAhCwNAIBAoAgAiB0EYdiAPLgEAIgZsIAtqIQsgB0H/AXEgBmwgCGohCCAHQRB2Qf8BcSAGbCAKaiEKIAdBCHZB/wFxIAZsIAlqIQkgD0ECaiEPIBBBBGohECAUQQFqIhQNAAsgEiATagwBC0EAIQtBACEKQQAhCUEAIQggEgshByABIA5BAnRqIApBgMAAakEOdSIGQf8BIAZB/wFIG0EQdEGAgPwHcUEAIAZBAEobIAtBgMAAakEOdSIGQf8BIAZB/wFIG0EYdEEAIAZBAEobciAJQYDAAGpBDnUiBkH/ASAGQf8BSBtBCHRBgP4DcUEAIAZBAEobciAIQYDAAGpBDnUiBkH/ASAGQf8BSBtB/wFxQQAgBkEAShtyNgIAIA4gA2ohDiARQQFqIhEgBEcNAAsgDCACaiEMIA1BAWoiDSADRw0ACwsLoYCAgAAAAkBBACACIAMgBCAFIAAQACACQQAgBCAFIAYgARAACws=';
 
 },{}],9:[function(require,module,exports){
 'use strict';
@@ -1344,6 +1363,10 @@ var utils = require('./lib/utils');
 var worker = require('./lib/worker');
 var createRegions = require('./lib/tiler');
 
+// Deduplicate pools & limiters with the same configs
+// when user creates multiple pica instances.
+var singletones = {};
+
 var NEED_SAFARI_FIX = false;
 try {
   if (typeof navigator !== 'undefined' && navigator.userAgent) {
@@ -1395,7 +1418,13 @@ function Pica(options) {
 
   this.options = assign(DEFAULT_PICA_OPTS, options || {});
 
-  this.__limit = utils.limiter(this.options.concurrency);
+  var limiter_key = 'lk_' + this.options.concurrency;
+
+  // Share limiters to avoid multiple parallel workers when user creates
+  // multiple pica instances.
+  this.__limit = singletones[limiter_key] || utils.limiter(this.options.concurrency);
+
+  if (!singletones[limiter_key]) singletones[limiter_key] = this.__limit;
 
   // List of supported features, according to options & browser/node.js
   this.features = {
@@ -1437,7 +1466,16 @@ Pica.prototype.init = function () {
         var wkr = require('webworkify')(function () {});
         wkr.terminate();
         this.features.ww = true;
-        this.__workersPool = new Pool(workerFablic, this.options.idle);
+
+        // pool uniqueness depends on pool config + webworker config
+        var wpool_key = 'wp_' + JSON.stringify(this.options);
+
+        if (singletones[wpool_key]) {
+          this.__workersPool = singletones[wpool_key];
+        } else {
+          this.__workersPool = new Pool(workerFablic, this.options.idle);
+          singletones[wpool_key] = this.__workersPool;
+        }
       } catch (__) {}
     }
   }
@@ -1475,9 +1513,23 @@ Pica.prototype.resize = function (from, to, options) {
   opts.width = from.naturalWidth || from.width;
   opts.height = from.naturalHeight || from.height;
 
+  var canceled = false;
+  var cancelToken = null;
+
+  if (opts.cancelToken) {
+    // Wrap cancelToken to avoid successive resolve & set flag
+    cancelToken = opts.cancelToken.then(function (data) {
+      canceled = true;throw data;
+    }, function (err) {
+      canceled = true;throw err;
+    });
+  }
+
   var toCtx = to.getContext('2d', { alpha: Boolean(opts.alpha) });
 
   return this.init().then(function () {
+    if (canceled) return cancelToken;
+
     // if createImageBitmap supports resize, just do it and return
     if (_this2.feature_cib) {
       return createImageBitmap(from, {
@@ -1485,6 +1537,8 @@ Pica.prototype.resize = function (from, to, options) {
         resizeHeight: opts.toHeigth,
         resizeQuality: utils.cib_quality_name(opts.quality)
       }).then(function (imageBitmap) {
+        if (canceled) return cancelToken;
+
         // if no unsharp - draw directly to output canvas
         if (!opts.unsharpAmount) {
           toCtx.drawImage(imageBitmap, 0, 0);
@@ -1505,12 +1559,11 @@ Pica.prototype.resize = function (from, to, options) {
 
         var iData = tmpCtx.getImageData(0, 0, opts.toWidth, opts.toHeigth);
 
-        return _this2.__mathlib.unsharp(iData.data, opts.toWidth, opts.toHeigth, opts.unsharpAmount, opts.unsharpRadius, opts.unsharpThreshold).this(function (buffer) {
-          iData.data.set(buffer);
-          toCtx.putImageData(iData, 0, 0);
-          iData = tmpCtx = tmpCanvas = toCtx = null;
-          return to;
-        });
+        _this2.__mathlib.unsharp(iData.data, opts.toWidth, opts.toHeigth, opts.unsharpAmount, opts.unsharpRadius, opts.unsharpThreshold);
+
+        toCtx.putImageData(iData, 0, 0);
+        iData = tmpCtx = tmpCanvas = toCtx = null;
+        return to;
       });
     }
 
@@ -1536,6 +1589,10 @@ Pica.prototype.resize = function (from, to, options) {
         return new Promise(function (resolve, reject) {
           var w = _this2.__workersPool.acquire();
 
+          if (cancelToken) cancelToken.catch(function (err) {
+            return reject(err);
+          });
+
           w.value.onmessage = function (ev) {
             w.release();
 
@@ -1555,6 +1612,8 @@ Pica.prototype.resize = function (from, to, options) {
 
     var processTile = function processTile(tile) {
       return _this2.__limit(function () {
+        if (canceled) return cancelToken;
+
         var srcImageData = void 0;
 
         // Extract tile RGBA buffer, depending on input type
@@ -1599,13 +1658,17 @@ Pica.prototype.resize = function (from, to, options) {
         return Promise.resolve().then(function () {
           return invokeResize(o);
         }).then(function (result) {
+          if (canceled) return cancelToken;
+
           srcImageData = null;
 
           var toImageData = void 0;
 
           if (typeof ImageData !== 'undefined') {
+            // this branch is for browsers
             toImageData = new ImageData(new Uint8ClampedArray(result), tile.toWidth, tile.toHeight);
           } else {
+            // fallback for node-canvas
             toImageData = toCtx.createImageData(tile.toWidth, tile.toHeight);
             toImageData.data.set(result);
           }
@@ -1616,6 +1679,8 @@ Pica.prototype.resize = function (from, to, options) {
           } else {
             toCtx.putImageData(toImageData, tile.toX, tile.toY, tile.toInnerX - tile.toX, tile.toInnerY - tile.toY, tile.toInnerWidth, tile.toInnerHeight);
           }
+
+          return null;
         });
       });
     };
@@ -1639,6 +1704,8 @@ Pica.prototype.resize = function (from, to, options) {
 
       throw new Error('".from" should be image or canvas');
     }).then(function () {
+      if (canceled) return cancelToken;
+
       //
       // Here we are with "normalized" source,
       // follow to tiling
@@ -1659,13 +1726,17 @@ Pica.prototype.resize = function (from, to, options) {
         return processTile(tile);
       });
 
-      return Promise.all(jobs).then(function () {
+      function cleanup() {
         if (srcImageBitmap) {
           srcImageBitmap.close();
           srcImageBitmap = null;
         }
+      }
 
-        return to;
+      return Promise.all(jobs).then(function () {
+        cleanup();return to;
+      }, function (err) {
+        cleanup();throw err;
       });
     });
   });
