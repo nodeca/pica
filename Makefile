@@ -29,6 +29,19 @@ test: lint
 
 
 wasm:
+	# see DEVELOPMENT.md for install instructions
+	~/llvmwasm/bin/clang -emit-llvm --target=wasm32 -O3 -c -o ./lib/mathlib/wasm/math.bc ./lib/mathlib/wasm/math.c
+	~/llvmwasm/bin/llc -asm-verbose=false -o ./lib/mathlib/wasm/math.s ./lib/mathlib/wasm/math.bc
+	# --emscripten-glue needed to allow import memory object
+	~/llvmwasm/binaryen/bin/s2wasm --emscripten-glue ./lib/mathlib/wasm/math.s > ./lib/mathlib/wasm/math.wast
+	# Siimes nothing to optimize after clang, just use to convert wast to wasm
+	~/llvmwasm/binaryen/bin/wasm-opt -O3 ./lib/mathlib/wasm/math.wast -o ./lib/mathlib/wasm/math.wasm
+	rm ./lib/mathlib/wasm/math.bc
+	rm ./lib/mathlib/wasm/math.s
+	node ./support/wasm_wrap.js
+	make browserify
+
+wasm-emsdk:
 	emcc ./lib/mathlib/wasm/math.c -v -g3 -O3 -s WASM=1 -s SIDE_MODULE=1 -o ./lib/mathlib/wasm/math.wasm
 	node ./support/wasm_wrap.js
 	make browserify

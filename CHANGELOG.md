@@ -3,9 +3,9 @@
 
 - Major rewrite. New API, promise-based.
 - Drop WebGL resizer.
-- Add createImageBitmap() resizer.
-- Add WebAssembly resizer.
 - Add async image decode via createImageBitmap().
+- Add WebAssembly resizer.
+- Add createImageBitmap() resizer.
 - Add .toBlob() method.
 
 
