@@ -48,7 +48,7 @@ const DEFAULT_RESIZE_OPTS = {
 };
 
 
-function workerFablic() {
+function workerFabric() {
   return {
     value: webworkify(worker),
     destroy: function () {
@@ -127,7 +127,7 @@ Pica.prototype.init = function () {
         if (singletones[wpool_key]) {
           this.__workersPool = singletones[wpool_key];
         } else {
-          this.__workersPool = new Pool(workerFablic, this.options.idle);
+          this.__workersPool = new Pool(workerFabric, this.options.idle);
           singletones[wpool_key] = this.__workersPool;
         }
       } catch (__) {}
