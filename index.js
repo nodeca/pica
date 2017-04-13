@@ -324,12 +324,21 @@ Pica.prototype.resize = function (from, to, options) {
           let toImageData;
 
           if (typeof ImageData !== 'undefined') {
-            // this branch is for browsers
+            // this branch is for modern browsers
+            // If ImageData exists, Uint8ClampedArray will be supported too
             toImageData = new ImageData(new Uint8ClampedArray(result), tile.toWidth, tile.toHeight);
           } else {
-            // fallback for node-canvas
+            // fallback for node-canvas and old browsers
             toImageData = toCtx.createImageData(tile.toWidth, tile.toHeight);
-            toImageData.data.set(result);
+
+            if (toImageData.data.set) {
+              toImageData.data.set(result);
+            } else {
+              // IE9 don't have `.set()`
+              for (let i = toImageData.data.length - 1; i >= 0; i--) {
+                toImageData.data[i] = result[i];
+              }
+            }
           }
 
           if (NEED_SAFARI_FIX) {
