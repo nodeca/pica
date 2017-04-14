@@ -1,4 +1,4 @@
-3.0.0 / WIP
+3.0.1 / 2017-04-14
 ------------------
 
 - Add missed `.set()` fallback for ancient browsers.
