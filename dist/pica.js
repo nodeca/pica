@@ -1,4 +1,4 @@
-/* pica 3.0.0 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+/* pica 3.0.1 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 // Collection of math functions
 //
 // 1. Combine components together
@@ -1394,7 +1394,7 @@ var DEFAULT_RESIZE_OPTS = {
   unsharpThreshold: 0
 };
 
-function workerFablic() {
+function workerFabric() {
   return {
     value: webworkify(worker),
     destroy: function destroy() {
@@ -1473,7 +1473,7 @@ Pica.prototype.init = function () {
         if (singletones[wpool_key]) {
           this.__workersPool = singletones[wpool_key];
         } else {
-          this.__workersPool = new Pool(workerFablic, this.options.idle);
+          this.__workersPool = new Pool(workerFabric, this.options.idle);
           singletones[wpool_key] = this.__workersPool;
         }
       } catch (__) {}
@@ -1665,12 +1665,21 @@ Pica.prototype.resize = function (from, to, options) {
           var toImageData = void 0;
 
           if (typeof ImageData !== 'undefined') {
-            // this branch is for browsers
+            // this branch is for modern browsers
+            // If ImageData exists, Uint8ClampedArray will be supported too
             toImageData = new ImageData(new Uint8ClampedArray(result), tile.toWidth, tile.toHeight);
           } else {
-            // fallback for node-canvas
+            // fallback for node-canvas and old browsers
             toImageData = toCtx.createImageData(tile.toWidth, tile.toHeight);
-            toImageData.data.set(result);
+
+            if (toImageData.data.set) {
+              toImageData.data.set(result);
+            } else {
+              // IE9 don't have `.set()`
+              for (var i = toImageData.data.length - 1; i >= 0; i--) {
+                toImageData.data[i] = result[i];
+              }
+            }
           }
 
           if (NEED_SAFARI_FIX) {
