@@ -4,14 +4,14 @@ inline uint8_t clampTo8(int32_t i) {
   return i < 0 ? 0 : (i > 255 ? 255 : i);
 }
 
-inline uint8_t R(uint32_t rgba) { return rgba & 0xFF; }
-inline uint8_t G(uint32_t rgba) { return (rgba >> 8) & 0xFF; }
-inline uint8_t B(uint32_t rgba) { return (rgba >> 16) & 0xFF; }
-inline uint8_t A(uint32_t rgba) { return (rgba >> 24) & 0xFF; }
 
-inline uint32_t RGBA(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
-  return r | (g << 8) | (b << 16) | (a << 24);
-}
+#define R(x) ((uint8_t)(rgba))
+#define G(x) ((uint8_t)((rgba) >> 8))
+#define B(x) ((uint8_t)((rgba) >> 16))
+#define A(x) ((uint8_t)((rgba) >> 24))
+
+#define RGBA(r, g, b, a) ((r) | ((g) << 8) | ((b) << 16) | ((a) << 24))
+
 
 void convolve(uint32_t *src, uint32_t *dest, uint32_t srcW, uint32_t srcH, uint32_t destW, int16_t *filters)
 {
