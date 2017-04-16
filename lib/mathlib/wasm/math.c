@@ -5,10 +5,10 @@ inline uint8_t clampTo8(int32_t i) {
 }
 
 
-#define R(x) ((uint8_t)(rgba))
-#define G(x) ((uint8_t)((rgba) >> 8))
-#define B(x) ((uint8_t)((rgba) >> 16))
-#define A(x) ((uint8_t)((rgba) >> 24))
+#define R(x) ((uint8_t)(x))
+#define G(x) ((uint8_t)((x) >> 8))
+#define B(x) ((uint8_t)((x) >> 16))
+#define A(x) ((uint8_t)((x) >> 24))
 
 #define RGBA(r, g, b, a) ((r) | ((g) << 8) | ((b) << 16) | ((a) << 24))
 
