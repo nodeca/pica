@@ -2,8 +2,6 @@
 //
 'use strict';
 
-const Canvas     = require('canvas');
-const Image      = Canvas.Image;
 const fs         = require('fs');
 const path       = require('path');
 const pica       = require('../');
@@ -14,19 +12,22 @@ const ppm        = require('./ppm');
 const FIXTURES_DIRECTORY = path.join(__dirname, 'fixtures');
 const OUTPUT_DIRECTORY   = path.join(__dirname, '..');
 
-//
-// Shim browser method
-//
-global.document = global.document || {};
-global.document.createElement = global.document.createElement || function (name) {
-  if (name === 'canvas') return new Canvas();
-  throw new Error('createElement(' + name + ') not shimmed');
-};
-
 
 describe('Fixture resize', function () {
 
   it('.resizeCanvas() should be correct for the given fixture', function () {
+    const Canvas     = require('canvas');
+    const Image      = Canvas.Image;
+    //
+    // Shim browser method
+    //
+    global.document = global.document || {};
+    global.document.createElement = global.document.createElement || function (name) {
+      if (name === 'canvas') return new Canvas();
+      throw new Error('createElement(' + name + ') not shimmed');
+    };
+
+
     this.timeout(3000);
 
     let srcImage = new Image();
