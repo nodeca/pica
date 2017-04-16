@@ -1,4 +1,4 @@
-/* pica 3.0.1 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+/* pica 3.0.2 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 // Collection of math functions
 //
 // 1. Combine components together
@@ -138,7 +138,7 @@ MathLib.prototype.resize_wasm = function resize_wasm(options, cache) {
   //if (!cache[fx_key]) cache[fx_key] = filtersX;
   //if (!cache[fy_key]) cache[fy_key] = filtersY;
 
-  var alloc_bytes = src.byteLength + filtersX.byteLength + filtersY.byteLength + srcH * destW * 4; // Buffer between convolve passes
+  var alloc_bytes = Math.max(src.byteLength, dest.byteLength) + filtersX.byteLength + filtersY.byteLength + srcH * destW * 4; // Buffer between convolve passes
 
   var alloc_pages = Math.ceil(alloc_bytes / (64 * 1024));
 
@@ -188,7 +188,7 @@ MathLib.prototype.resize_wasm = function resize_wasm(options, cache) {
 
   // Place tmp buffer after src to have 4x byte align.
   // That doesn't seems to make sence but costs nothing.
-  var tmp_offset = src.byteLength;
+  var tmp_offset = Math.max(src.byteLength, dest.byteLength);
 
   var filtersX_offset = tmp_offset + srcH * destW * 4;
   var filtersY_offset = filtersX_offset + filtersX.byteLength;
