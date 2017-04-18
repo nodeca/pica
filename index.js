@@ -140,7 +140,12 @@ Pica.prototype.init = function () {
   });
 
   let checkCib = utils.cib_support().then(status => {
-    this.features.cib = status;
+    if (this.features.cib && features.indexOf('cib') < 0) {
+      this.debug('createImageBitmap() resize supported, but disabled by config');
+      return;
+    }
+
+    if (features.indexOf('cib') >= 0) this.features.cib = status;
   });
 
   // Init math lib. That's async because can load some
@@ -151,6 +156,9 @@ Pica.prototype.init = function () {
 
 
 Pica.prototype.resize = function (from, to, options) {
+  this.debug('Start resize...');
+
+
   let opts = DEFAULT_RESIZE_OPTS;
 
   if (!isNaN(options)) {
@@ -181,7 +189,9 @@ Pica.prototype.resize = function (from, to, options) {
     if (canceled) return cancelToken;
 
     // if createImageBitmap supports resize, just do it and return
-    if (this.feature_cib) {
+    if (this.features.cib) {
+      this.debug('Resize via createImageBitmap()');
+
       return createImageBitmap(from, {
         resizeWidth:   opts.toWidth,
         resizeHeight:  opts.toHeigth,
@@ -195,8 +205,13 @@ Pica.prototype.resize = function (from, to, options) {
           toCtx.drawImage(imageBitmap, 0, 0);
           imageBitmap.close();
           toCtx = null;
+
+          this.debug('Finished!');
+
           return to;
         }
+
+        this.debug('Unsharp result');
 
         let tmpCanvas = document.createElement('canvas');
 
@@ -221,6 +236,9 @@ Pica.prototype.resize = function (from, to, options) {
 
         toCtx.putImageData(iData, 0, 0);
         iData = tmpCtx = tmpCanvas = toCtx = null;
+
+        this.debug('Finished!');
+
         return to;
       });
     }
@@ -275,6 +293,8 @@ Pica.prototype.resize = function (from, to, options) {
 
       // Extract tile RGBA buffer, depending on input type
       if (utils.isCanvas(from)) {
+        this.debug('Get tile pixel data');
+
         // If input is Canvas - extract region data directly
         srcImageData = srcCtx.getImageData(tile.x, tile.y, tile.width, tile.height);
       } else {
@@ -283,6 +303,8 @@ Pica.prototype.resize = function (from, to, options) {
         //
         // Note! Attempt to reuse this canvas causes significant slowdown in chrome
         //
+        this.debug('Draw tile imageBitmap/image to temporary canvas');
+
         let tmpCanvas = document.createElement('canvas');
         tmpCanvas.width  = tile.width;
         tmpCanvas.height = tile.height;
@@ -292,6 +314,8 @@ Pica.prototype.resize = function (from, to, options) {
         tmpCtx.drawImage(srcImageBitmap || from,
           tile.x, tile.y, tile.width, tile.height,
           0, 0, tile.width, tile.height);
+
+        this.debug('Get tile pixel data');
 
         srcImageData = tmpCtx.getImageData(0, 0, tile.width, tile.height);
         tmpCtx = tmpCanvas = null;
@@ -314,6 +338,8 @@ Pica.prototype.resize = function (from, to, options) {
         unsharpThreshold: opts.unsharpThreshold
       };
 
+      this.debug('Invoke resize math');
+
       return Promise.resolve()
         .then(() => invokeResize(o))
         .then(result => {
@@ -322,6 +348,8 @@ Pica.prototype.resize = function (from, to, options) {
           srcImageData = null;
 
           let toImageData;
+
+          this.debug('Convert raw rgba tile result to ImageData');
 
           if (typeof ImageData !== 'undefined') {
             // this branch is for modern browsers
@@ -340,6 +368,8 @@ Pica.prototype.resize = function (from, to, options) {
               }
             }
           }
+
+          this.debug('Draw tile');
 
           if (NEED_SAFARI_FIX) {
             // Safari draws thin white stripes between tiles without this fix
@@ -369,6 +399,8 @@ Pica.prototype.resize = function (from, to, options) {
         // try do decode image in background for faster next operations
         if (typeof createImageBitmap === 'undefined') return null;
 
+        this.debug('Decode image via createImageBitmap');
+
         return createImageBitmap(from)
           .then(imageBitmap => {
             srcImageBitmap = imageBitmap;
@@ -379,6 +411,8 @@ Pica.prototype.resize = function (from, to, options) {
     })
     .then(() => {
       if (canceled) return cancelToken;
+
+      this.debug('Calculate tiles');
 
       //
       // Here we are with "normalized" source,
@@ -405,8 +439,13 @@ Pica.prototype.resize = function (from, to, options) {
         }
       }
 
+      this.debug('Process tiles');
+
       return Promise.all(jobs).then(
-        () =>  { cleanup(); return to; },
+        () =>  {
+          this.debug('Finished!');
+          cleanup(); return to;
+        },
         err => { cleanup(); throw err; }
       );
     });
