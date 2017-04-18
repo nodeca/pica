@@ -84,9 +84,10 @@ const pica = require('pica')({
   tile: 1024,           // Tile width/height. Images are processed
                         // by regions, to restrict peak memory use.
 
-  features: [ 'all' ],  // Mostly for testing, restricts
-                        // available features. Can be:
+  features: [ 'js', 'wasm', 'ww' ], // Control used features. Can be:
                         // [ 'js', 'wasm', 'cib', 'ww' ] or [ 'all' ]
+                        // Note, resize via .createImageBitmap disabled
+                        // by default due bad quality.
 
   idle: 2000,           // Cache timeout, ms. Webworkers create
                         // is not fast. This option allow reuse
@@ -111,6 +112,17 @@ pica.resize(from, to)
   .then(result => pica.toBlob(result, 'image/jpeg', 90))
   .then(blob => console.log('resized to canvas & created blob!'));
 ```
+
+__Important!__ Latest browsers support resize via [createImageBitmap](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/createImageBitmap)
+You can try this feature by enabling chrome://flags/#enable-experimental-canvas-features
+in Chrome AND enabling 'cib' in pica options. But, as you can see on demo page,
+result is still pixelated. So:
+
+- `createImageBitmap()` is used for non-blocking image decode (when available)
+- It's resize feature is blocked by default pica config. Enable it only on your
+  own risk.
+
+
 
 ### .resize(from, to, options) -> Promise
 

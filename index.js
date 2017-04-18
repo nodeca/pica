@@ -34,7 +34,7 @@ if (typeof navigator !== 'undefined') {
 const DEFAULT_PICA_OPTS = {
   tile: 1024,
   concurrency,
-  features: [ 'all' ],
+  features: [ 'js', 'wasm', 'ww' ],
   idle: 2000
 };
 
