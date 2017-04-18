@@ -1,3 +1,11 @@
+3.0.3 / 2017-04-18
+------------------
+
+- Fixed non working `.createImageBitmap()` resize, but disabled
+  by default due bad quality.
+- Added debug messages.
+
+
 3.0.2 / 2017-04-16
 ------------------
 
