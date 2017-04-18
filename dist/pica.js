@@ -1,4 +1,4 @@
-/* pica 3.0.2 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+/* pica 3.0.3 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 // Collection of math functions
 //
 // 1. Combine components together
@@ -1382,7 +1382,7 @@ if (typeof navigator !== 'undefined') {
 var DEFAULT_PICA_OPTS = {
   tile: 1024,
   concurrency: concurrency,
-  features: ['all'],
+  features: ['js', 'wasm', 'ww'],
   idle: 2000
 };
 
@@ -1486,7 +1486,12 @@ Pica.prototype.init = function () {
   });
 
   var checkCib = utils.cib_support().then(function (status) {
-    _this.features.cib = status;
+    if (_this.features.cib && features.indexOf('cib') < 0) {
+      _this.debug('createImageBitmap() resize supported, but disabled by config');
+      return;
+    }
+
+    if (features.indexOf('cib') >= 0) _this.features.cib = status;
   });
 
   // Init math lib. That's async because can load some
@@ -1499,6 +1504,8 @@ Pica.prototype.init = function () {
 
 Pica.prototype.resize = function (from, to, options) {
   var _this2 = this;
+
+  this.debug('Start resize...');
 
   var opts = DEFAULT_RESIZE_OPTS;
 
@@ -1531,7 +1538,9 @@ Pica.prototype.resize = function (from, to, options) {
     if (canceled) return cancelToken;
 
     // if createImageBitmap supports resize, just do it and return
-    if (_this2.feature_cib) {
+    if (_this2.features.cib) {
+      _this2.debug('Resize via createImageBitmap()');
+
       return createImageBitmap(from, {
         resizeWidth: opts.toWidth,
         resizeHeight: opts.toHeigth,
@@ -1544,8 +1553,13 @@ Pica.prototype.resize = function (from, to, options) {
           toCtx.drawImage(imageBitmap, 0, 0);
           imageBitmap.close();
           toCtx = null;
+
+          _this2.debug('Finished!');
+
           return to;
         }
+
+        _this2.debug('Unsharp result');
 
         var tmpCanvas = document.createElement('canvas');
 
@@ -1563,6 +1577,9 @@ Pica.prototype.resize = function (from, to, options) {
 
         toCtx.putImageData(iData, 0, 0);
         iData = tmpCtx = tmpCanvas = toCtx = null;
+
+        _this2.debug('Finished!');
+
         return to;
       });
     }
@@ -1618,6 +1635,8 @@ Pica.prototype.resize = function (from, to, options) {
 
         // Extract tile RGBA buffer, depending on input type
         if (utils.isCanvas(from)) {
+          _this2.debug('Get tile pixel data');
+
           // If input is Canvas - extract region data directly
           srcImageData = srcCtx.getImageData(tile.x, tile.y, tile.width, tile.height);
         } else {
@@ -1626,6 +1645,8 @@ Pica.prototype.resize = function (from, to, options) {
           //
           // Note! Attempt to reuse this canvas causes significant slowdown in chrome
           //
+          _this2.debug('Draw tile imageBitmap/image to temporary canvas');
+
           var tmpCanvas = document.createElement('canvas');
           tmpCanvas.width = tile.width;
           tmpCanvas.height = tile.height;
@@ -1633,6 +1654,8 @@ Pica.prototype.resize = function (from, to, options) {
           var tmpCtx = tmpCanvas.getContext('2d', { alpha: Boolean(opts.alpha) });
           tmpCtx.globalCompositeOperation = 'copy';
           tmpCtx.drawImage(srcImageBitmap || from, tile.x, tile.y, tile.width, tile.height, 0, 0, tile.width, tile.height);
+
+          _this2.debug('Get tile pixel data');
 
           srcImageData = tmpCtx.getImageData(0, 0, tile.width, tile.height);
           tmpCtx = tmpCanvas = null;
@@ -1655,6 +1678,8 @@ Pica.prototype.resize = function (from, to, options) {
           unsharpThreshold: opts.unsharpThreshold
         };
 
+        _this2.debug('Invoke resize math');
+
         return Promise.resolve().then(function () {
           return invokeResize(o);
         }).then(function (result) {
@@ -1663,6 +1688,8 @@ Pica.prototype.resize = function (from, to, options) {
           srcImageData = null;
 
           var toImageData = void 0;
+
+          _this2.debug('Convert raw rgba tile result to ImageData');
 
           if (typeof ImageData !== 'undefined') {
             // this branch is for modern browsers
@@ -1681,6 +1708,8 @@ Pica.prototype.resize = function (from, to, options) {
               }
             }
           }
+
+          _this2.debug('Draw tile');
 
           if (NEED_SAFARI_FIX) {
             // Safari draws thin white stripes between tiles without this fix
@@ -1706,6 +1735,8 @@ Pica.prototype.resize = function (from, to, options) {
         // try do decode image in background for faster next operations
         if (typeof createImageBitmap === 'undefined') return null;
 
+        _this2.debug('Decode image via createImageBitmap');
+
         return createImageBitmap(from).then(function (imageBitmap) {
           srcImageBitmap = imageBitmap;
         });
@@ -1714,6 +1745,8 @@ Pica.prototype.resize = function (from, to, options) {
       throw new Error('".from" should be image or canvas');
     }).then(function () {
       if (canceled) return cancelToken;
+
+      _this2.debug('Calculate tiles');
 
       //
       // Here we are with "normalized" source,
@@ -1742,7 +1775,10 @@ Pica.prototype.resize = function (from, to, options) {
         }
       }
 
+      _this2.debug('Process tiles');
+
       return Promise.all(jobs).then(function () {
+        _this2.debug('Finished!');
         cleanup();return to;
       }, function (err) {
         cleanup();throw err;
