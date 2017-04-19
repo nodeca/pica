@@ -72,31 +72,11 @@ be compiled with `Broserify` to properly use Web Workers. In other
 case - use `require('pica/dist/pica')`.
 
 
-API
+Use
 ---
 
-### new Pica(config)
-
-Create resizer instance with given config.
-
 ```js
-const pica = require('pica')({
-  tile: 1024,           // Tile width/height. Images are processed
-                        // by regions, to restrict peak memory use.
-
-  features: [ 'js', 'wasm', 'ww' ], // Control used features. Can be:
-                        // [ 'js', 'wasm', 'cib', 'ww' ] or [ 'all' ]
-                        // Note, resize via .createImageBitmap() disabled
-                        // by default due bad quality.
-
-  idle: 2000,           // Cache timeout, ms. Webworkers create
-                        // is not fast. This option allow reuse
-                        // webworkers effectively.
-
-  concurrency: 4        // Max webworkers pool size. Default is
-                        // autodetected CPU count, but not more than 4.
-});
-
+const pica = require('pica')();
 
 // Resize from Canvas/Image to another Canvas
 pica.resize(from, to, {
@@ -106,12 +86,30 @@ pica.resize(from, to, {
 })
 .then(result => console.log('resize done!'));
 
-
 // Resize & convert to blob
 pica.resize(from, to)
   .then(result => pica.toBlob(result, 'image/jpeg', 90))
   .then(blob => console.log('resized to canvas & created blob!'));
 ```
+
+
+API
+---
+
+### new Pica(config)
+
+Create resizer instance with given config (optional):
+
+- __tile__ - tile width/height. Images are processed by regions,
+  to restrict peak memory use. Default 1024.
+- __features__ - list of features to use. Default is
+  `[ 'js', 'wasm', 'ww' ]`. Can be `[ 'js', 'wasm', 'cib', 'ww' ]`
+  or `[ 'all' ]`. Note, resize via `createImageBitmap()` ('cib')
+  disabled by default due problems with quality.
+- __idle__ - cache timeout, ms. Webworkers create is not fast.
+  This option allow reuse webworkers effectively. Default 2000.
+- __concurrency__ - max webworkers pool size. Default is autodetected
+  CPU count, but not more than 4.
 
 __Important!__ Latest browsers may support resize via [createImageBitmap](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/createImageBitmap).
 You can try this feature by enabling `chrome://flags/#enable-experimental-canvas-features`
