@@ -1,4 +1,4 @@
-/* pica 3.0.3 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+/* pica 3.0.4 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 // Collection of math functions
 //
 // 1. Combine components together
@@ -1394,6 +1394,8 @@ var DEFAULT_RESIZE_OPTS = {
   unsharpThreshold: 0
 };
 
+var CAN_NEW_IMAGE_DATA = void 0;
+
 function workerFabric() {
   return {
     value: webworkify(worker),
@@ -1446,6 +1448,18 @@ Pica.prototype.init = function () {
   var _this = this;
 
   if (this.__initPromise) return this.__initPromise;
+
+  // Test if we can create ImageData without canvas and memory copy
+  if (CAN_NEW_IMAGE_DATA !== false && CAN_NEW_IMAGE_DATA !== true) {
+    CAN_NEW_IMAGE_DATA = false;
+    if (typeof ImageData !== 'undefined' && typeof Uint8ClampedArray !== 'undefined') {
+      try {
+        /* eslint-disable no-new */
+        new ImageData(new Uint8ClampedArray(400), 10, 10);
+        CAN_NEW_IMAGE_DATA = true;
+      } catch (__) {}
+    }
+  }
 
   var features = this.options.features.slice();
 
@@ -1691,12 +1705,13 @@ Pica.prototype.resize = function (from, to, options) {
 
           _this2.debug('Convert raw rgba tile result to ImageData');
 
-          if (typeof ImageData !== 'undefined') {
+          if (CAN_NEW_IMAGE_DATA) {
             // this branch is for modern browsers
-            // If ImageData exists, Uint8ClampedArray will be supported too
+            // If `new ImageData()` & Uint8ClampedArray suported
             toImageData = new ImageData(new Uint8ClampedArray(result), tile.toWidth, tile.toHeight);
           } else {
-            // fallback for node-canvas and old browsers
+            // fallback for `node-canvas` and old browsers
+            // (IE11 has ImageData but does not support `new ImageData()`)
             toImageData = toCtx.createImageData(tile.toWidth, tile.toHeight);
 
             if (toImageData.data.set) {
