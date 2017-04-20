@@ -47,6 +47,8 @@ const DEFAULT_RESIZE_OPTS = {
   unsharpThreshold: 0
 };
 
+let CAN_NEW_IMAGE_DATA;
+
 
 function workerFabric() {
   return {
@@ -100,6 +102,19 @@ function Pica(options) {
 
 Pica.prototype.init = function () {
   if (this.__initPromise) return this.__initPromise;
+
+  // Test if we can create ImageData without canvas and memory copy
+  if (CAN_NEW_IMAGE_DATA !== false && CAN_NEW_IMAGE_DATA !== true) {
+    CAN_NEW_IMAGE_DATA = false;
+    if (typeof ImageData !== 'undefined' && typeof Uint8ClampedArray !== 'undefined') {
+      try {
+        /* eslint-disable no-new */
+        new ImageData(new Uint8ClampedArray(400), 10, 10);
+        CAN_NEW_IMAGE_DATA = true;
+      } catch (__) {}
+    }
+  }
+
 
   let features = this.options.features.slice();
 
@@ -351,12 +366,13 @@ Pica.prototype.resize = function (from, to, options) {
 
           this.debug('Convert raw rgba tile result to ImageData');
 
-          if (typeof ImageData !== 'undefined') {
+          if (CAN_NEW_IMAGE_DATA) {
             // this branch is for modern browsers
-            // If ImageData exists, Uint8ClampedArray will be supported too
+            // If `new ImageData()` & Uint8ClampedArray suported
             toImageData = new ImageData(new Uint8ClampedArray(result), tile.toWidth, tile.toHeight);
           } else {
-            // fallback for node-canvas and old browsers
+            // fallback for `node-canvas` and old browsers
+            // (IE11 has ImageData but does not support `new ImageData()`)
             toImageData = toCtx.createImageData(tile.toWidth, tile.toHeight);
 
             if (toImageData.data.set) {

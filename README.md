@@ -18,6 +18,9 @@ With pica you can:
 - Generate thumbnails in browser.
 - ...
 
+Note. Old browsers may need `Promise` polyfill to work.
+For example, [lie](https://github.com/calvinmetcalf/lie).
+
 
 Prior to use
 ------------
@@ -25,8 +28,8 @@ Prior to use
 Here is a short list of problems you can face:
 
 - Loading image:
-  - Due to JS security restrictions, you can load to canvas only
-    images from same domain or local files. If you load images from
+  - Due to JS security restrictions, you can process images
+    from the same domain or local files only. If you load images from
     remote domain use proper `Access-Control-Allow-Origin` header.
   - iOS has resource limits for canvas size & image size.
     Look [here](https://github.com/stomita/ios-imagefile-megapixel)
@@ -68,8 +71,8 @@ bower install pica
 
 __Attention!__. Compiled files are in `/dist` folder! If you wish to
 load module in node.js style as `require('pica')` - your project MUST
-be compiled with `Broserify` to properly use Web Workers. In other
-case - use `require('pica/dist/pica')`.
+be compiled with [browserify](https://github.com/substack/node-browserify)
+to properly use Web Workers. In other case - use `require('pica/dist/pica')`.
 
 
 Use

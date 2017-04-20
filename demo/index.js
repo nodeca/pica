@@ -113,7 +113,7 @@ var updateResized = _.debounce(function () {
     unsharpThreshold: unsharpThreshold,
     transferable: true
   })
-  .then(() => {
+  .then(function () {
     time = (performance.now() - start).toFixed(2);
 
     // Copy buffer to visible element
@@ -149,6 +149,10 @@ var updateResized = _.debounce(function () {
         info: qualityInfo[quality]
       }));
     }
+  })
+  .catch(function (err) {
+    console.log(err);
+    throw err;
   });
 }, 100);
 
