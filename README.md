@@ -142,9 +142,9 @@ taken from source and destination objects.
   - __alpha__ - use alpha channel. Default = `false`.
   - __unsharpAmount__ - >=0, in percents. Default = `0` (off). Usually
     between 50 to 100 is good.
-  - __unsharpRadius__ - 0.5..2.0. Radius of Gaussian blur.
-    If it is less than 0.5, Unsharp Mask is off. Big values are
-    clamped to 2.0.
+  - __unsharpRadius__ - 0.5..2.0. By default it's not set. Radius of Gaussian
+    blur. If it is less than 0.5, Unsharp Mask is off. Big values are clamped
+    to 2.0.
   - __unsharpThreshold__ - 0..255. Default = `0`. Threshold for
     applying unsharp mask.
   - __cancelToken__ - Promise instance. If defined, current
