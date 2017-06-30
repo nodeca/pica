@@ -1,3 +1,10 @@
+3.0.5 / 2017-06-30
+------------------
+
+- Avoid Promise use in webworker. Should help with IE11, which suddently
+  fixed creating of webworkers from data URI.
+
+
 3.0.4 / 2017-04-20
 ------------------
 
