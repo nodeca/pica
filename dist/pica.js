@@ -1,4 +1,4 @@
-/* pica 3.0.4 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+/* pica 3.0.5 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 // Collection of math functions
 //
 // 1. Combine components together
@@ -11,7 +11,8 @@ var math_wasm_base64 = require('./mathlib/wasm/math_wasm_base64');
 
 function MathLib(requested_features, preload) {
   this.__requested_features = requested_features || [];
-  this.__initPromise = null;
+  this.__initialized = false;
+  this.__initCallbacks = [];
   this.__wasm_module = preload && preload.wasm_module ? preload : null;
 
   // List of supported features, according to options & browser/node.js
@@ -21,45 +22,105 @@ function MathLib(requested_features, preload) {
   };
 }
 
-MathLib.prototype.init = function init() {
+MathLib.prototype.__init__ = function __init__(callback) {
   var _this = this;
 
-  this.__initPromise = Promise.resolve().then(function () {
-    // Map supported implementations
-    _this.unsharp = _this.unsharp_js; // That's in JS only for a while
+  if (this.__initCallbacks.length > 0) {
+    this.__initCallbacks.push(callback);
+    return;
+  }
 
-    if (_this.__requested_features.indexOf('js') >= 0) {
-      _this.features.js = true;
-      _this.resize = _this.resize_js;
+  this.__initCallbacks = [callback];
+
+  var finish = function finish() {
+    var callbacks = _this.__initCallbacks;
+    _this.__initCallbacks = [];
+    _this.__initialized = true;
+    callbacks.forEach(function (fn) {
+      return fn();
+    });
+  };
+
+  // Map supported implementations
+  this.unsharp = this.unsharp_js; // That's in JS only for a while
+
+  if (this.__requested_features.indexOf('js') >= 0) {
+    this.features.js = true;
+    this.resize = this.resize_js;
+  }
+
+  if (typeof WebAssembly !== 'undefined' && this.__requested_features.indexOf('wasm') >= 0) {
+
+    if (this.__wasm_module) {
+      this.features.wasm = true;
+      this.resize = this.resize_wasm;
+      finish();
+      return;
     }
 
-    if (typeof WebAssembly !== 'undefined' && _this.__requested_features.indexOf('wasm') >= 0) {
-
-      if (_this.__wasm_module) {
-        _this.features.wasm = true;
-        _this.resize = _this.resize_wasm;
-        return null;
-      }
-
-      return WebAssembly.compile(base64decode(math_wasm_base64)).then(function (wasm_module) {
-        _this.__wasm_module = wasm_module;
-        _this.features.wasm = true;
-        _this.resize = _this.resize_wasm;
-      })
+    WebAssembly.compile(base64decode(math_wasm_base64)).then(function (wasm_module) {
+      _this.__wasm_module = wasm_module;
+      _this.features.wasm = true;
+      _this.resize = _this.resize_wasm;
+      finish();
+    }).catch(function () {
       // Suppress init errors
-      .catch(function () {});
+      finish();
+    });
+
+    return;
+  }
+
+  finish();
+};
+
+// Returns either promise or callback; callback interface is intended only for
+// WebWorkers in IE11 (which doesn't support promises).
+//
+/* eslint-disable consistent-return */
+MathLib.prototype.init = function init(callback) {
+  var _this2 = this;
+
+  if (typeof callback !== 'function') {
+    if (this.__initialized) return Promise.resolve(this);
+
+    return new Promise(function (resolve, reject) {
+      _this2.__init__(function (err) {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        if (!_this2.features.wasm && !_this2.features.js) {
+          reject(new Error('Pica mathlib: no supported methods found'));
+          return;
+        }
+
+        resolve(_this2);
+      });
+    });
+  }
+
+  if (this.__initialized) {
+    callback(null, this);
+    return;
+  }
+
+  this.__init__(function (err) {
+    if (err) {
+      callback(err);
+      return;
     }
 
-    return null;
-  }).then(function () {
-    if (!_this.features.wasm && !_this.features.js) {
-      throw new Error('Pica mathlib: no supported methods found');
+    if (!_this2.features.wasm && !_this2.features.js) {
+      callback(new Error('Pica mathlib: no supported methods found'));
+      return;
     }
 
-    return _this;
+    callback(null, _this2);
   });
 
-  return this.__initPromise;
+  return;
 };
 
 MathLib.prototype.resizeAndUnsharp = function resizeAndUnsharp(options, cache) {
@@ -1046,11 +1107,14 @@ module.exports = function () {
 
     if (!mathLib) mathLib = new MathLib(ev.data.features, ev.data.preload);
 
-    mathLib.init().then(function () {
+    mathLib.init(function (err) {
+      if (err) {
+        postMessage({ err: err });
+        return;
+      }
+
       var result = mathLib.resizeAndUnsharp(opts, cache);
       postMessage({ result: result }, [result.buffer]);
-    }).catch(function (err) {
-      postMessage({ err: err });
     });
   };
 };
