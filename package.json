@@ -46,6 +46,6 @@
     "eslint": "^3.7.0",
     "mocha": "^3.1.0",
     "pixelmatch": "^4.0.2",
-    "uglify-js": "^3.0.22"
+    "uglify-js": "^3.0.24"
   }
 }
