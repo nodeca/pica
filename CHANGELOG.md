@@ -1,3 +1,10 @@
+3.0.6 / 2017-07-13
+------------------
+
+- More constrains for `createImageBitmap()` use. Filter out browsers
+  without `ImageBitmap.prototype.close()` method (Chrome 51 etc).
+
+
 3.0.5 / 2017-06-30
 ------------------
 

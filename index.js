@@ -48,6 +48,7 @@ const DEFAULT_RESIZE_OPTS = {
 };
 
 let CAN_NEW_IMAGE_DATA;
+let CAN_CREATE_IMAGE_BITMAP;
 
 
 function workerFabric() {
@@ -115,6 +116,25 @@ Pica.prototype.init = function () {
     }
   }
 
+  // ImageBitmap can be effective in 2 places:
+  //
+  // 1. Threaded jpeg unpack (basic)
+  // 2. Built-in resize (blocked due problem in chrome, see issue #89)
+  //
+  // For basic use we also need ImageBitmap wo support .close() method,
+  // see https://developer.mozilla.org/ru/docs/Web/API/ImageBitmap
+
+  if (CAN_CREATE_IMAGE_BITMAP !== false && CAN_CREATE_IMAGE_BITMAP !== true) {
+    CAN_CREATE_IMAGE_BITMAP = false;
+    if (typeof ImageBitmap !== 'undefined') {
+      if (ImageBitmap.prototype && ImageBitmap.prototype.close) {
+        CAN_CREATE_IMAGE_BITMAP = true;
+      } else {
+        this.debug('ImageBitmap does not support .close(), disabled');
+      }
+    }
+  }
+
 
   let features = this.options.features.slice();
 
@@ -154,17 +174,23 @@ Pica.prototype.init = function () {
     assign(this.features, mathlib.features);
   });
 
-  let checkCib = utils.cib_support().then(status => {
-    if (this.features.cib && features.indexOf('cib') < 0) {
-      this.debug('createImageBitmap() resize supported, but disabled by config');
-      return;
-    }
+  let checkCibResize;
 
-    if (features.indexOf('cib') >= 0) this.features.cib = status;
-  });
+  if (!CAN_CREATE_IMAGE_BITMAP) {
+    checkCibResize = Promise.resolve(false);
+  } else {
+    checkCibResize = utils.cib_support().then(status => {
+      if (this.features.cib && features.indexOf('cib') < 0) {
+        this.debug('createImageBitmap() resize supported, but disabled by config');
+        return;
+      }
+
+      if (features.indexOf('cib') >= 0) this.features.cib = status;
+    });
+  }
 
   // Init math lib. That's async because can load some
-  this.__initPromise = Promise.all([ initMath, checkCib ]).then(() => this);
+  this.__initPromise = Promise.all([ initMath, checkCibResize ]).then(() => this);
 
   return this.__initPromise;
 };
@@ -413,7 +439,7 @@ Pica.prototype.resize = function (from, to, options) {
 
       if (utils.isImage(from)) {
         // try do decode image in background for faster next operations
-        if (typeof createImageBitmap === 'undefined') return null;
+        if (!CAN_CREATE_IMAGE_BITMAP) return null;
 
         this.debug('Decode image via createImageBitmap');
 
