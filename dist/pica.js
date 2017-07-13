@@ -1,4 +1,4 @@
-/* pica 3.0.5 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+/* pica 3.0.6 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 // Collection of math functions
 //
 // 1. Combine components together
@@ -1040,6 +1040,14 @@ module.exports.cib_support = function cib_support() {
       resizeQuality: 'high'
     }).then(function (bitmap) {
       var status = bitmap.width === 10;
+
+      // Branch below is filtered on upper level. We do not call resize
+      // detection for basic ImageBitmap.
+      //
+      // https://developer.mozilla.org/en-US/docs/Web/API/ImageBitmap
+      // old Crome 51 has ImageBitmap without .close(). Then this code
+      // will throw and return 'false' as expected.
+      //
       bitmap.close();
       c = null;
       return status;
@@ -1459,6 +1467,7 @@ var DEFAULT_RESIZE_OPTS = {
 };
 
 var CAN_NEW_IMAGE_DATA = void 0;
+var CAN_CREATE_IMAGE_BITMAP = void 0;
 
 function workerFabric() {
   return {
@@ -1525,6 +1534,25 @@ Pica.prototype.init = function () {
     }
   }
 
+  // ImageBitmap can be effective in 2 places:
+  //
+  // 1. Threaded jpeg unpack (basic)
+  // 2. Built-in resize (blocked due problem in chrome, see issue #89)
+  //
+  // For basic use we also need ImageBitmap wo support .close() method,
+  // see https://developer.mozilla.org/ru/docs/Web/API/ImageBitmap
+
+  if (CAN_CREATE_IMAGE_BITMAP !== false && CAN_CREATE_IMAGE_BITMAP !== true) {
+    CAN_CREATE_IMAGE_BITMAP = false;
+    if (typeof ImageBitmap !== 'undefined') {
+      if (ImageBitmap.prototype && ImageBitmap.prototype.close) {
+        CAN_CREATE_IMAGE_BITMAP = true;
+      } else {
+        this.debug('ImageBitmap does not support .close(), disabled');
+      }
+    }
+  }
+
   var features = this.options.features.slice();
 
   if (features.indexOf('all') >= 0) {
@@ -1563,17 +1591,23 @@ Pica.prototype.init = function () {
     assign(_this.features, mathlib.features);
   });
 
-  var checkCib = utils.cib_support().then(function (status) {
-    if (_this.features.cib && features.indexOf('cib') < 0) {
-      _this.debug('createImageBitmap() resize supported, but disabled by config');
-      return;
-    }
+  var checkCibResize = void 0;
 
-    if (features.indexOf('cib') >= 0) _this.features.cib = status;
-  });
+  if (!CAN_CREATE_IMAGE_BITMAP) {
+    checkCibResize = Promise.resolve(false);
+  } else {
+    checkCibResize = utils.cib_support().then(function (status) {
+      if (_this.features.cib && features.indexOf('cib') < 0) {
+        _this.debug('createImageBitmap() resize supported, but disabled by config');
+        return;
+      }
+
+      if (features.indexOf('cib') >= 0) _this.features.cib = status;
+    });
+  }
 
   // Init math lib. That's async because can load some
-  this.__initPromise = Promise.all([initMath, checkCib]).then(function () {
+  this.__initPromise = Promise.all([initMath, checkCibResize]).then(function () {
     return _this;
   });
 
@@ -1812,7 +1846,7 @@ Pica.prototype.resize = function (from, to, options) {
 
       if (utils.isImage(from)) {
         // try do decode image in background for faster next operations
-        if (typeof createImageBitmap === 'undefined') return null;
+        if (!CAN_CREATE_IMAGE_BITMAP) return null;
 
         _this2.debug('Decode image via createImageBitmap');
 
