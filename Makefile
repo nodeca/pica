@@ -9,6 +9,8 @@ REMOTE_REPO ?= $(shell git config --get remote.${REMOTE_NAME}.url)
 CURR_HEAD   := $(firstword $(shell git show-ref --hash HEAD | cut -b -6) master)
 GITHUB_PROJ := nodeca/${NPM_PACKAGE}
 
+WASM_IMAGE  := nodeca/pica-toolchain
+WASM_RUN    := docker run --rm -v "$$PWD:/workdir" $(WASM_IMAGE)
 
 help:
 	echo "make help       - Print this help"
@@ -17,6 +19,7 @@ help:
 	echo "make cover      - Create coverage report"
 	echo "make doc        - Generate documentation"
 	echo "make browserify - Build browserified packages"
+	echo "make wasm       - Build WebAssembly code"
 	echo "make publish    - Set new version tag and publish npm package"
 
 
@@ -27,17 +30,23 @@ lint:
 test: lint
 	./node_modules/.bin/mocha
 
+build-toolchain:
+	cd toolchain && docker build -t $(WASM_IMAGE) .
+
+publish-toolchain: build-toolchain
+	docker push $(WASM_IMAGE)
 
 wasm:
-	# see DEVELOPMENT.md for install instructions
-	~/llvmwasm/bin/clang -emit-llvm --target=wasm32 -O3 -c -o ./lib/mathlib/wasm/math.bc ./lib/mathlib/wasm/math.c
-	~/llvmwasm/bin/llc -asm-verbose=false -o ./lib/mathlib/wasm/math.s ./lib/mathlib/wasm/math.bc
-	# --emscripten-glue needed to allow import memory object
-	~/llvmwasm/binaryen/bin/s2wasm --emscripten-glue ./lib/mathlib/wasm/math.s > ./lib/mathlib/wasm/math.wast
-	# Siimes nothing to optimize after clang, just use to convert wast to wasm
-	~/llvmwasm/binaryen/bin/wasm-opt -O3 ./lib/mathlib/wasm/math.wast -o ./lib/mathlib/wasm/math.wasm
-	rm ./lib/mathlib/wasm/math.bc
-	rm ./lib/mathlib/wasm/math.s
+	# see DEVELOPMENT.md to get more information about wasm toolchain
+	$(WASM_RUN) clang -emit-llvm --target=wasm32 -O3 -c -o ./lib/mathlib/wasm/math.bc ./lib/mathlib/wasm/math.c
+	$(WASM_RUN) llc -asm-verbose=false -o ./lib/mathlib/wasm/math.s ./lib/mathlib/wasm/math.bc
+	# --emscripten-glue is needed to allow importing the memory object
+	$(WASM_RUN) s2wasm --emscripten-glue ./lib/mathlib/wasm/math.s -o ./lib/mathlib/wasm/math.wast
+	# nothing to optimize after clang, just use to convert wast to wasm
+	$(WASM_RUN) wasm-opt -O3 ./lib/mathlib/wasm/math.wast -o ./lib/mathlib/wasm/math.wasm
+	# call rm with WASM_RUN to avoid permissions problems
+	$(WASM_RUN) rm ./lib/mathlib/wasm/math.bc
+	$(WASM_RUN) rm ./lib/mathlib/wasm/math.s
 	node ./support/wasm_wrap.js
 	make browserify
 
