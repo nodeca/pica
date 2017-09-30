@@ -1,7 +1,7 @@
-4.0.0 / WIP
+4.0.0 / 2017-09-30
 ------------------
 
-- Internals rewritten to use `multimath` package.
+- Internals rewritten to use `multimath` library.
 - WebAssembly implementation for `unsharp mask`, as bonus.
 
 
