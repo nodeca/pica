@@ -1,298 +1,179 @@
 /* pica 3.0.6 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-// Collection of math functions
-//
-// 1. Combine components together
-// 2. Has async init to load wasm modules
+'use strict';
+
+
+var assign = require('object-assign');
+
+
+var DEFAULT_OPTIONS = {
+  js: true,
+  wasm: true
+};
+
+
+function MultiMath(options) {
+  if (!(this instanceof MultiMath)) return new MultiMath(options);
+
+  this.options = assign({}, DEFAULT_OPTIONS, options || {});
+
+  this.__cache         = {};
+  this.has_wasm        = typeof WebAssembly !== 'undefined';
+
+  this.__init_promise  = null;
+  this.__modules       = options.modules || {};
+  this.__memory        = null;
+  this.__wasm          = {};
+
+  this.__isLE = ((new Uint32Array((new Uint8Array([ 1, 0, 0, 0 ])).buffer))[0] === 1);
+
+  if (!this.options.js && !this.options.wasm) {
+    throw new Error('mathlib: at least "js" or "wasm" should be enabled');
+  }
+}
+
+
+MultiMath.prototype.use = function (module) {
+  this.__modules[module.name] = module;
+
+  // Pin the best possible implementation
+  if (!this.has_wasm || !this.options.wasm || !module.wasm_fn) {
+    this[module.name] = module.fn;
+  } else {
+    this[module.name] = module.wasm_fn;
+  }
+
+  return this;
+};
+
+
+MultiMath.prototype.init = function () {
+  if (this.__init_promise) return this.__init_promise;
+
+  if (!this.options.js && this.options.wasm && !this.has_wasm) {
+    return Promise.reject(new Error('mathlib: only "wasm" was enabled, but it\'s not supported'));
+  }
+
+  var self = this;
+
+  this.__init_promise = Promise.all(Object.keys(self.__modules).map(function (name) {
+    var module = self.__modules[name];
+
+    if (!self.has_wasm || !self.options.wasm || !module.wasm_fn) return null;
+
+    // If already compiled - exit
+    if (self.__wasm[name]) return null;
+
+    // Compile wasm source
+    return WebAssembly.compile(self.__base64decode(module.wasm_src))
+      .then(function (m) { self.__wasm[name] = m; });
+  }))
+  .then(function () { return self; });
+
+  return this.__init_promise;
+};
+
+
+var BASE64_MAP = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+MultiMath.prototype.__base64decode = function base64decode(str) {
+  var input = str.replace(/[\r\n=]/g, ''), // remove CR/LF & padding to simplify scan
+      max   = input.length;
+
+  var out = new Uint8Array((max * 3) >> 2);
+
+  // Collect by 6*4 bits (3 bytes)
+
+  var bits = 0;
+  var ptr  = 0;
+
+  for (var idx = 0; idx < max; idx++) {
+    if ((idx % 4 === 0) && idx) {
+      out[ptr++] = (bits >> 16) & 0xFF;
+      out[ptr++] = (bits >> 8) & 0xFF;
+      out[ptr++] = bits & 0xFF;
+    }
+
+    bits = (bits << 6) | BASE64_MAP.indexOf(input.charAt(idx));
+  }
+
+  // Dump tail
+
+  var tailbits = (max % 4) * 6;
+
+  if (tailbits === 0) {
+    out[ptr++] = (bits >> 16) & 0xFF;
+    out[ptr++] = (bits >> 8) & 0xFF;
+    out[ptr++] = bits & 0xFF;
+  } else if (tailbits === 18) {
+    out[ptr++] = (bits >> 10) & 0xFF;
+    out[ptr++] = (bits >> 2) & 0xFF;
+  } else if (tailbits === 12) {
+    out[ptr++] = (bits >> 4) & 0xFF;
+  }
+
+  return out;
+};
+
+
+MultiMath.prototype.__reallocate = function mem_grow_to(bytes) {
+  if (!this.__memory) {
+    this.__memory = new WebAssembly.Memory({
+      initial: Math.ceil(bytes / (64 * 1024))
+    });
+    return this.__memory;
+  }
+
+  var mem_size = this.__memory.buffer.byteLength;
+
+  if (mem_size < bytes) {
+    this.__memory.grow(Math.ceil((bytes - mem_size) / (64 * 1024)));
+  }
+
+  return this.__memory;
+};
+
+
+MultiMath.prototype.__instance = function instance(name, memsize, env_extra) {
+  if (memsize) this.__reallocate(memsize);
+
+  // If .init() was not called, do sync compile
+  if (!this.__wasm[name]) {
+    var module = this.__modules[name];
+    this.__wasm[name] = new WebAssembly.Module(this.__base64decode(module.wasm_src));
+  }
+
+  if (!this.__cache[name]) {
+    var env_base = {
+      memoryBase: 0,
+      memory: this.__memory,
+      tableBase: 0,
+      table: new WebAssembly.Table({ initial: 0, element: 'anyfunc' })
+    };
+
+    this.__cache[name] = new WebAssembly.Instance(this.__wasm[name], {
+      env: assign(env_base, env_extra || {})
+    });
+  }
+
+  return this.__cache[name];
+};
+
+
+MultiMath.prototype.__align = function align(number, base) {
+  var reminder = number % base;
+  return number + (reminder ? base - reminder : 0);
+};
+
+
+module.exports = MultiMath;
+
+},{"object-assign":8}],2:[function(require,module,exports){
+// Calculates 16-bit precision HSL lightness from 8-bit rgba buffer
 //
 'use strict';
 
-var base64decode = require('./utils').base64decode;
-var math_wasm_base64 = require('./mathlib/wasm/math_wasm_base64');
 
-function MathLib(requested_features, preload) {
-  this.__requested_features = requested_features || [];
-  this.__initialized = false;
-  this.__initCallbacks = [];
-  this.__wasm_module = preload && preload.wasm_module ? preload : null;
-
-  // List of supported features, according to options & browser/node.js
-  this.features = {
-    js: false, // pure JS implementation, can be disabled for testing
-    wasm: false // webassembly implementation for heavy functions
-  };
-}
-
-MathLib.prototype.__init__ = function __init__(callback) {
-  var _this = this;
-
-  if (this.__initCallbacks.length > 0) {
-    this.__initCallbacks.push(callback);
-    return;
-  }
-
-  this.__initCallbacks = [callback];
-
-  var finish = function finish() {
-    var callbacks = _this.__initCallbacks;
-    _this.__initCallbacks = [];
-    _this.__initialized = true;
-    callbacks.forEach(function (fn) {
-      return fn();
-    });
-  };
-
-  // Map supported implementations
-  this.unsharp = this.unsharp_js; // That's in JS only for a while
-
-  if (this.__requested_features.indexOf('js') >= 0) {
-    this.features.js = true;
-    this.resize = this.resize_js;
-  }
-
-  if (typeof WebAssembly !== 'undefined' && this.__requested_features.indexOf('wasm') >= 0) {
-
-    if (this.__wasm_module) {
-      this.features.wasm = true;
-      this.resize = this.resize_wasm;
-      finish();
-      return;
-    }
-
-    WebAssembly.compile(base64decode(math_wasm_base64)).then(function (wasm_module) {
-      _this.__wasm_module = wasm_module;
-      _this.features.wasm = true;
-      _this.resize = _this.resize_wasm;
-      finish();
-    }).catch(function () {
-      // Suppress init errors
-      finish();
-    });
-
-    return;
-  }
-
-  finish();
-};
-
-// Returns either promise or callback; callback interface is intended only for
-// WebWorkers in IE11 (which doesn't support promises).
-//
-/* eslint-disable consistent-return */
-MathLib.prototype.init = function init(callback) {
-  var _this2 = this;
-
-  if (typeof callback !== 'function') {
-    if (this.__initialized) return Promise.resolve(this);
-
-    return new Promise(function (resolve, reject) {
-      _this2.__init__(function (err) {
-        if (err) {
-          reject(err);
-          return;
-        }
-
-        if (!_this2.features.wasm && !_this2.features.js) {
-          reject(new Error('Pica mathlib: no supported methods found'));
-          return;
-        }
-
-        resolve(_this2);
-      });
-    });
-  }
-
-  if (this.__initialized) {
-    callback(null, this);
-    return;
-  }
-
-  this.__init__(function (err) {
-    if (err) {
-      callback(err);
-      return;
-    }
-
-    if (!_this2.features.wasm && !_this2.features.js) {
-      callback(new Error('Pica mathlib: no supported methods found'));
-      return;
-    }
-
-    callback(null, _this2);
-  });
-
-  return;
-};
-
-MathLib.prototype.resizeAndUnsharp = function resizeAndUnsharp(options, cache) {
-  var result = this.resize(options, cache);
-
-  if (options.unsharpAmount) {
-    this.unsharp(result, options.toWidth, options.toHeight, options.unsharpAmount, options.unsharpRadius, options.unsharpThreshold);
-  }
-
-  return result;
-};
-
-// Pin implementations
-MathLib.prototype.unsharp_js = require('./mathlib/unsharp_js');
-MathLib.prototype.resize_js = require('./mathlib/resize_js');
-
-////////////////////////////////////////////////////////////////////////////////
-// WebAssembly wrappers & helpers
-//
-
-var createFilters = require('./mathlib/resize_filter_gen');
-
-function resetAlpha(dst, width, height) {
-  var ptr = 3,
-      len = width * height * 4 | 0;
-  while (ptr < len) {
-    dst[ptr] = 0xFF;ptr = ptr + 4 | 0;
-  }
-}
-
-function asUint8Array(src) {
-  return new Uint8Array(src.buffer, 0, src.byteLength);
-}
-
-var IS_LE = true;
-// should not crash everything on module load in old browsers
-try {
-  IS_LE = new Uint32Array(new Uint8Array([1, 0, 0, 0]).buffer)[0] === 1;
-} catch (__) {}
-
-function copyInt16asLE(src, target, target_offset) {
-  if (IS_LE) {
-    target.set(asUint8Array(src), target_offset);
-    return;
-  }
-
-  for (var ptr = target_offset, i = 0; i < src.length; i++) {
-    var data = src[i];
-    target[ptr++] = data & 0xFF;
-    target[ptr++] = data >> 8 & 0xFF;
-  }
-}
-
-MathLib.prototype.resize_wasm = function resize_wasm(options, cache) {
-  var src = options.src;
-  var srcW = options.width;
-  var srcH = options.height;
-  var destW = options.toWidth;
-  var destH = options.toHeight;
-  var scaleX = options.scaleX || options.toWidth / options.width;
-  var scaleY = options.scaleY || options.toHeight / options.height;
-  var offsetX = options.offsetX || 0.0;
-  var offsetY = options.offsetY || 0.0;
-  var dest = options.dest || new Uint8Array(destW * destH * 4);
-  var quality = typeof options.quality === 'undefined' ? 3 : options.quality;
-  var alpha = options.alpha || false;
-
-  if (!cache) cache = {};
-
-  var fx_key = 'filter_' + quality + '|' + srcW + '|' + destW + '|' + scaleX + '|' + offsetX;
-  var fy_key = 'filter_' + quality + '|' + srcH + '|' + destH + '|' + scaleY + '|' + offsetY;
-
-  var filtersX = cache[fx_key] || createFilters(quality, srcW, destW, scaleX, offsetX),
-      filtersY = cache[fy_key] || createFilters(quality, srcH, destH, scaleY, offsetY);
-
-  //if (!cache[fx_key]) cache[fx_key] = filtersX;
-  //if (!cache[fy_key]) cache[fy_key] = filtersY;
-
-  var alloc_bytes = Math.max(src.byteLength, dest.byteLength) + filtersX.byteLength + filtersY.byteLength + srcH * destW * 4; // Buffer between convolve passes
-
-  var alloc_pages = Math.ceil(alloc_bytes / (64 * 1024));
-
-  var wasm_imports = cache.wasm_imports || {
-    env: {
-      memory: new WebAssembly.Memory({ initial: alloc_pages })
-      // emsdk requires more import vars
-      /*memoryBase: 0,
-      tableBase:  0,
-      memory: new WebAssembly.Memory({
-        // Compiled wasm has 256 min memory value limit.
-        // Atempt to provide less memory size will cause linking error
-        initial: Math.max(256, alloc_pages)
-      }),
-      table: new WebAssembly.Table({
-        initial:100,
-        element: 'anyfunc'
-      })*/
-    }
-  };
-
-  // Increase memory size if needed
-  var memory = wasm_imports.env.memory,
-      mem_pages = memory.buffer.byteLength / (64 * 1024);
-
-  if (alloc_pages > mem_pages) {
-    // increase to delta + 1MB
-    memory.grow(alloc_pages - mem_pages + 16);
-  }
-
-  var wasm_instance = cache.wasm_instance || new WebAssembly.Instance(this.__wasm_module, wasm_imports);
-
-  if (!cache.wasm_imports) cache.wasm_imports = wasm_imports;
-  if (!cache.wasm_instance) cache.wasm_instance = wasm_instance;
-
-  //
-  // Fill memory block with data to process
-  //
-
-  var mem = new Uint8Array(wasm_imports.env.memory.buffer);
-  var mem32 = new Uint32Array(wasm_imports.env.memory.buffer);
-
-  // mem.set(src)
-  // 32-bit copy is much faster in chrome
-  var src32 = new Uint32Array(src.buffer);
-  mem32.set(src32);
-
-  // Place tmp buffer after src to have 4x byte align.
-  // That doesn't seems to make sence but costs nothing.
-  var tmp_offset = Math.max(src.byteLength, dest.byteLength);
-
-  var filtersX_offset = tmp_offset + srcH * destW * 4;
-  var filtersY_offset = filtersX_offset + filtersX.byteLength;
-
-  // We should guarantee LE bytes order. Filters are not big, so
-  // speed difference is not significant vs direct .set()
-  copyInt16asLE(filtersX, mem, filtersX_offset);
-  copyInt16asLE(filtersY, mem, filtersY_offset);
-
-  //
-  // Now call webassembly method
-  //
-
-  wasm_instance.exports.convolveHV(
-  // emsdk does method names with '_'
-  //wasm_instance.exports._convolveHV(
-  filtersX_offset, filtersY_offset, tmp_offset, srcW, srcH, destW, destH);
-
-  //
-  // Copy data back to typed array
-  //
-
-  // 32-bit copy is much faster in chrome
-  var dest32 = new Uint32Array(dest.buffer);
-  dest32.set(mem32.subarray(0, dest32.length));
-
-  // That's faster than doing checks in convolver.
-  // !!! Note, canvas data is not premultipled. We don't need other
-  // alpha corrections.
-
-  if (!alpha) resetAlpha(dest, destW, destH);
-
-  return dest;
-};
-
-module.exports = MathLib;
-
-},{"./mathlib/resize_filter_gen":4,"./mathlib/resize_js":6,"./mathlib/unsharp_js":7,"./mathlib/wasm/math_wasm_base64":8,"./utils":11}],2:[function(require,module,exports){
-// Calculates 16-bit precision lightness from 8-bit rgba buffer
-//
-'use strict';
-
-module.exports = function lightness16_js(img, width, height) {
+module.exports = function hsl_l16_js(img, width, height) {
   var size = width * height;
   var out = new Uint16Array(size);
   var r, g, b, min, max;
@@ -300,14 +181,466 @@ module.exports = function lightness16_js(img, width, height) {
     r = img[4 * i];
     g = img[4 * i + 1];
     b = img[4 * i + 2];
-    max = r >= g && r >= b ? r : g >= b && g >= r ? g : b;
-    min = r <= g && r <= b ? r : g <= b && g <= r ? g : b;
+    max = (r >= g && r >= b) ? r : (g >= b && g >= r) ? g : b;
+    min = (r <= g && r <= b) ? r : (g <= b && g <= r) ? g : b;
     out[i] = (max + min) * 257 >> 1;
   }
   return out;
 };
 
 },{}],3:[function(require,module,exports){
+'use strict';
+
+module.exports = {
+  name:     'unsharp_mask',
+  fn:       require('./unsharp_mask'),
+  wasm_fn:  require('./unsharp_mask_wasm'),
+  wasm_src: require('./unsharp_mask_wasm_base64')
+};
+
+},{"./unsharp_mask":4,"./unsharp_mask_wasm":5,"./unsharp_mask_wasm_base64":6}],4:[function(require,module,exports){
+// Unsharp mask filter
+//
+// http://stackoverflow.com/a/23322820/1031804
+// USM(O) = O + (2 * (Amount / 100) * (O - GB))
+// GB - gaussian blur.
+//
+// Image is converted from RGB to HSL, unsharp mask is applied to the
+// lightness channel and then image is converted back to RGB.
+//
+'use strict';
+
+
+var glur_mono16 = require('glur/mono16');
+var hsl_l16     = require('./hsl_l16');
+
+
+module.exports = function unsharp(img, width, height, amount, radius, threshold) {
+  var r, g, b;
+  var h, s, l;
+  var min, max;
+  var m1, m2, hShifted;
+  var diff, iTimes4;
+
+  if (amount === 0 || radius < 0.5) {
+    return;
+  }
+  if (radius > 2.0) {
+    radius = 2.0;
+  }
+
+  var lightness = hsl_l16(img, width, height);
+
+  var blured = new Uint16Array(lightness); // copy, because blur modify src
+
+  glur_mono16(blured, width, height, radius);
+
+  var amountFp = (amount / 100 * 0x1000 + 0.5)|0;
+  var thresholdFp = (threshold * 257)|0;
+
+  var size = width * height;
+
+  for (var i = 0; i < size; i++) {
+    diff = 2 * (lightness[i] - blured[i]);
+
+    if (Math.abs(diff) >= thresholdFp) {
+      iTimes4 = i * 4;
+      r = img[iTimes4];
+      g = img[iTimes4 + 1];
+      b = img[iTimes4 + 2];
+
+      // convert RGB to HSL
+      // take RGB, 8-bit unsigned integer per each channel
+      // save HSL, H and L are 16-bit unsigned integers, S is 12-bit unsigned integer
+      // math is taken from here: http://www.easyrgb.com/index.php?X=MATH&H=18
+      // and adopted to be integer (fixed point in fact) for sake of performance
+      max = (r >= g && r >= b) ? r : (g >= r && g >= b) ? g : b; // min and max are in [0..0xff]
+      min = (r <= g && r <= b) ? r : (g <= r && g <= b) ? g : b;
+      l = (max + min) * 257 >> 1; // l is in [0..0xffff] that is caused by multiplication by 257
+
+      if (min === max) {
+        h = s = 0;
+      } else {
+        s = (l <= 0x7fff) ?
+          (((max - min) * 0xfff) / (max + min))|0 :
+          (((max - min) * 0xfff) / (2 * 0xff - max - min))|0; // s is in [0..0xfff]
+        // h could be less 0, it will be fixed in backward conversion to RGB, |h| <= 0xffff / 6
+        h = (r === max) ? (((g - b) * 0xffff) / (6 * (max - min)))|0
+          : (g === max) ? 0x5555 + ((((b - r) * 0xffff) / (6 * (max - min)))|0) // 0x5555 == 0xffff / 3
+          : 0xaaaa + ((((r - g) * 0xffff) / (6 * (max - min)))|0); // 0xaaaa == 0xffff * 2 / 3
+      }
+
+      // add unsharp mask mask to the lightness channel
+      l += (amountFp * diff + 0x800) >> 12;
+      if (l > 0xffff) {
+        l = 0xffff;
+      } else if (l < 0) {
+        l = 0;
+      }
+
+      // convert HSL back to RGB
+      // for information about math look above
+      if (s === 0) {
+        r = g = b = l >> 8;
+      } else {
+        m2 = (l <= 0x7fff) ? (l * (0x1000 + s) + 0x800) >> 12 :
+          l  + (((0xffff - l) * s + 0x800) >>  12);
+        m1 = 2 * l - m2 >> 8;
+        m2 >>= 8;
+        // save result to RGB channels
+        // R channel
+        hShifted = (h + 0x5555) & 0xffff; // 0x5555 == 0xffff / 3
+        r = (hShifted >= 0xaaaa) ? m1 // 0xaaaa == 0xffff * 2 / 3
+          : (hShifted >= 0x7fff) ?  m1 + ((m2 - m1) * 6 * (0xaaaa - hShifted) + 0x8000 >> 16)
+          : (hShifted >= 0x2aaa) ? m2 // 0x2aaa == 0xffff / 6
+          : m1 + ((m2 - m1) * 6 * hShifted + 0x8000 >> 16);
+        // G channel
+        hShifted = h & 0xffff;
+        g = (hShifted >= 0xaaaa) ? m1 // 0xaaaa == 0xffff * 2 / 3
+          : (hShifted >= 0x7fff) ?  m1 + ((m2 - m1) * 6 * (0xaaaa - hShifted) + 0x8000 >> 16)
+          : (hShifted >= 0x2aaa) ? m2 // 0x2aaa == 0xffff / 6
+          : m1 + ((m2 - m1) * 6 * hShifted + 0x8000 >> 16);
+        // B channel
+        hShifted = (h - 0x5555) & 0xffff;
+        b = (hShifted >= 0xaaaa) ? m1 // 0xaaaa == 0xffff * 2 / 3
+          : (hShifted >= 0x7fff) ?  m1 + ((m2 - m1) * 6 * (0xaaaa - hShifted) + 0x8000 >> 16)
+          : (hShifted >= 0x2aaa) ? m2 // 0x2aaa == 0xffff / 6
+          : m1 + ((m2 - m1) * 6 * hShifted + 0x8000 >> 16);
+      }
+
+      img[iTimes4] = r;
+      img[iTimes4 + 1] = g;
+      img[iTimes4 + 2] = b;
+    }
+  }
+};
+
+},{"./hsl_l16":2,"glur/mono16":7}],5:[function(require,module,exports){
+'use strict';
+
+
+module.exports = function unsharp(img, width, height, amount, radius, threshold) {
+  if (amount === 0 || radius < 0.5) {
+    return;
+  }
+
+  if (radius > 2.0) {
+    radius = 2.0;
+  }
+
+  var pixels = width * height;
+
+  var img_bytes_cnt        = pixels * 4;
+  var hsl_bytes_cnt        = pixels * 2;
+  var blur_bytes_cnt       = pixels * 2;
+  var blur_line_byte_cnt   = Math.max(width, height) * 4; // float32 array
+  var blur_coeffs_byte_cnt = 8 * 4; // float32 array
+
+  var img_offset         = 0;
+  var hsl_offset         = img_bytes_cnt;
+  var blur_offset        = hsl_offset + hsl_bytes_cnt;
+  var blur_tmp_offset    = blur_offset + blur_bytes_cnt;
+  var blur_line_offset   = blur_tmp_offset + blur_bytes_cnt;
+  var blur_coeffs_offset = blur_line_offset + blur_line_byte_cnt;
+
+  var instance = this.__instance(
+    'unsharp_mask',
+    img_bytes_cnt + hsl_bytes_cnt + blur_bytes_cnt * 2 + blur_line_byte_cnt + blur_coeffs_byte_cnt,
+    { exp: Math.exp }
+  );
+
+  // 32-bit copy is much faster in chrome
+  var img32 = new Uint32Array(img.buffer);
+  var mem32 = new Uint32Array(this.__memory.buffer);
+  mem32.set(img32);
+
+  // HSL
+  var fn = instance.exports.hsl_l16 || instance.exports._hsl_l16;
+  fn(img_offset, hsl_offset, width, height);
+
+  // BLUR
+  fn = instance.exports.blurMono16 || instance.exports._blurMono16;
+  fn(hsl_offset, blur_offset, blur_tmp_offset,
+    blur_line_offset, blur_coeffs_offset, width, height, radius);
+
+  // UNSHARP
+  fn = instance.exports.unsharp || instance.exports._unsharp;
+  fn(img_offset, img_offset, hsl_offset,
+    blur_offset, width, height, amount, threshold);
+
+  // 32-bit copy is much faster in chrome
+  img32.set(new Uint32Array(this.__memory.buffer, 0, pixels));
+};
+
+},{}],6:[function(require,module,exports){
+// This is autogenerated file from math.wasm, don't edit.
+//
+'use strict';
+
+/* eslint-disable max-len */
+module.exports = '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';
+
+},{}],7:[function(require,module,exports){
+// Calculate Gaussian blur of an image using IIR filter
+// The method is taken from Intel's white paper and code example attached to it:
+// https://software.intel.com/en-us/articles/iir-gaussian-blur-filter
+// -implementation-using-intel-advanced-vector-extensions
+
+var a0, a1, a2, a3, b1, b2, left_corner, right_corner;
+
+function gaussCoef(sigma) {
+  if (sigma < 0.5) {
+    sigma = 0.5;
+  }
+
+  var a = Math.exp(0.726 * 0.726) / sigma,
+      g1 = Math.exp(-a),
+      g2 = Math.exp(-2 * a),
+      k = (1 - g1) * (1 - g1) / (1 + 2 * a * g1 - g2);
+
+  a0 = k;
+  a1 = k * (a - 1) * g1;
+  a2 = k * (a + 1) * g1;
+  a3 = -k * g2;
+  b1 = 2 * g1;
+  b2 = -g2;
+  left_corner = (a0 + a1) / (1 - b1 - b2);
+  right_corner = (a2 + a3) / (1 - b1 - b2);
+
+  // Attempt to force type to FP32.
+  return new Float32Array([ a0, a1, a2, a3, b1, b2, left_corner, right_corner ]);
+}
+
+function convolveMono16(src, out, line, coeff, width, height) {
+  // takes src image and writes the blurred and transposed result into out
+
+  var prev_src, curr_src, curr_out, prev_out, prev_prev_out;
+  var src_index, out_index, line_index;
+  var i, j;
+  var coeff_a0, coeff_a1, coeff_b1, coeff_b2;
+
+  for (i = 0; i < height; i++) {
+    src_index = i * width;
+    out_index = i;
+    line_index = 0;
+
+    // left to right
+    prev_src = src[src_index];
+    prev_prev_out = prev_src * coeff[6];
+    prev_out = prev_prev_out;
+
+    coeff_a0 = coeff[0];
+    coeff_a1 = coeff[1];
+    coeff_b1 = coeff[4];
+    coeff_b2 = coeff[5];
+
+    for (j = 0; j < width; j++) {
+      curr_src = src[src_index];
+
+      curr_out = curr_src * coeff_a0 +
+                 prev_src * coeff_a1 +
+                 prev_out * coeff_b1 +
+                 prev_prev_out * coeff_b2;
+
+      prev_prev_out = prev_out;
+      prev_out = curr_out;
+      prev_src = curr_src;
+
+      line[line_index] = prev_out;
+      line_index++;
+      src_index++;
+    }
+
+    src_index--;
+    line_index--;
+    out_index += height * (width - 1);
+
+    // right to left
+    prev_src = src[src_index];
+    prev_prev_out = prev_src * coeff[7];
+    prev_out = prev_prev_out;
+    curr_src = prev_src;
+
+    coeff_a0 = coeff[2];
+    coeff_a1 = coeff[3];
+
+    for (j = width - 1; j >= 0; j--) {
+      curr_out = curr_src * coeff_a0 +
+                 prev_src * coeff_a1 +
+                 prev_out * coeff_b1 +
+                 prev_prev_out * coeff_b2;
+
+      prev_prev_out = prev_out;
+      prev_out = curr_out;
+
+      prev_src = curr_src;
+      curr_src = src[src_index];
+
+      out[out_index] = line[line_index] + prev_out;
+
+      src_index--;
+      line_index--;
+      out_index -= height;
+    }
+  }
+}
+
+
+function blurMono16(src, width, height, radius) {
+  // Quick exit on zero radius
+  if (!radius) { return; }
+
+  var out      = new Uint16Array(src.length),
+      tmp_line = new Float32Array(Math.max(width, height));
+
+  var coeff = gaussCoef(radius);
+
+  convolveMono16(src, out, tmp_line, coeff, width, height, radius);
+  convolveMono16(out, src, tmp_line, coeff, height, width, radius);
+}
+
+module.exports = blurMono16;
+
+},{}],8:[function(require,module,exports){
+/*
+object-assign
+(c) Sindre Sorhus
+@license MIT
+*/
+
+'use strict';
+/* eslint-disable no-unused-vars */
+var getOwnPropertySymbols = Object.getOwnPropertySymbols;
+var hasOwnProperty = Object.prototype.hasOwnProperty;
+var propIsEnumerable = Object.prototype.propertyIsEnumerable;
+
+function toObject(val) {
+	if (val === null || val === undefined) {
+		throw new TypeError('Object.assign cannot be called with null or undefined');
+	}
+
+	return Object(val);
+}
+
+function shouldUseNative() {
+	try {
+		if (!Object.assign) {
+			return false;
+		}
+
+		// Detect buggy property enumeration order in older V8 versions.
+
+		// https://bugs.chromium.org/p/v8/issues/detail?id=4118
+		var test1 = new String('abc');  // eslint-disable-line no-new-wrappers
+		test1[5] = 'de';
+		if (Object.getOwnPropertyNames(test1)[0] === '5') {
+			return false;
+		}
+
+		// https://bugs.chromium.org/p/v8/issues/detail?id=3056
+		var test2 = {};
+		for (var i = 0; i < 10; i++) {
+			test2['_' + String.fromCharCode(i)] = i;
+		}
+		var order2 = Object.getOwnPropertyNames(test2).map(function (n) {
+			return test2[n];
+		});
+		if (order2.join('') !== '0123456789') {
+			return false;
+		}
+
+		// https://bugs.chromium.org/p/v8/issues/detail?id=3056
+		var test3 = {};
+		'abcdefghijklmnopqrst'.split('').forEach(function (letter) {
+			test3[letter] = letter;
+		});
+		if (Object.keys(Object.assign({}, test3)).join('') !==
+				'abcdefghijklmnopqrst') {
+			return false;
+		}
+
+		return true;
+	} catch (err) {
+		// We don't expect any of the above to throw, but better to be safe.
+		return false;
+	}
+}
+
+module.exports = shouldUseNative() ? Object.assign : function (target, source) {
+	var from;
+	var to = toObject(target);
+	var symbols;
+
+	for (var s = 1; s < arguments.length; s++) {
+		from = Object(arguments[s]);
+
+		for (var key in from) {
+			if (hasOwnProperty.call(from, key)) {
+				to[key] = from[key];
+			}
+		}
+
+		if (getOwnPropertySymbols) {
+			symbols = getOwnPropertySymbols(from);
+			for (var i = 0; i < symbols.length; i++) {
+				if (propIsEnumerable.call(from, symbols[i])) {
+					to[symbols[i]] = from[symbols[i]];
+				}
+			}
+		}
+	}
+
+	return to;
+};
+
+},{}],9:[function(require,module,exports){
+// Collection of math functions
+//
+// 1. Combine components together
+// 2. Has async init to load wasm modules
+//
+'use strict';
+
+var inherits = require('inherits');
+var Multimath = require('multimath');
+
+var mm_unsharp_mask = require('multimath/lib/unsharp_mask');
+var mm_resize = require('./mm_resize');
+
+function MathLib(requested_features) {
+  var __requested_features = requested_features || [];
+
+  var features = {
+    js: __requested_features.indexOf('js') >= 0,
+    wasm: __requested_features.indexOf('wasm') >= 0
+  };
+
+  Multimath.call(this, features);
+
+  this.features = {
+    js: features.js,
+    wasm: features.wasm && this.has_wasm
+  };
+
+  this.use(mm_unsharp_mask);
+  this.use(mm_resize);
+}
+
+inherits(MathLib, Multimath);
+
+MathLib.prototype.resizeAndUnsharp = function resizeAndUnsharp(options, cache) {
+  var result = this.resize(options, cache);
+
+  if (options.unsharpAmount) {
+    this.unsharp_mask(result, options.toWidth, options.toHeight, options.unsharpAmount, options.unsharpRadius, options.unsharpThreshold);
+  }
+
+  return result;
+};
+
+module.exports = MathLib;
+
+},{"./mm_resize":12,"inherits":21,"multimath":1,"multimath/lib/unsharp_mask":3}],10:[function(require,module,exports){
 // Resize convolvers, pure JS implementation
 //
 'use strict';
@@ -446,7 +779,76 @@ module.exports = {
   convolveVertically: convolveVertically
 };
 
-},{}],4:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
+// This is autogenerated file from math.wasm, don't edit.
+//
+'use strict';
+
+/* eslint-disable max-len */
+
+module.exports = 'AGFzbQEAAAABFAJgBn9/f39/fwBgB39/f39/f38AAg8BA2VudgZtZW1vcnkCAAEDAwIAAQQEAXAAAAcZAghjb252b2x2ZQAACmNvbnZvbHZlSFYAAQkBAArmAwLBAwEQfwJAIANFDQAgBEUNACAFQQRqIRVBACEMQQAhDQNAIA0hDkEAIRFBACEHA0AgB0ECaiESAn8gBSAHQQF0IgdqIgZBAmouAQAiEwRAQQAhCEEAIBNrIRQgFSAHaiEPIAAgDCAGLgEAakECdGohEEEAIQlBACEKQQAhCwNAIBAoAgAiB0EYdiAPLgEAIgZsIAtqIQsgB0H/AXEgBmwgCGohCCAHQRB2Qf8BcSAGbCAKaiEKIAdBCHZB/wFxIAZsIAlqIQkgD0ECaiEPIBBBBGohECAUQQFqIhQNAAsgEiATagwBC0EAIQtBACEKQQAhCUEAIQggEgshByABIA5BAnRqIApBgMAAakEOdSIGQf8BIAZB/wFIG0EQdEGAgPwHcUEAIAZBAEobIAtBgMAAakEOdSIGQf8BIAZB/wFIG0EYdEEAIAZBAEobciAJQYDAAGpBDnUiBkH/ASAGQf8BSBtBCHRBgP4DcUEAIAZBAEobciAIQYDAAGpBDnUiBkH/ASAGQf8BSBtB/wFxQQAgBkEAShtyNgIAIA4gA2ohDiARQQFqIhEgBEcNAAsgDCACaiEMIA1BAWoiDSADRw0ACwsLIQACQEEAIAIgAyAEIAUgABAAIAJBACAEIAUgBiABEAALCw==';
+
+},{}],12:[function(require,module,exports){
+'use strict';
+
+module.exports = {
+  name: 'resize',
+  fn: require('./resize'),
+  wasm_fn: require('./resize_wasm'),
+  wasm_src: require('./convolve_wasm_base64')
+};
+
+},{"./convolve_wasm_base64":11,"./resize":13,"./resize_wasm":16}],13:[function(require,module,exports){
+'use strict';
+
+var createFilters = require('./resize_filter_gen');
+var convolveHorizontally = require('./convolve').convolveHorizontally;
+var convolveVertically = require('./convolve').convolveVertically;
+
+function resetAlpha(dst, width, height) {
+  var ptr = 3,
+      len = width * height * 4 | 0;
+  while (ptr < len) {
+    dst[ptr] = 0xFF;ptr = ptr + 4 | 0;
+  }
+}
+
+module.exports = function resize(options) {
+  var src = options.src;
+  var srcW = options.width;
+  var srcH = options.height;
+  var destW = options.toWidth;
+  var destH = options.toHeight;
+  var scaleX = options.scaleX || options.toWidth / options.width;
+  var scaleY = options.scaleY || options.toHeight / options.height;
+  var offsetX = options.offsetX || 0;
+  var offsetY = options.offsetY || 0;
+  var dest = options.dest || new Uint8Array(destW * destH * 4);
+  var quality = typeof options.quality === 'undefined' ? 3 : options.quality;
+  var alpha = options.alpha || false;
+
+  var filtersX = createFilters(quality, srcW, destW, scaleX, offsetX),
+      filtersY = createFilters(quality, srcH, destH, scaleY, offsetY);
+
+  var tmp = new Uint8Array(destW * srcH * 4);
+
+  // To use single function we need src & tmp of the same type.
+  // But src can be CanvasPixelArray, and tmp - Uint8Array. So, keep
+  // vertical and horizontal passes separately to avoid deoptimization.
+
+  convolveHorizontally(src, tmp, srcW, srcH, destW, filtersX);
+  convolveVertically(tmp, dest, srcH, destW, destH, filtersY);
+
+  // That's faster than doing checks in convolver.
+  // !!! Note, canvas data is not premultipled. We don't need other
+  // alpha corrections.
+
+  if (!alpha) resetAlpha(dest, destW, destH);
+
+  return dest;
+};
+
+},{"./convolve":10,"./resize_filter_gen":14}],14:[function(require,module,exports){
 // Calculate convolution filters for each destination point,
 // and pack data to Int16Array:
 //
@@ -564,7 +966,7 @@ module.exports = function resizeFilterGen(quality, srcSize, destSize, scale, off
   return packedFilter;
 };
 
-},{"./resize_filter_info":5}],5:[function(require,module,exports){
+},{"./resize_filter_info":15}],15:[function(require,module,exports){
 // Filter definitions to build tables for
 // resizing convolvers.
 //
@@ -615,12 +1017,10 @@ module.exports = [{ // Nearest neibor (Box)
   }
 }];
 
-},{}],6:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 'use strict';
 
 var createFilters = require('./resize_filter_gen');
-var convolveHorizontally = require('./resize_convolve_js').convolveHorizontally;
-var convolveVertically = require('./resize_convolve_js').convolveVertically;
 
 function resetAlpha(dst, width, height) {
   var ptr = 3,
@@ -630,7 +1030,30 @@ function resetAlpha(dst, width, height) {
   }
 }
 
-function resize(options, cache) {
+function asUint8Array(src) {
+  return new Uint8Array(src.buffer, 0, src.byteLength);
+}
+
+var IS_LE = true;
+// should not crash everything on module load in old browsers
+try {
+  IS_LE = new Uint32Array(new Uint8Array([1, 0, 0, 0]).buffer)[0] === 1;
+} catch (__) {}
+
+function copyInt16asLE(src, target, target_offset) {
+  if (IS_LE) {
+    target.set(asUint8Array(src), target_offset);
+    return;
+  }
+
+  for (var ptr = target_offset, i = 0; i < src.length; i++) {
+    var data = src[i];
+    target[ptr++] = data & 0xFF;
+    target[ptr++] = data >> 8 & 0xFF;
+  }
+}
+
+module.exports = function resize_wasm(options) {
   var src = options.src;
   var srcW = options.width;
   var srcH = options.height;
@@ -638,35 +1061,55 @@ function resize(options, cache) {
   var destH = options.toHeight;
   var scaleX = options.scaleX || options.toWidth / options.width;
   var scaleY = options.scaleY || options.toHeight / options.height;
-  var offsetX = options.offsetX || 0;
-  var offsetY = options.offsetY || 0;
+  var offsetX = options.offsetX || 0.0;
+  var offsetY = options.offsetY || 0.0;
   var dest = options.dest || new Uint8Array(destW * destH * 4);
   var quality = typeof options.quality === 'undefined' ? 3 : options.quality;
   var alpha = options.alpha || false;
 
-  if (srcW < 1 || srcH < 1 || destW < 1 || destH < 1) {
-    return [];
-  }
+  var filtersX = createFilters(quality, srcW, destW, scaleX, offsetX),
+      filtersY = createFilters(quality, srcH, destH, scaleY, offsetY);
 
-  if (!cache) cache = {};
+  // destination is 0 too.
+  var src_offset = 0;
+  // buffer between convolve passes
+  var tmp_offset = this.__align(src_offset + Math.max(src.byteLength, dest.byteLength), 8);
+  var filtersX_offset = this.__align(tmp_offset + srcH * destW * 4, 8);
+  var filtersY_offset = this.__align(filtersX_offset + filtersX.byteLength, 8);
+  var alloc_bytes = filtersY_offset + filtersY.byteLength;
 
-  var fx_key = 'filter_' + quality + '|' + srcW + '|' + destW + '|' + scaleX + '|' + offsetX;
-  var fy_key = 'filter_' + quality + '|' + srcH + '|' + destH + '|' + scaleY + '|' + offsetY;
+  var instance = this.__instance('resize', alloc_bytes);
 
-  var filtersX = cache[fx_key] || createFilters(quality, srcW, destW, scaleX, offsetX),
-      filtersY = cache[fy_key] || createFilters(quality, srcH, destH, scaleY, offsetY);
+  //
+  // Fill memory block with data to process
+  //
 
-  //if (!cache[fx_key]) cache[fx_key] = filtersX;
-  //if (!cache[fy_key]) cache[fy_key] = filtersY;
+  var mem = new Uint8Array(this.__memory.buffer);
+  var mem32 = new Uint32Array(this.__memory.buffer);
 
-  var tmp = new Uint8Array(destW * srcH * 4);
+  // 32-bit copy is much faster in chrome
+  var src32 = new Uint32Array(src.buffer);
+  mem32.set(src32);
 
-  // To use single function we need src & tmp of the same type.
-  // But src can be CanvasPixelArray, and tmp - Uint8Array. So, keep
-  // vertical and horizontal passes separately to avoid deoptimization.
+  // We should guarantee LE bytes order. Filters are not big, so
+  // speed difference is not significant vs direct .set()
+  copyInt16asLE(filtersX, mem, filtersX_offset);
+  copyInt16asLE(filtersY, mem, filtersY_offset);
 
-  convolveHorizontally(src, tmp, srcW, srcH, destW, filtersX);
-  convolveVertically(tmp, dest, srcH, destW, destH, filtersY);
+  //
+  // Now call webassembly method
+  // emsdk does method names with '_'
+  var fn = instance.exports.convolveHV || instance.exports._convolveHV;
+
+  fn(filtersX_offset, filtersY_offset, tmp_offset, srcW, srcH, destW, destH);
+
+  //
+  // Copy data back to typed array
+  //
+
+  // 32-bit copy is much faster in chrome
+  var dest32 = new Uint32Array(dest.buffer);
+  dest32.set(new Uint32Array(this.__memory.buffer, 0, destH * destW));
 
   // That's faster than doing checks in convolver.
   // !!! Note, canvas data is not premultipled. We don't need other
@@ -675,128 +1118,9 @@ function resize(options, cache) {
   if (!alpha) resetAlpha(dest, destW, destH);
 
   return dest;
-}
-
-module.exports = resize;
-
-},{"./resize_convolve_js":3,"./resize_filter_gen":4}],7:[function(require,module,exports){
-// Unsharp mask filter
-//
-// http://stackoverflow.com/a/23322820/1031804
-// USM(O) = O + (2 * (Amount / 100) * (O - GB))
-// GB - gaussian blur.
-//
-// Image is converted from RGB to HSL, unsharp mask is applied to the
-// lightness channel and then image is converted back to RGB.
-//
-'use strict';
-
-var glurMono16 = require('glur/mono16');
-var getLightness = require('./lightness16_js');
-
-module.exports = function unsharp(img, width, height, amount, radius, threshold) {
-  var r, g, b;
-  var h, s, l;
-  var min, max;
-  var m1, m2, hShifted;
-  var diff, iTimes4;
-
-  if (amount === 0 || radius < 0.5) {
-    return;
-  }
-  if (radius > 2.0) {
-    radius = 2.0;
-  }
-
-  var lightness = getLightness(img, width, height);
-
-  var blured = new Uint16Array(lightness); // copy, because blur modify src
-
-  glurMono16(blured, width, height, radius);
-
-  var amountFp = amount / 100 * 0x1000 + 0.5 | 0;
-  var thresholdFp = threshold * 257 | 0;
-
-  var size = width * height;
-
-  for (var i = 0; i < size; i++) {
-    diff = 2 * (lightness[i] - blured[i]);
-
-    if (Math.abs(diff) >= thresholdFp) {
-      iTimes4 = i * 4;
-      r = img[iTimes4];
-      g = img[iTimes4 + 1];
-      b = img[iTimes4 + 2];
-
-      // convert RGB to HSL
-      // take RGB, 8-bit unsigned integer per each channel
-      // save HSL, H and L are 16-bit unsigned integers, S is 12-bit unsigned integer
-      // math is taken from here: http://www.easyrgb.com/index.php?X=MATH&H=18
-      // and adopted to be integer (fixed point in fact) for sake of performance
-      max = r >= g && r >= b ? r : g >= r && g >= b ? g : b; // min and max are in [0..0xff]
-      min = r <= g && r <= b ? r : g <= r && g <= b ? g : b;
-      l = (max + min) * 257 >> 1; // l is in [0..0xffff] that is caused by multiplication by 257
-
-      if (min === max) {
-        h = s = 0;
-      } else {
-        s = l <= 0x7fff ? (max - min) * 0xfff / (max + min) | 0 : (max - min) * 0xfff / (2 * 0xff - max - min) | 0; // s is in [0..0xfff]
-        // h could be less 0, it will be fixed in backward conversion to RGB, |h| <= 0xffff / 6
-        h = r === max ? (g - b) * 0xffff / (6 * (max - min)) | 0 : g === max ? 0x5555 + ((b - r) * 0xffff / (6 * (max - min)) | 0) // 0x5555 == 0xffff / 3
-        : 0xaaaa + ((r - g) * 0xffff / (6 * (max - min)) | 0); // 0xaaaa == 0xffff * 2 / 3
-      }
-
-      // add unsharp mask mask to the lightness channel
-      l += amountFp * diff + 0x800 >> 12;
-      if (l > 0xffff) {
-        l = 0xffff;
-      } else if (l < 0) {
-        l = 0;
-      }
-
-      // convert HSL back to RGB
-      // for information about math look above
-      if (s === 0) {
-        r = g = b = l >> 8;
-      } else {
-        m2 = l <= 0x7fff ? l * (0x1000 + s) + 0x800 >> 12 : l + ((0xffff - l) * s + 0x800 >> 12);
-        m1 = 2 * l - m2 >> 8;
-        m2 >>= 8;
-        // save result to RGB channels
-        // R channel
-        hShifted = h + 0x5555 & 0xffff; // 0x5555 == 0xffff / 3
-        r = hShifted >= 0xaaaa ? m1 // 0xaaaa == 0xffff * 2 / 3
-        : hShifted >= 0x7fff ? m1 + ((m2 - m1) * 6 * (0xaaaa - hShifted) + 0x8000 >> 16) : hShifted >= 0x2aaa ? m2 // 0x2aaa == 0xffff / 6
-        : m1 + ((m2 - m1) * 6 * hShifted + 0x8000 >> 16);
-        // G channel
-        hShifted = h & 0xffff;
-        g = hShifted >= 0xaaaa ? m1 // 0xaaaa == 0xffff * 2 / 3
-        : hShifted >= 0x7fff ? m1 + ((m2 - m1) * 6 * (0xaaaa - hShifted) + 0x8000 >> 16) : hShifted >= 0x2aaa ? m2 // 0x2aaa == 0xffff / 6
-        : m1 + ((m2 - m1) * 6 * hShifted + 0x8000 >> 16);
-        // B channel
-        hShifted = h - 0x5555 & 0xffff;
-        b = hShifted >= 0xaaaa ? m1 // 0xaaaa == 0xffff * 2 / 3
-        : hShifted >= 0x7fff ? m1 + ((m2 - m1) * 6 * (0xaaaa - hShifted) + 0x8000 >> 16) : hShifted >= 0x2aaa ? m2 // 0x2aaa == 0xffff / 6
-        : m1 + ((m2 - m1) * 6 * hShifted + 0x8000 >> 16);
-      }
-
-      img[iTimes4] = r;
-      img[iTimes4 + 1] = g;
-      img[iTimes4 + 2] = b;
-    }
-  }
 };
 
-},{"./lightness16_js":2,"glur/mono16":13}],8:[function(require,module,exports){
-// This is autogenerated file from math.wasm, don't edit.
-//
-'use strict';
-
-/* eslint-disable max-len */
-
-module.exports = 'AGFzbQEAAAABlICAgAACYAZ/f39/f38AYAd/f39/f39/AAKPgICAAAEDZW52Bm1lbW9yeQIAAQODgICAAAIAAQSEgICAAAFwAAAHmYCAgAACCGNvbnZvbHZlAAAKY29udm9sdmVIVgABCYGAgIAAAArtg4CAAALBg4CAAAEQfwJAIANFDQAgBEUNACAFQQRqIRVBACEMQQAhDQNAIA0hDkEAIRFBACEHA0AgB0ECaiESAn8gBSAHQQF0IgdqIgZBAmouAQAiEwRAQQAhCEEAIBNrIRQgFSAHaiEPIAAgDCAGLgEAakECdGohEEEAIQlBACEKQQAhCwNAIBAoAgAiB0EYdiAPLgEAIgZsIAtqIQsgB0H/AXEgBmwgCGohCCAHQRB2Qf8BcSAGbCAKaiEKIAdBCHZB/wFxIAZsIAlqIQkgD0ECaiEPIBBBBGohECAUQQFqIhQNAAsgEiATagwBC0EAIQtBACEKQQAhCUEAIQggEgshByABIA5BAnRqIApBgMAAakEOdSIGQf8BIAZB/wFIG0EQdEGAgPwHcUEAIAZBAEobIAtBgMAAakEOdSIGQf8BIAZB/wFIG0EYdEEAIAZBAEobciAJQYDAAGpBDnUiBkH/ASAGQf8BSBtBCHRBgP4DcUEAIAZBAEobciAIQYDAAGpBDnUiBkH/ASAGQf8BSBtB/wFxQQAgBkEAShtyNgIAIA4gA2ohDiARQQFqIhEgBEcNAAsgDCACaiEMIA1BAWoiDSADRw0ACwsLoYCAgAAAAkBBACACIAMgBCAFIAAQACACQQAgBCAFIAYgARAACws=';
-
-},{}],9:[function(require,module,exports){
+},{"./resize_filter_gen":14}],17:[function(require,module,exports){
 'use strict';
 
 var GC_INTERVAL = 100;
@@ -869,7 +1193,7 @@ Pool.prototype.gc = function () {
 
 module.exports = Pool;
 
-},{}],10:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 'use strict';
 
 /*
@@ -963,7 +1287,7 @@ module.exports = function createRegions(options) {
   return tiles;
 };
 
-},{}],11:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 'use strict';
 
 function objClass(obj) {
@@ -1057,48 +1381,7 @@ module.exports.cib_support = function cib_support() {
   });
 };
 
-// [ 64, 65, 66 ] -> [ padding, CR, LF ]
-var BASE64_MAP = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\n\r';
-
-module.exports.base64decode = function base64decode(str) {
-  var input = str.replace(/[\r\n=]/g, ''),
-      // remove CR/LF & padding to simplify scan
-  max = input.length;
-  var result = [];
-
-  // Collect by 6*4 bits (3 bytes)
-
-  var bits = 0;
-
-  for (var idx = 0; idx < max; idx++) {
-    if (idx % 4 === 0 && idx) {
-      result.push(bits >> 16 & 0xFF);
-      result.push(bits >> 8 & 0xFF);
-      result.push(bits & 0xFF);
-    }
-
-    bits = bits << 6 | BASE64_MAP.indexOf(input.charAt(idx));
-  }
-
-  // Dump tail
-
-  var tailbits = max % 4 * 6;
-
-  if (tailbits === 0) {
-    result.push(bits >> 16 & 0xFF);
-    result.push(bits >> 8 & 0xFF);
-    result.push(bits & 0xFF);
-  } else if (tailbits === 18) {
-    result.push(bits >> 10 & 0xFF);
-    result.push(bits >> 2 & 0xFF);
-  } else if (tailbits === 12) {
-    result.push(bits >> 4 & 0xFF);
-  }
-
-  return new Uint8Array(result);
-};
-
-},{}],12:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 // Web Worker wrapper for image resize function
 
 'use strict';
@@ -1107,240 +1390,49 @@ module.exports = function () {
   var MathLib = require('./mathlib');
 
   var mathLib = void 0;
-  var cache = {};
 
   /* eslint-disable no-undef */
   onmessage = function onmessage(ev) {
     var opts = ev.data.opts;
 
-    if (!mathLib) mathLib = new MathLib(ev.data.features, ev.data.preload);
+    if (!mathLib) mathLib = new MathLib(ev.data.features);
 
-    mathLib.init(function (err) {
-      if (err) {
-        postMessage({ err: err });
-        return;
-      }
+    // Use multimath's sync auto-init. Avoid Promise use in old browsers,
+    // because polyfills are not propagated to webworker.
+    var result = mathLib.resizeAndUnsharp(opts);
 
-      var result = mathLib.resizeAndUnsharp(opts, cache);
-      postMessage({ result: result }, [result.buffer]);
-    });
+    postMessage({ result: result }, [result.buffer]);
   };
 };
 
-},{"./mathlib":1}],13:[function(require,module,exports){
-// Calculate Gaussian blur of an image using IIR filter
-// The method is taken from Intel's white paper and code example attached to it:
-// https://software.intel.com/en-us/articles/iir-gaussian-blur-filter
-// -implementation-using-intel-advanced-vector-extensions
-
-var a0, a1, a2, a3, b1, b2, left_corner, right_corner;
-
-function gaussCoef(sigma) {
-  if (sigma < 0.5) {
-    sigma = 0.5;
-  }
-
-  var a = Math.exp(0.726 * 0.726) / sigma,
-      g1 = Math.exp(-a),
-      g2 = Math.exp(-2 * a),
-      k = (1 - g1) * (1 - g1) / (1 + 2 * a * g1 - g2);
-
-  a0 = k;
-  a1 = k * (a - 1) * g1;
-  a2 = k * (a + 1) * g1;
-  a3 = -k * g2;
-  b1 = 2 * g1;
-  b2 = -g2;
-  left_corner = (a0 + a1) / (1 - b1 - b2);
-  right_corner = (a2 + a3) / (1 - b1 - b2);
-
-  // Attempt to force type to FP32.
-  return new Float32Array([ a0, a1, a2, a3, b1, b2, left_corner, right_corner ]);
-}
-
-function convolveMono16(src, out, line, coeff, width, height) {
-  // takes src image and writes the blurred and transposed result into out
-
-  var prev_src, curr_src, curr_out, prev_out, prev_prev_out;
-  var src_index, out_index, line_index;
-  var i, j;
-  var coeff_a0, coeff_a1, coeff_b1, coeff_b2;
-
-  for (i = 0; i < height; i++) {
-    src_index = i * width;
-    out_index = i;
-    line_index = 0;
-
-    // left to right
-    prev_src = src[src_index];
-    prev_prev_out = prev_src * coeff[6];
-    prev_out = prev_prev_out;
-
-    coeff_a0 = coeff[0];
-    coeff_a1 = coeff[1];
-    coeff_b1 = coeff[4];
-    coeff_b2 = coeff[5];
-
-    for (j = 0; j < width; j++) {
-      curr_src = src[src_index];
-
-      curr_out = curr_src * coeff_a0 +
-                 prev_src * coeff_a1 +
-                 prev_out * coeff_b1 +
-                 prev_prev_out * coeff_b2;
-
-      prev_prev_out = prev_out;
-      prev_out = curr_out;
-      prev_src = curr_src;
-
-      line[line_index] = prev_out;
-      line_index++;
-      src_index++;
-    }
-
-    src_index--;
-    line_index--;
-    out_index += height * (width - 1);
-
-    // right to left
-    prev_src = src[src_index];
-    prev_prev_out = prev_src * coeff[7];
-    prev_out = prev_prev_out;
-    curr_src = prev_src;
-
-    coeff_a0 = coeff[2];
-    coeff_a1 = coeff[3];
-
-    for (j = width - 1; j >= 0; j--) {
-      curr_out = curr_src * coeff_a0 +
-                 prev_src * coeff_a1 +
-                 prev_out * coeff_b1 +
-                 prev_prev_out * coeff_b2;
-
-      prev_prev_out = prev_out;
-      prev_out = curr_out;
-
-      prev_src = curr_src;
-      curr_src = src[src_index];
-
-      out[out_index] = line[line_index] + prev_out;
-
-      src_index--;
-      line_index--;
-      out_index -= height;
-    }
+},{"./mathlib":9}],21:[function(require,module,exports){
+if (typeof Object.create === 'function') {
+  // implementation from standard node.js 'util' module
+  module.exports = function inherits(ctor, superCtor) {
+    ctor.super_ = superCtor
+    ctor.prototype = Object.create(superCtor.prototype, {
+      constructor: {
+        value: ctor,
+        enumerable: false,
+        writable: true,
+        configurable: true
+      }
+    });
+  };
+} else {
+  // old school shim for old browsers
+  module.exports = function inherits(ctor, superCtor) {
+    ctor.super_ = superCtor
+    var TempCtor = function () {}
+    TempCtor.prototype = superCtor.prototype
+    ctor.prototype = new TempCtor()
+    ctor.prototype.constructor = ctor
   }
 }
 
-
-function blurMono16(src, width, height, radius) {
-  // Quick exit on zero radius
-  if (!radius) { return; }
-
-  var out      = new Uint16Array(src.length),
-      tmp_line = new Float32Array(Math.max(width, height));
-
-  var coeff = gaussCoef(radius);
-
-  convolveMono16(src, out, tmp_line, coeff, width, height, radius);
-  convolveMono16(out, src, tmp_line, coeff, height, width, radius);
-}
-
-module.exports = blurMono16;
-
-},{}],14:[function(require,module,exports){
-/*
-object-assign
-(c) Sindre Sorhus
-@license MIT
-*/
-
-'use strict';
-/* eslint-disable no-unused-vars */
-var getOwnPropertySymbols = Object.getOwnPropertySymbols;
-var hasOwnProperty = Object.prototype.hasOwnProperty;
-var propIsEnumerable = Object.prototype.propertyIsEnumerable;
-
-function toObject(val) {
-	if (val === null || val === undefined) {
-		throw new TypeError('Object.assign cannot be called with null or undefined');
-	}
-
-	return Object(val);
-}
-
-function shouldUseNative() {
-	try {
-		if (!Object.assign) {
-			return false;
-		}
-
-		// Detect buggy property enumeration order in older V8 versions.
-
-		// https://bugs.chromium.org/p/v8/issues/detail?id=4118
-		var test1 = new String('abc');  // eslint-disable-line no-new-wrappers
-		test1[5] = 'de';
-		if (Object.getOwnPropertyNames(test1)[0] === '5') {
-			return false;
-		}
-
-		// https://bugs.chromium.org/p/v8/issues/detail?id=3056
-		var test2 = {};
-		for (var i = 0; i < 10; i++) {
-			test2['_' + String.fromCharCode(i)] = i;
-		}
-		var order2 = Object.getOwnPropertyNames(test2).map(function (n) {
-			return test2[n];
-		});
-		if (order2.join('') !== '0123456789') {
-			return false;
-		}
-
-		// https://bugs.chromium.org/p/v8/issues/detail?id=3056
-		var test3 = {};
-		'abcdefghijklmnopqrst'.split('').forEach(function (letter) {
-			test3[letter] = letter;
-		});
-		if (Object.keys(Object.assign({}, test3)).join('') !==
-				'abcdefghijklmnopqrst') {
-			return false;
-		}
-
-		return true;
-	} catch (err) {
-		// We don't expect any of the above to throw, but better to be safe.
-		return false;
-	}
-}
-
-module.exports = shouldUseNative() ? Object.assign : function (target, source) {
-	var from;
-	var to = toObject(target);
-	var symbols;
-
-	for (var s = 1; s < arguments.length; s++) {
-		from = Object(arguments[s]);
-
-		for (var key in from) {
-			if (hasOwnProperty.call(from, key)) {
-				to[key] = from[key];
-			}
-		}
-
-		if (getOwnPropertySymbols) {
-			symbols = getOwnPropertySymbols(from);
-			for (var i = 0; i < symbols.length; i++) {
-				if (propIsEnumerable.call(from, symbols[i])) {
-					to[symbols[i]] = from[symbols[i]];
-				}
-			}
-		}
-	}
-
-	return to;
-};
-
-},{}],15:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"dup":8}],23:[function(require,module,exports){
 var bundleFn = arguments[3];
 var sources = arguments[4];
 var cache = arguments[5];
@@ -1940,5 +2032,5 @@ Pica.prototype.debug = function () {};
 
 module.exports = Pica;
 
-},{"./lib/mathlib":1,"./lib/pool":9,"./lib/tiler":10,"./lib/utils":11,"./lib/worker":12,"object-assign":14,"webworkify":15}]},{},[])("/")
+},{"./lib/mathlib":9,"./lib/pool":17,"./lib/tiler":18,"./lib/utils":19,"./lib/worker":20,"object-assign":22,"webworkify":23}]},{},[])("/")
 });

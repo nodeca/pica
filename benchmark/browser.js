@@ -3,10 +3,10 @@
 
 $(function () {
   var sample = {
-    width:  3200,
-    height: 2500
+    width:  1024,
+    height: 1024
   };
-  sample.buffer    = new Uint8Array(sample.width * sample.height * 4);
+  sample.buffer = new Uint8Array(sample.width * sample.height * 4);
 
   var p = window.pica({ features: [ 'js' ] });
 
@@ -30,7 +30,7 @@ $(function () {
 
   .add(`Unsharp of ${sample.width}x${sample.height}`, {
     fn: function () {
-      p.__mathlib.unsharp(
+      p.__mathlib.unsharp_mask(
         sample.buffer, sample.width, sample.height,
         80, 0.5, 4
       );

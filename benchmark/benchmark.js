@@ -7,18 +7,15 @@
 
 const Benchmark   = require('benchmark');
 const pica        = require('../')();
-const lightness16 = require('../lib/mathlib/lightness16_js');
-const filter_gen  = require('../lib/mathlib/resize_filter_gen');
-const resize_raw  = require('../lib/mathlib/resize_js');
-const glurMono16  = require('glur/mono16');
+const filter_gen  = require('../lib/mm_resize/resize_filter_gen');
+const resize_raw  = require('../lib/mm_resize/resize');
 
 
 const sample = {
-  width:  3200,
-  height: 2500
+  width:  1024,
+  height: 1024
 };
 sample.buffer    = new Uint8Array(sample.width * sample.height * 4);
-sample.lightness = lightness16(sample.buffer, sample.width, sample.height);
 
 
 /* eslint-disable new-cap */
@@ -53,29 +50,13 @@ Benchmark.Suite()
 
 .add(`Unsharp of ${sample.width}x${sample.height}`, {
   fn: function () {
-    pica.__mathlib.unsharp(
+    pica.__mathlib.unsharp_mask(
       sample.buffer, sample.width, sample.height,
       80, 0.5, 4
     );
   }
 })
 
-.add(`Lightness of ${sample.width}x${sample.height}`, {
-  fn: function () {
-    lightness16(sample.buffer, sample.width, sample.height);
-  }
-})
-
-.add(`Gaus16 lightness blur of ${sample.width}x${sample.height}`, {
-  fn: function () {
-    glurMono16(
-      sample.lightness,
-      sample.width,
-      sample.height,
-      0.5
-    );
-  }
-})
 
 .add(`Build filters for ${sample.width}x${sample.height}`, {
   fn: function () {

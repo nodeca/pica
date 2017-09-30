@@ -17,7 +17,7 @@ describe('Unsharp mask', function () {
 
     return pica.init()
       .then(() => {
-        pica.__mathlib.unsharp(image, width, height, 1e-4, 0, 0);
+        pica.__mathlib.unsharp_mask(image, width, height, 1e-4, 0, 0);
 
         for (let i = 0; i < size; i++) {
           assert.strictEqual(image[i], srcImage[i]);
@@ -31,7 +31,7 @@ describe('Unsharp mask', function () {
 
     return pica.init()
       .then(() => {
-        pica.__mathlib.unsharp(image, 1, 1, 0, 0, 0);
+        pica.__mathlib.unsharp_mask(image, 1, 1, 0, 0, 0);
 
         for (var i = 0; i < image.length; i++) {
           assert.strictEqual(image[i], srcImage[i]);
@@ -45,7 +45,7 @@ describe('Unsharp mask', function () {
 
     return pica.init()
       .then(() => {
-        pica.__mathlib.unsharp(image, 1, 1, 0, 0, 0);
+        pica.__mathlib.unsharp_mask(image, 1, 1, 0, 0, 0);
 
         for (var i = 0; i < image.length; i++) {
           assert.strictEqual(image[i], srcImage[i]);
@@ -59,7 +59,7 @@ describe('Unsharp mask', function () {
 
     return pica.init()
       .then(() => {
-        pica.__mathlib.unsharp(image, 1, 1, 0, 0, 0);
+        pica.__mathlib.unsharp_mask(image, 1, 1, 0, 0, 0);
 
         for (var i = 0; i < image.length; i++) {
           assert.strictEqual(image[i], srcImage[i]);
