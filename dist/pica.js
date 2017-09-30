@@ -1,4 +1,962 @@
-/* pica 3.0.6 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+/* pica 4.0.0 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+// Collection of math functions
+//
+// 1. Combine components together
+// 2. Has async init to load wasm modules
+//
+'use strict';
+
+var inherits = require('inherits');
+var Multimath = require('multimath');
+
+var mm_unsharp_mask = require('multimath/lib/unsharp_mask');
+var mm_resize = require('./mm_resize');
+
+function MathLib(requested_features) {
+  var __requested_features = requested_features || [];
+
+  var features = {
+    js: __requested_features.indexOf('js') >= 0,
+    wasm: __requested_features.indexOf('wasm') >= 0
+  };
+
+  Multimath.call(this, features);
+
+  this.features = {
+    js: features.js,
+    wasm: features.wasm && this.has_wasm
+  };
+
+  this.use(mm_unsharp_mask);
+  this.use(mm_resize);
+}
+
+inherits(MathLib, Multimath);
+
+MathLib.prototype.resizeAndUnsharp = function resizeAndUnsharp(options, cache) {
+  var result = this.resize(options, cache);
+
+  if (options.unsharpAmount) {
+    this.unsharp_mask(result, options.toWidth, options.toHeight, options.unsharpAmount, options.unsharpRadius, options.unsharpThreshold);
+  }
+
+  return result;
+};
+
+module.exports = MathLib;
+
+},{"./mm_resize":4,"inherits":14,"multimath":15,"multimath/lib/unsharp_mask":17}],2:[function(require,module,exports){
+// Resize convolvers, pure JS implementation
+//
+'use strict';
+
+// Precision of fixed FP values
+//var FIXED_FRAC_BITS = 14;
+
+
+function clampTo8(i) {
+  return i < 0 ? 0 : i > 255 ? 255 : i;
+}
+
+// Convolve image in horizontal directions and transpose output. In theory,
+// transpose allow:
+//
+// - use the same convolver for both passes (this fails due different
+//   types of input array and temporary buffer)
+// - making vertical pass by horisonltal lines inprove CPU cache use.
+//
+// But in real life this doesn't work :)
+//
+function convolveHorizontally(src, dest, srcW, srcH, destW, filters) {
+
+  var r, g, b, a;
+  var filterPtr, filterShift, filterSize;
+  var srcPtr, srcY, destX, filterVal;
+  var srcOffset = 0,
+      destOffset = 0;
+
+  // For each row
+  for (srcY = 0; srcY < srcH; srcY++) {
+    filterPtr = 0;
+
+    // Apply precomputed filters to each destination row point
+    for (destX = 0; destX < destW; destX++) {
+      // Get the filter that determines the current output pixel.
+      filterShift = filters[filterPtr++];
+      filterSize = filters[filterPtr++];
+
+      srcPtr = srcOffset + filterShift * 4 | 0;
+
+      r = g = b = a = 0;
+
+      // Apply the filter to the row to get the destination pixel r, g, b, a
+      for (; filterSize > 0; filterSize--) {
+        filterVal = filters[filterPtr++];
+
+        // Use reverse order to workaround deopts in old v8 (node v.10)
+        // Big thanks to @mraleph (Vyacheslav Egorov) for the tip.
+        a = a + filterVal * src[srcPtr + 3] | 0;
+        b = b + filterVal * src[srcPtr + 2] | 0;
+        g = g + filterVal * src[srcPtr + 1] | 0;
+        r = r + filterVal * src[srcPtr] | 0;
+        srcPtr = srcPtr + 4 | 0;
+      }
+
+      // Bring this value back in range. All of the filter scaling factors
+      // are in fixed point with FIXED_FRAC_BITS bits of fractional part.
+      //
+      // (!) Add 1/2 of value before clamping to get proper rounding. In other
+      // case brightness loss will be noticeable if you resize image with white
+      // border and place it on white background.
+      //
+      dest[destOffset + 3] = clampTo8(a + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
+      dest[destOffset + 2] = clampTo8(b + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
+      dest[destOffset + 1] = clampTo8(g + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
+      dest[destOffset] = clampTo8(r + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
+      destOffset = destOffset + srcH * 4 | 0;
+    }
+
+    destOffset = (srcY + 1) * 4 | 0;
+    srcOffset = (srcY + 1) * srcW * 4 | 0;
+  }
+}
+
+// Technically, convolvers are the same. But input array and temporary
+// buffer can be of different type (especially, in old browsers). So,
+// keep code in separate functions to avoid deoptimizations & speed loss.
+
+function convolveVertically(src, dest, srcW, srcH, destW, filters) {
+
+  var r, g, b, a;
+  var filterPtr, filterShift, filterSize;
+  var srcPtr, srcY, destX, filterVal;
+  var srcOffset = 0,
+      destOffset = 0;
+
+  // For each row
+  for (srcY = 0; srcY < srcH; srcY++) {
+    filterPtr = 0;
+
+    // Apply precomputed filters to each destination row point
+    for (destX = 0; destX < destW; destX++) {
+      // Get the filter that determines the current output pixel.
+      filterShift = filters[filterPtr++];
+      filterSize = filters[filterPtr++];
+
+      srcPtr = srcOffset + filterShift * 4 | 0;
+
+      r = g = b = a = 0;
+
+      // Apply the filter to the row to get the destination pixel r, g, b, a
+      for (; filterSize > 0; filterSize--) {
+        filterVal = filters[filterPtr++];
+
+        // Use reverse order to workaround deopts in old v8 (node v.10)
+        // Big thanks to @mraleph (Vyacheslav Egorov) for the tip.
+        a = a + filterVal * src[srcPtr + 3] | 0;
+        b = b + filterVal * src[srcPtr + 2] | 0;
+        g = g + filterVal * src[srcPtr + 1] | 0;
+        r = r + filterVal * src[srcPtr] | 0;
+        srcPtr = srcPtr + 4 | 0;
+      }
+
+      // Bring this value back in range. All of the filter scaling factors
+      // are in fixed point with FIXED_FRAC_BITS bits of fractional part.
+      //
+      // (!) Add 1/2 of value before clamping to get proper rounding. In other
+      // case brightness loss will be noticeable if you resize image with white
+      // border and place it on white background.
+      //
+      dest[destOffset + 3] = clampTo8(a + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
+      dest[destOffset + 2] = clampTo8(b + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
+      dest[destOffset + 1] = clampTo8(g + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
+      dest[destOffset] = clampTo8(r + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
+      destOffset = destOffset + srcH * 4 | 0;
+    }
+
+    destOffset = (srcY + 1) * 4 | 0;
+    srcOffset = (srcY + 1) * srcW * 4 | 0;
+  }
+}
+
+module.exports = {
+  convolveHorizontally: convolveHorizontally,
+  convolveVertically: convolveVertically
+};
+
+},{}],3:[function(require,module,exports){
+// This is autogenerated file from math.wasm, don't edit.
+//
+'use strict';
+
+/* eslint-disable max-len */
+
+module.exports = 'AGFzbQEAAAABFAJgBn9/f39/fwBgB39/f39/f38AAg8BA2VudgZtZW1vcnkCAAEDAwIAAQQEAXAAAAcZAghjb252b2x2ZQAACmNvbnZvbHZlSFYAAQkBAArmAwLBAwEQfwJAIANFDQAgBEUNACAFQQRqIRVBACEMQQAhDQNAIA0hDkEAIRFBACEHA0AgB0ECaiESAn8gBSAHQQF0IgdqIgZBAmouAQAiEwRAQQAhCEEAIBNrIRQgFSAHaiEPIAAgDCAGLgEAakECdGohEEEAIQlBACEKQQAhCwNAIBAoAgAiB0EYdiAPLgEAIgZsIAtqIQsgB0H/AXEgBmwgCGohCCAHQRB2Qf8BcSAGbCAKaiEKIAdBCHZB/wFxIAZsIAlqIQkgD0ECaiEPIBBBBGohECAUQQFqIhQNAAsgEiATagwBC0EAIQtBACEKQQAhCUEAIQggEgshByABIA5BAnRqIApBgMAAakEOdSIGQf8BIAZB/wFIG0EQdEGAgPwHcUEAIAZBAEobIAtBgMAAakEOdSIGQf8BIAZB/wFIG0EYdEEAIAZBAEobciAJQYDAAGpBDnUiBkH/ASAGQf8BSBtBCHRBgP4DcUEAIAZBAEobciAIQYDAAGpBDnUiBkH/ASAGQf8BSBtB/wFxQQAgBkEAShtyNgIAIA4gA2ohDiARQQFqIhEgBEcNAAsgDCACaiEMIA1BAWoiDSADRw0ACwsLIQACQEEAIAIgAyAEIAUgABAAIAJBACAEIAUgBiABEAALCw==';
+
+},{}],4:[function(require,module,exports){
+'use strict';
+
+module.exports = {
+  name: 'resize',
+  fn: require('./resize'),
+  wasm_fn: require('./resize_wasm'),
+  wasm_src: require('./convolve_wasm_base64')
+};
+
+},{"./convolve_wasm_base64":3,"./resize":5,"./resize_wasm":8}],5:[function(require,module,exports){
+'use strict';
+
+var createFilters = require('./resize_filter_gen');
+var convolveHorizontally = require('./convolve').convolveHorizontally;
+var convolveVertically = require('./convolve').convolveVertically;
+
+function resetAlpha(dst, width, height) {
+  var ptr = 3,
+      len = width * height * 4 | 0;
+  while (ptr < len) {
+    dst[ptr] = 0xFF;ptr = ptr + 4 | 0;
+  }
+}
+
+module.exports = function resize(options) {
+  var src = options.src;
+  var srcW = options.width;
+  var srcH = options.height;
+  var destW = options.toWidth;
+  var destH = options.toHeight;
+  var scaleX = options.scaleX || options.toWidth / options.width;
+  var scaleY = options.scaleY || options.toHeight / options.height;
+  var offsetX = options.offsetX || 0;
+  var offsetY = options.offsetY || 0;
+  var dest = options.dest || new Uint8Array(destW * destH * 4);
+  var quality = typeof options.quality === 'undefined' ? 3 : options.quality;
+  var alpha = options.alpha || false;
+
+  var filtersX = createFilters(quality, srcW, destW, scaleX, offsetX),
+      filtersY = createFilters(quality, srcH, destH, scaleY, offsetY);
+
+  var tmp = new Uint8Array(destW * srcH * 4);
+
+  // To use single function we need src & tmp of the same type.
+  // But src can be CanvasPixelArray, and tmp - Uint8Array. So, keep
+  // vertical and horizontal passes separately to avoid deoptimization.
+
+  convolveHorizontally(src, tmp, srcW, srcH, destW, filtersX);
+  convolveVertically(tmp, dest, srcH, destW, destH, filtersY);
+
+  // That's faster than doing checks in convolver.
+  // !!! Note, canvas data is not premultipled. We don't need other
+  // alpha corrections.
+
+  if (!alpha) resetAlpha(dest, destW, destH);
+
+  return dest;
+};
+
+},{"./convolve":2,"./resize_filter_gen":6}],6:[function(require,module,exports){
+// Calculate convolution filters for each destination point,
+// and pack data to Int16Array:
+//
+// [ shift, length, data..., shift2, length2, data..., ... ]
+//
+// - shift - offset in src image
+// - length - filter length (in src points)
+// - data - filter values sequence
+//
+'use strict';
+
+var FILTER_INFO = require('./resize_filter_info');
+
+// Precision of fixed FP values
+var FIXED_FRAC_BITS = 14;
+
+function toFixedPoint(num) {
+  return Math.round(num * ((1 << FIXED_FRAC_BITS) - 1));
+}
+
+module.exports = function resizeFilterGen(quality, srcSize, destSize, scale, offset) {
+
+  var filterFunction = FILTER_INFO[quality].filter;
+
+  var scaleInverted = 1.0 / scale;
+  var scaleClamped = Math.min(1.0, scale); // For upscale
+
+  // Filter window (averaging interval), scaled to src image
+  var srcWindow = FILTER_INFO[quality].win / scaleClamped;
+
+  var destPixel, srcPixel, srcFirst, srcLast, filterElementSize, floatFilter, fxpFilter, total, pxl, idx, floatVal, filterTotal, filterVal;
+  var leftNotEmpty, rightNotEmpty, filterShift, filterSize;
+
+  var maxFilterElementSize = Math.floor((srcWindow + 1) * 2);
+  var packedFilter = new Int16Array((maxFilterElementSize + 2) * destSize);
+  var packedFilterPtr = 0;
+
+  var slowCopy = !packedFilter.subarray || !packedFilter.set;
+
+  // For each destination pixel calculate source range and built filter values
+  for (destPixel = 0; destPixel < destSize; destPixel++) {
+
+    // Scaling should be done relative to central pixel point
+    srcPixel = (destPixel + 0.5) * scaleInverted + offset;
+
+    srcFirst = Math.max(0, Math.floor(srcPixel - srcWindow));
+    srcLast = Math.min(srcSize - 1, Math.ceil(srcPixel + srcWindow));
+
+    filterElementSize = srcLast - srcFirst + 1;
+    floatFilter = new Float32Array(filterElementSize);
+    fxpFilter = new Int16Array(filterElementSize);
+
+    total = 0.0;
+
+    // Fill filter values for calculated range
+    for (pxl = srcFirst, idx = 0; pxl <= srcLast; pxl++, idx++) {
+      floatVal = filterFunction((pxl + 0.5 - srcPixel) * scaleClamped);
+      total += floatVal;
+      floatFilter[idx] = floatVal;
+    }
+
+    // Normalize filter, convert to fixed point and accumulate conversion error
+    filterTotal = 0;
+
+    for (idx = 0; idx < floatFilter.length; idx++) {
+      filterVal = floatFilter[idx] / total;
+      filterTotal += filterVal;
+      fxpFilter[idx] = toFixedPoint(filterVal);
+    }
+
+    // Compensate normalization error, to minimize brightness drift
+    fxpFilter[destSize >> 1] += toFixedPoint(1.0 - filterTotal);
+
+    //
+    // Now pack filter to useable form
+    //
+    // 1. Trim heading and tailing zero values, and compensate shitf/length
+    // 2. Put all to single array in this format:
+    //
+    //    [ pos shift, data length, value1, value2, value3, ... ]
+    //
+
+    leftNotEmpty = 0;
+    while (leftNotEmpty < fxpFilter.length && fxpFilter[leftNotEmpty] === 0) {
+      leftNotEmpty++;
+    }
+
+    if (leftNotEmpty < fxpFilter.length) {
+      rightNotEmpty = fxpFilter.length - 1;
+      while (rightNotEmpty > 0 && fxpFilter[rightNotEmpty] === 0) {
+        rightNotEmpty--;
+      }
+
+      filterShift = srcFirst + leftNotEmpty;
+      filterSize = rightNotEmpty - leftNotEmpty + 1;
+
+      packedFilter[packedFilterPtr++] = filterShift; // shift
+      packedFilter[packedFilterPtr++] = filterSize; // size
+
+      if (!slowCopy) {
+        packedFilter.set(fxpFilter.subarray(leftNotEmpty, rightNotEmpty + 1), packedFilterPtr);
+        packedFilterPtr += filterSize;
+      } else {
+        // fallback for old IE < 11, without subarray/set methods
+        for (idx = leftNotEmpty; idx <= rightNotEmpty; idx++) {
+          packedFilter[packedFilterPtr++] = fxpFilter[idx];
+        }
+      }
+    } else {
+      // zero data, write header only
+      packedFilter[packedFilterPtr++] = 0; // shift
+      packedFilter[packedFilterPtr++] = 0; // size
+    }
+  }
+  return packedFilter;
+};
+
+},{"./resize_filter_info":7}],7:[function(require,module,exports){
+// Filter definitions to build tables for
+// resizing convolvers.
+//
+// Presets for quality 0..3. Filter functions + window size
+//
+'use strict';
+
+module.exports = [{ // Nearest neibor (Box)
+  win: 0.5,
+  filter: function filter(x) {
+    return x >= -0.5 && x < 0.5 ? 1.0 : 0.0;
+  }
+}, { // Hamming
+  win: 1.0,
+  filter: function filter(x) {
+    if (x <= -1.0 || x >= 1.0) {
+      return 0.0;
+    }
+    if (x > -1.19209290E-07 && x < 1.19209290E-07) {
+      return 1.0;
+    }
+    var xpi = x * Math.PI;
+    return Math.sin(xpi) / xpi * (0.54 + 0.46 * Math.cos(xpi / 1.0));
+  }
+}, { // Lanczos, win = 2
+  win: 2.0,
+  filter: function filter(x) {
+    if (x <= -2.0 || x >= 2.0) {
+      return 0.0;
+    }
+    if (x > -1.19209290E-07 && x < 1.19209290E-07) {
+      return 1.0;
+    }
+    var xpi = x * Math.PI;
+    return Math.sin(xpi) / xpi * Math.sin(xpi / 2.0) / (xpi / 2.0);
+  }
+}, { // Lanczos, win = 3
+  win: 3.0,
+  filter: function filter(x) {
+    if (x <= -3.0 || x >= 3.0) {
+      return 0.0;
+    }
+    if (x > -1.19209290E-07 && x < 1.19209290E-07) {
+      return 1.0;
+    }
+    var xpi = x * Math.PI;
+    return Math.sin(xpi) / xpi * Math.sin(xpi / 3.0) / (xpi / 3.0);
+  }
+}];
+
+},{}],8:[function(require,module,exports){
+'use strict';
+
+var createFilters = require('./resize_filter_gen');
+
+function resetAlpha(dst, width, height) {
+  var ptr = 3,
+      len = width * height * 4 | 0;
+  while (ptr < len) {
+    dst[ptr] = 0xFF;ptr = ptr + 4 | 0;
+  }
+}
+
+function asUint8Array(src) {
+  return new Uint8Array(src.buffer, 0, src.byteLength);
+}
+
+var IS_LE = true;
+// should not crash everything on module load in old browsers
+try {
+  IS_LE = new Uint32Array(new Uint8Array([1, 0, 0, 0]).buffer)[0] === 1;
+} catch (__) {}
+
+function copyInt16asLE(src, target, target_offset) {
+  if (IS_LE) {
+    target.set(asUint8Array(src), target_offset);
+    return;
+  }
+
+  for (var ptr = target_offset, i = 0; i < src.length; i++) {
+    var data = src[i];
+    target[ptr++] = data & 0xFF;
+    target[ptr++] = data >> 8 & 0xFF;
+  }
+}
+
+module.exports = function resize_wasm(options) {
+  var src = options.src;
+  var srcW = options.width;
+  var srcH = options.height;
+  var destW = options.toWidth;
+  var destH = options.toHeight;
+  var scaleX = options.scaleX || options.toWidth / options.width;
+  var scaleY = options.scaleY || options.toHeight / options.height;
+  var offsetX = options.offsetX || 0.0;
+  var offsetY = options.offsetY || 0.0;
+  var dest = options.dest || new Uint8Array(destW * destH * 4);
+  var quality = typeof options.quality === 'undefined' ? 3 : options.quality;
+  var alpha = options.alpha || false;
+
+  var filtersX = createFilters(quality, srcW, destW, scaleX, offsetX),
+      filtersY = createFilters(quality, srcH, destH, scaleY, offsetY);
+
+  // destination is 0 too.
+  var src_offset = 0;
+  // buffer between convolve passes
+  var tmp_offset = this.__align(src_offset + Math.max(src.byteLength, dest.byteLength), 8);
+  var filtersX_offset = this.__align(tmp_offset + srcH * destW * 4, 8);
+  var filtersY_offset = this.__align(filtersX_offset + filtersX.byteLength, 8);
+  var alloc_bytes = filtersY_offset + filtersY.byteLength;
+
+  var instance = this.__instance('resize', alloc_bytes);
+
+  //
+  // Fill memory block with data to process
+  //
+
+  var mem = new Uint8Array(this.__memory.buffer);
+  var mem32 = new Uint32Array(this.__memory.buffer);
+
+  // 32-bit copy is much faster in chrome
+  var src32 = new Uint32Array(src.buffer);
+  mem32.set(src32);
+
+  // We should guarantee LE bytes order. Filters are not big, so
+  // speed difference is not significant vs direct .set()
+  copyInt16asLE(filtersX, mem, filtersX_offset);
+  copyInt16asLE(filtersY, mem, filtersY_offset);
+
+  //
+  // Now call webassembly method
+  // emsdk does method names with '_'
+  var fn = instance.exports.convolveHV || instance.exports._convolveHV;
+
+  fn(filtersX_offset, filtersY_offset, tmp_offset, srcW, srcH, destW, destH);
+
+  //
+  // Copy data back to typed array
+  //
+
+  // 32-bit copy is much faster in chrome
+  var dest32 = new Uint32Array(dest.buffer);
+  dest32.set(new Uint32Array(this.__memory.buffer, 0, destH * destW));
+
+  // That's faster than doing checks in convolver.
+  // !!! Note, canvas data is not premultipled. We don't need other
+  // alpha corrections.
+
+  if (!alpha) resetAlpha(dest, destW, destH);
+
+  return dest;
+};
+
+},{"./resize_filter_gen":6}],9:[function(require,module,exports){
+'use strict';
+
+var GC_INTERVAL = 100;
+
+function Pool(create, idle) {
+  this.create = create;
+
+  this.available = [];
+  this.acquired = {};
+  this.lastId = 1;
+
+  this.timeoutId = 0;
+  this.idle = idle || 2000;
+}
+
+Pool.prototype.acquire = function () {
+  var _this = this;
+
+  var resource = void 0;
+
+  if (this.available.length !== 0) {
+    resource = this.available.pop();
+  } else {
+    resource = this.create();
+    resource.id = this.lastId++;
+    resource.release = function () {
+      return _this.release(resource);
+    };
+  }
+  this.acquired[resource.id] = resource;
+  return resource;
+};
+
+Pool.prototype.release = function (resource) {
+  var _this2 = this;
+
+  delete this.acquired[resource.id];
+
+  resource.lastUsed = Date.now();
+  this.available.push(resource);
+
+  if (this.timeoutId === 0) {
+    this.timeoutId = setTimeout(function () {
+      return _this2.gc();
+    }, GC_INTERVAL);
+  }
+};
+
+Pool.prototype.gc = function () {
+  var _this3 = this;
+
+  var now = Date.now();
+
+  this.available = this.available.filter(function (resource) {
+    if (now - resource.lastUsed > _this3.idle) {
+      resource.destroy();
+      return false;
+    }
+    return true;
+  });
+
+  if (this.available.length !== 0) {
+    this.timeoutId = setTimeout(function () {
+      return _this3.gc();
+    }, GC_INTERVAL);
+  } else {
+    this.timeoutId = 0;
+  }
+};
+
+module.exports = Pool;
+
+},{}],10:[function(require,module,exports){
+'use strict';
+
+/*
+ * pixelFloor and pixelCeil are modified versions of Math.floor and Math.ceil
+ * functions which take into account floating point arithmetic errors.
+ * Those errors can cause undesired increments/decrements of sizes and offsets:
+ * Math.ceil(36 / (36 / 500)) = 501
+ * pixelCeil(36 / (36 / 500)) = 500
+ */
+
+var PIXEL_EPSILON = 1e-5;
+
+function pixelFloor(x) {
+  var nearest = Math.round(x);
+
+  if (Math.abs(x - nearest) < PIXEL_EPSILON) {
+    return nearest;
+  }
+  return Math.floor(x);
+}
+
+function pixelCeil(x) {
+  var nearest = Math.round(x);
+
+  if (Math.abs(x - nearest) < PIXEL_EPSILON) {
+    return nearest;
+  }
+  return Math.ceil(x);
+}
+
+module.exports = function createRegions(options) {
+  var scaleX = options.toWidth / options.width;
+  var scaleY = options.toHeight / options.height;
+
+  var innerTileWidth = pixelFloor(options.srcTileSize * scaleX) - 2 * options.destTileBorder;
+  var innerTileHeight = pixelFloor(options.srcTileSize * scaleY) - 2 * options.destTileBorder;
+
+  var x, y;
+  var innerX, innerY, toTileWidth, toTileHeight;
+  var tiles = [];
+  var tile;
+
+  // we go top-to-down instead of left-to-right to make image displayed from top to
+  // doesn in the browser
+  for (innerY = 0; innerY < options.toHeight; innerY += innerTileHeight) {
+    for (innerX = 0; innerX < options.toWidth; innerX += innerTileWidth) {
+      x = innerX - options.destTileBorder;
+      if (x < 0) {
+        x = 0;
+      }
+      toTileWidth = innerX + innerTileWidth + options.destTileBorder - x;
+      if (x + toTileWidth >= options.toWidth) {
+        toTileWidth = options.toWidth - x;
+      }
+
+      y = innerY - options.destTileBorder;
+      if (y < 0) {
+        y = 0;
+      }
+      toTileHeight = innerY + innerTileHeight + options.destTileBorder - y;
+      if (y + toTileHeight >= options.toHeight) {
+        toTileHeight = options.toHeight - y;
+      }
+
+      tile = {
+        toX: x,
+        toY: y,
+        toWidth: toTileWidth,
+        toHeight: toTileHeight,
+
+        toInnerX: innerX,
+        toInnerY: innerY,
+        toInnerWidth: innerTileWidth,
+        toInnerHeight: innerTileHeight,
+
+        offsetX: x / scaleX - pixelFloor(x / scaleX),
+        offsetY: y / scaleY - pixelFloor(y / scaleY),
+        scaleX: scaleX,
+        scaleY: scaleY,
+
+        x: pixelFloor(x / scaleX),
+        y: pixelFloor(y / scaleY),
+        width: pixelCeil(toTileWidth / scaleX),
+        height: pixelCeil(toTileHeight / scaleY)
+      };
+
+      tiles.push(tile);
+    }
+  }
+
+  return tiles;
+};
+
+},{}],11:[function(require,module,exports){
+'use strict';
+
+function objClass(obj) {
+  return Object.prototype.toString.call(obj);
+}
+
+module.exports.isCanvas = function isCanvas(element) {
+  //return (element.nodeName && element.nodeName.toLowerCase() === 'canvas') ||
+  var cname = objClass(element);
+
+  return cname === '[object HTMLCanvasElement]' /* browser */ || cname === '[object Canvas]' /* node-canvas */;
+};
+
+module.exports.isImage = function isImage(element) {
+  //return element.nodeName && element.nodeName.toLowerCase() === 'img';
+  return objClass(element) === '[object HTMLImageElement]';
+};
+
+module.exports.limiter = function limiter(concurrency) {
+  var active = 0,
+      queue = [];
+
+  function roll() {
+    if (active < concurrency && queue.length) {
+      active++;
+      queue.shift()();
+    }
+  }
+
+  return function limit(fn) {
+    return new Promise(function (resolve, reject) {
+      queue.push(function () {
+        fn().then(function (result) {
+          resolve(result);
+          active--;
+          roll();
+        }, function (err) {
+          reject(err);
+          active--;
+          roll();
+        });
+      });
+
+      roll();
+    });
+  };
+};
+
+module.exports.cib_quality_name = function cib_quality_name(num) {
+  switch (num) {
+    case 0:
+      return 'pixelated';
+    case 1:
+      return 'low';
+    case 2:
+      return 'medium';
+  }
+  return 'high';
+};
+
+module.exports.cib_support = function cib_support() {
+  return Promise.resolve().then(function () {
+    if (typeof createImageBitmap === 'undefined' || typeof document === 'undefined') {
+      return false;
+    }
+
+    var c = document.createElement('canvas');
+    c.width = 100;
+    c.height = 100;
+
+    return createImageBitmap(c, 0, 0, 100, 100, {
+      resizeWidth: 10,
+      resizeHeight: 10,
+      resizeQuality: 'high'
+    }).then(function (bitmap) {
+      var status = bitmap.width === 10;
+
+      // Branch below is filtered on upper level. We do not call resize
+      // detection for basic ImageBitmap.
+      //
+      // https://developer.mozilla.org/en-US/docs/Web/API/ImageBitmap
+      // old Crome 51 has ImageBitmap without .close(). Then this code
+      // will throw and return 'false' as expected.
+      //
+      bitmap.close();
+      c = null;
+      return status;
+    });
+  }).catch(function () {
+    return false;
+  });
+};
+
+},{}],12:[function(require,module,exports){
+// Web Worker wrapper for image resize function
+
+'use strict';
+
+module.exports = function () {
+  var MathLib = require('./mathlib');
+
+  var mathLib = void 0;
+
+  /* eslint-disable no-undef */
+  onmessage = function onmessage(ev) {
+    var opts = ev.data.opts;
+
+    if (!mathLib) mathLib = new MathLib(ev.data.features);
+
+    // Use multimath's sync auto-init. Avoid Promise use in old browsers,
+    // because polyfills are not propagated to webworker.
+    var result = mathLib.resizeAndUnsharp(opts);
+
+    postMessage({ result: result }, [result.buffer]);
+  };
+};
+
+},{"./mathlib":1}],13:[function(require,module,exports){
+// Calculate Gaussian blur of an image using IIR filter
+// The method is taken from Intel's white paper and code example attached to it:
+// https://software.intel.com/en-us/articles/iir-gaussian-blur-filter
+// -implementation-using-intel-advanced-vector-extensions
+
+var a0, a1, a2, a3, b1, b2, left_corner, right_corner;
+
+function gaussCoef(sigma) {
+  if (sigma < 0.5) {
+    sigma = 0.5;
+  }
+
+  var a = Math.exp(0.726 * 0.726) / sigma,
+      g1 = Math.exp(-a),
+      g2 = Math.exp(-2 * a),
+      k = (1 - g1) * (1 - g1) / (1 + 2 * a * g1 - g2);
+
+  a0 = k;
+  a1 = k * (a - 1) * g1;
+  a2 = k * (a + 1) * g1;
+  a3 = -k * g2;
+  b1 = 2 * g1;
+  b2 = -g2;
+  left_corner = (a0 + a1) / (1 - b1 - b2);
+  right_corner = (a2 + a3) / (1 - b1 - b2);
+
+  // Attempt to force type to FP32.
+  return new Float32Array([ a0, a1, a2, a3, b1, b2, left_corner, right_corner ]);
+}
+
+function convolveMono16(src, out, line, coeff, width, height) {
+  // takes src image and writes the blurred and transposed result into out
+
+  var prev_src, curr_src, curr_out, prev_out, prev_prev_out;
+  var src_index, out_index, line_index;
+  var i, j;
+  var coeff_a0, coeff_a1, coeff_b1, coeff_b2;
+
+  for (i = 0; i < height; i++) {
+    src_index = i * width;
+    out_index = i;
+    line_index = 0;
+
+    // left to right
+    prev_src = src[src_index];
+    prev_prev_out = prev_src * coeff[6];
+    prev_out = prev_prev_out;
+
+    coeff_a0 = coeff[0];
+    coeff_a1 = coeff[1];
+    coeff_b1 = coeff[4];
+    coeff_b2 = coeff[5];
+
+    for (j = 0; j < width; j++) {
+      curr_src = src[src_index];
+
+      curr_out = curr_src * coeff_a0 +
+                 prev_src * coeff_a1 +
+                 prev_out * coeff_b1 +
+                 prev_prev_out * coeff_b2;
+
+      prev_prev_out = prev_out;
+      prev_out = curr_out;
+      prev_src = curr_src;
+
+      line[line_index] = prev_out;
+      line_index++;
+      src_index++;
+    }
+
+    src_index--;
+    line_index--;
+    out_index += height * (width - 1);
+
+    // right to left
+    prev_src = src[src_index];
+    prev_prev_out = prev_src * coeff[7];
+    prev_out = prev_prev_out;
+    curr_src = prev_src;
+
+    coeff_a0 = coeff[2];
+    coeff_a1 = coeff[3];
+
+    for (j = width - 1; j >= 0; j--) {
+      curr_out = curr_src * coeff_a0 +
+                 prev_src * coeff_a1 +
+                 prev_out * coeff_b1 +
+                 prev_prev_out * coeff_b2;
+
+      prev_prev_out = prev_out;
+      prev_out = curr_out;
+
+      prev_src = curr_src;
+      curr_src = src[src_index];
+
+      out[out_index] = line[line_index] + prev_out;
+
+      src_index--;
+      line_index--;
+      out_index -= height;
+    }
+  }
+}
+
+
+function blurMono16(src, width, height, radius) {
+  // Quick exit on zero radius
+  if (!radius) { return; }
+
+  var out      = new Uint16Array(src.length),
+      tmp_line = new Float32Array(Math.max(width, height));
+
+  var coeff = gaussCoef(radius);
+
+  convolveMono16(src, out, tmp_line, coeff, width, height, radius);
+  convolveMono16(out, src, tmp_line, coeff, height, width, radius);
+}
+
+module.exports = blurMono16;
+
+},{}],14:[function(require,module,exports){
+if (typeof Object.create === 'function') {
+  // implementation from standard node.js 'util' module
+  module.exports = function inherits(ctor, superCtor) {
+    ctor.super_ = superCtor
+    ctor.prototype = Object.create(superCtor.prototype, {
+      constructor: {
+        value: ctor,
+        enumerable: false,
+        writable: true,
+        configurable: true
+      }
+    });
+  };
+} else {
+  // old school shim for old browsers
+  module.exports = function inherits(ctor, superCtor) {
+    ctor.super_ = superCtor
+    var TempCtor = function () {}
+    TempCtor.prototype = superCtor.prototype
+    ctor.prototype = new TempCtor()
+    ctor.prototype.constructor = ctor
+  }
+}
+
+},{}],15:[function(require,module,exports){
 'use strict';
 
 
@@ -167,7 +1125,7 @@ MultiMath.prototype.__align = function align(number, base) {
 
 module.exports = MultiMath;
 
-},{"object-assign":8}],2:[function(require,module,exports){
+},{"object-assign":21}],16:[function(require,module,exports){
 // Calculates 16-bit precision HSL lightness from 8-bit rgba buffer
 //
 'use strict';
@@ -188,7 +1146,7 @@ module.exports = function hsl_l16_js(img, width, height) {
   return out;
 };
 
-},{}],3:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 'use strict';
 
 module.exports = {
@@ -198,7 +1156,7 @@ module.exports = {
   wasm_src: require('./unsharp_mask_wasm_base64')
 };
 
-},{"./unsharp_mask":4,"./unsharp_mask_wasm":5,"./unsharp_mask_wasm_base64":6}],4:[function(require,module,exports){
+},{"./unsharp_mask":18,"./unsharp_mask_wasm":19,"./unsharp_mask_wasm_base64":20}],18:[function(require,module,exports){
 // Unsharp mask filter
 //
 // http://stackoverflow.com/a/23322820/1031804
@@ -315,7 +1273,7 @@ module.exports = function unsharp(img, width, height, amount, radius, threshold)
   }
 };
 
-},{"./hsl_l16":2,"glur/mono16":7}],5:[function(require,module,exports){
+},{"./hsl_l16":16,"glur/mono16":13}],19:[function(require,module,exports){
 'use strict';
 
 
@@ -372,7 +1330,7 @@ module.exports = function unsharp(img, width, height, amount, radius, threshold)
   img32.set(new Uint32Array(this.__memory.buffer, 0, pixels));
 };
 
-},{}],6:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 // This is autogenerated file from math.wasm, don't edit.
 //
 'use strict';
@@ -380,128 +1338,7 @@ module.exports = function unsharp(img, width, height, amount, radius, threshold)
 /* eslint-disable max-len */
 module.exports = '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';
 
-},{}],7:[function(require,module,exports){
-// Calculate Gaussian blur of an image using IIR filter
-// The method is taken from Intel's white paper and code example attached to it:
-// https://software.intel.com/en-us/articles/iir-gaussian-blur-filter
-// -implementation-using-intel-advanced-vector-extensions
-
-var a0, a1, a2, a3, b1, b2, left_corner, right_corner;
-
-function gaussCoef(sigma) {
-  if (sigma < 0.5) {
-    sigma = 0.5;
-  }
-
-  var a = Math.exp(0.726 * 0.726) / sigma,
-      g1 = Math.exp(-a),
-      g2 = Math.exp(-2 * a),
-      k = (1 - g1) * (1 - g1) / (1 + 2 * a * g1 - g2);
-
-  a0 = k;
-  a1 = k * (a - 1) * g1;
-  a2 = k * (a + 1) * g1;
-  a3 = -k * g2;
-  b1 = 2 * g1;
-  b2 = -g2;
-  left_corner = (a0 + a1) / (1 - b1 - b2);
-  right_corner = (a2 + a3) / (1 - b1 - b2);
-
-  // Attempt to force type to FP32.
-  return new Float32Array([ a0, a1, a2, a3, b1, b2, left_corner, right_corner ]);
-}
-
-function convolveMono16(src, out, line, coeff, width, height) {
-  // takes src image and writes the blurred and transposed result into out
-
-  var prev_src, curr_src, curr_out, prev_out, prev_prev_out;
-  var src_index, out_index, line_index;
-  var i, j;
-  var coeff_a0, coeff_a1, coeff_b1, coeff_b2;
-
-  for (i = 0; i < height; i++) {
-    src_index = i * width;
-    out_index = i;
-    line_index = 0;
-
-    // left to right
-    prev_src = src[src_index];
-    prev_prev_out = prev_src * coeff[6];
-    prev_out = prev_prev_out;
-
-    coeff_a0 = coeff[0];
-    coeff_a1 = coeff[1];
-    coeff_b1 = coeff[4];
-    coeff_b2 = coeff[5];
-
-    for (j = 0; j < width; j++) {
-      curr_src = src[src_index];
-
-      curr_out = curr_src * coeff_a0 +
-                 prev_src * coeff_a1 +
-                 prev_out * coeff_b1 +
-                 prev_prev_out * coeff_b2;
-
-      prev_prev_out = prev_out;
-      prev_out = curr_out;
-      prev_src = curr_src;
-
-      line[line_index] = prev_out;
-      line_index++;
-      src_index++;
-    }
-
-    src_index--;
-    line_index--;
-    out_index += height * (width - 1);
-
-    // right to left
-    prev_src = src[src_index];
-    prev_prev_out = prev_src * coeff[7];
-    prev_out = prev_prev_out;
-    curr_src = prev_src;
-
-    coeff_a0 = coeff[2];
-    coeff_a1 = coeff[3];
-
-    for (j = width - 1; j >= 0; j--) {
-      curr_out = curr_src * coeff_a0 +
-                 prev_src * coeff_a1 +
-                 prev_out * coeff_b1 +
-                 prev_prev_out * coeff_b2;
-
-      prev_prev_out = prev_out;
-      prev_out = curr_out;
-
-      prev_src = curr_src;
-      curr_src = src[src_index];
-
-      out[out_index] = line[line_index] + prev_out;
-
-      src_index--;
-      line_index--;
-      out_index -= height;
-    }
-  }
-}
-
-
-function blurMono16(src, width, height, radius) {
-  // Quick exit on zero radius
-  if (!radius) { return; }
-
-  var out      = new Uint16Array(src.length),
-      tmp_line = new Float32Array(Math.max(width, height));
-
-  var coeff = gaussCoef(radius);
-
-  convolveMono16(src, out, tmp_line, coeff, width, height, radius);
-  convolveMono16(out, src, tmp_line, coeff, height, width, radius);
-}
-
-module.exports = blurMono16;
-
-},{}],8:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 /*
 object-assign
 (c) Sindre Sorhus
@@ -593,846 +1430,7 @@ module.exports = shouldUseNative() ? Object.assign : function (target, source) {
 	return to;
 };
 
-},{}],9:[function(require,module,exports){
-// Collection of math functions
-//
-// 1. Combine components together
-// 2. Has async init to load wasm modules
-//
-'use strict';
-
-var inherits = require('inherits');
-var Multimath = require('multimath');
-
-var mm_unsharp_mask = require('multimath/lib/unsharp_mask');
-var mm_resize = require('./mm_resize');
-
-function MathLib(requested_features) {
-  var __requested_features = requested_features || [];
-
-  var features = {
-    js: __requested_features.indexOf('js') >= 0,
-    wasm: __requested_features.indexOf('wasm') >= 0
-  };
-
-  Multimath.call(this, features);
-
-  this.features = {
-    js: features.js,
-    wasm: features.wasm && this.has_wasm
-  };
-
-  this.use(mm_unsharp_mask);
-  this.use(mm_resize);
-}
-
-inherits(MathLib, Multimath);
-
-MathLib.prototype.resizeAndUnsharp = function resizeAndUnsharp(options, cache) {
-  var result = this.resize(options, cache);
-
-  if (options.unsharpAmount) {
-    this.unsharp_mask(result, options.toWidth, options.toHeight, options.unsharpAmount, options.unsharpRadius, options.unsharpThreshold);
-  }
-
-  return result;
-};
-
-module.exports = MathLib;
-
-},{"./mm_resize":12,"inherits":21,"multimath":1,"multimath/lib/unsharp_mask":3}],10:[function(require,module,exports){
-// Resize convolvers, pure JS implementation
-//
-'use strict';
-
-// Precision of fixed FP values
-//var FIXED_FRAC_BITS = 14;
-
-
-function clampTo8(i) {
-  return i < 0 ? 0 : i > 255 ? 255 : i;
-}
-
-// Convolve image in horizontal directions and transpose output. In theory,
-// transpose allow:
-//
-// - use the same convolver for both passes (this fails due different
-//   types of input array and temporary buffer)
-// - making vertical pass by horisonltal lines inprove CPU cache use.
-//
-// But in real life this doesn't work :)
-//
-function convolveHorizontally(src, dest, srcW, srcH, destW, filters) {
-
-  var r, g, b, a;
-  var filterPtr, filterShift, filterSize;
-  var srcPtr, srcY, destX, filterVal;
-  var srcOffset = 0,
-      destOffset = 0;
-
-  // For each row
-  for (srcY = 0; srcY < srcH; srcY++) {
-    filterPtr = 0;
-
-    // Apply precomputed filters to each destination row point
-    for (destX = 0; destX < destW; destX++) {
-      // Get the filter that determines the current output pixel.
-      filterShift = filters[filterPtr++];
-      filterSize = filters[filterPtr++];
-
-      srcPtr = srcOffset + filterShift * 4 | 0;
-
-      r = g = b = a = 0;
-
-      // Apply the filter to the row to get the destination pixel r, g, b, a
-      for (; filterSize > 0; filterSize--) {
-        filterVal = filters[filterPtr++];
-
-        // Use reverse order to workaround deopts in old v8 (node v.10)
-        // Big thanks to @mraleph (Vyacheslav Egorov) for the tip.
-        a = a + filterVal * src[srcPtr + 3] | 0;
-        b = b + filterVal * src[srcPtr + 2] | 0;
-        g = g + filterVal * src[srcPtr + 1] | 0;
-        r = r + filterVal * src[srcPtr] | 0;
-        srcPtr = srcPtr + 4 | 0;
-      }
-
-      // Bring this value back in range. All of the filter scaling factors
-      // are in fixed point with FIXED_FRAC_BITS bits of fractional part.
-      //
-      // (!) Add 1/2 of value before clamping to get proper rounding. In other
-      // case brightness loss will be noticeable if you resize image with white
-      // border and place it on white background.
-      //
-      dest[destOffset + 3] = clampTo8(a + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
-      dest[destOffset + 2] = clampTo8(b + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
-      dest[destOffset + 1] = clampTo8(g + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
-      dest[destOffset] = clampTo8(r + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
-      destOffset = destOffset + srcH * 4 | 0;
-    }
-
-    destOffset = (srcY + 1) * 4 | 0;
-    srcOffset = (srcY + 1) * srcW * 4 | 0;
-  }
-}
-
-// Technically, convolvers are the same. But input array and temporary
-// buffer can be of different type (especially, in old browsers). So,
-// keep code in separate functions to avoid deoptimizations & speed loss.
-
-function convolveVertically(src, dest, srcW, srcH, destW, filters) {
-
-  var r, g, b, a;
-  var filterPtr, filterShift, filterSize;
-  var srcPtr, srcY, destX, filterVal;
-  var srcOffset = 0,
-      destOffset = 0;
-
-  // For each row
-  for (srcY = 0; srcY < srcH; srcY++) {
-    filterPtr = 0;
-
-    // Apply precomputed filters to each destination row point
-    for (destX = 0; destX < destW; destX++) {
-      // Get the filter that determines the current output pixel.
-      filterShift = filters[filterPtr++];
-      filterSize = filters[filterPtr++];
-
-      srcPtr = srcOffset + filterShift * 4 | 0;
-
-      r = g = b = a = 0;
-
-      // Apply the filter to the row to get the destination pixel r, g, b, a
-      for (; filterSize > 0; filterSize--) {
-        filterVal = filters[filterPtr++];
-
-        // Use reverse order to workaround deopts in old v8 (node v.10)
-        // Big thanks to @mraleph (Vyacheslav Egorov) for the tip.
-        a = a + filterVal * src[srcPtr + 3] | 0;
-        b = b + filterVal * src[srcPtr + 2] | 0;
-        g = g + filterVal * src[srcPtr + 1] | 0;
-        r = r + filterVal * src[srcPtr] | 0;
-        srcPtr = srcPtr + 4 | 0;
-      }
-
-      // Bring this value back in range. All of the filter scaling factors
-      // are in fixed point with FIXED_FRAC_BITS bits of fractional part.
-      //
-      // (!) Add 1/2 of value before clamping to get proper rounding. In other
-      // case brightness loss will be noticeable if you resize image with white
-      // border and place it on white background.
-      //
-      dest[destOffset + 3] = clampTo8(a + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
-      dest[destOffset + 2] = clampTo8(b + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
-      dest[destOffset + 1] = clampTo8(g + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
-      dest[destOffset] = clampTo8(r + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
-      destOffset = destOffset + srcH * 4 | 0;
-    }
-
-    destOffset = (srcY + 1) * 4 | 0;
-    srcOffset = (srcY + 1) * srcW * 4 | 0;
-  }
-}
-
-module.exports = {
-  convolveHorizontally: convolveHorizontally,
-  convolveVertically: convolveVertically
-};
-
-},{}],11:[function(require,module,exports){
-// This is autogenerated file from math.wasm, don't edit.
-//
-'use strict';
-
-/* eslint-disable max-len */
-
-module.exports = 'AGFzbQEAAAABFAJgBn9/f39/fwBgB39/f39/f38AAg8BA2VudgZtZW1vcnkCAAEDAwIAAQQEAXAAAAcZAghjb252b2x2ZQAACmNvbnZvbHZlSFYAAQkBAArmAwLBAwEQfwJAIANFDQAgBEUNACAFQQRqIRVBACEMQQAhDQNAIA0hDkEAIRFBACEHA0AgB0ECaiESAn8gBSAHQQF0IgdqIgZBAmouAQAiEwRAQQAhCEEAIBNrIRQgFSAHaiEPIAAgDCAGLgEAakECdGohEEEAIQlBACEKQQAhCwNAIBAoAgAiB0EYdiAPLgEAIgZsIAtqIQsgB0H/AXEgBmwgCGohCCAHQRB2Qf8BcSAGbCAKaiEKIAdBCHZB/wFxIAZsIAlqIQkgD0ECaiEPIBBBBGohECAUQQFqIhQNAAsgEiATagwBC0EAIQtBACEKQQAhCUEAIQggEgshByABIA5BAnRqIApBgMAAakEOdSIGQf8BIAZB/wFIG0EQdEGAgPwHcUEAIAZBAEobIAtBgMAAakEOdSIGQf8BIAZB/wFIG0EYdEEAIAZBAEobciAJQYDAAGpBDnUiBkH/ASAGQf8BSBtBCHRBgP4DcUEAIAZBAEobciAIQYDAAGpBDnUiBkH/ASAGQf8BSBtB/wFxQQAgBkEAShtyNgIAIA4gA2ohDiARQQFqIhEgBEcNAAsgDCACaiEMIA1BAWoiDSADRw0ACwsLIQACQEEAIAIgAyAEIAUgABAAIAJBACAEIAUgBiABEAALCw==';
-
-},{}],12:[function(require,module,exports){
-'use strict';
-
-module.exports = {
-  name: 'resize',
-  fn: require('./resize'),
-  wasm_fn: require('./resize_wasm'),
-  wasm_src: require('./convolve_wasm_base64')
-};
-
-},{"./convolve_wasm_base64":11,"./resize":13,"./resize_wasm":16}],13:[function(require,module,exports){
-'use strict';
-
-var createFilters = require('./resize_filter_gen');
-var convolveHorizontally = require('./convolve').convolveHorizontally;
-var convolveVertically = require('./convolve').convolveVertically;
-
-function resetAlpha(dst, width, height) {
-  var ptr = 3,
-      len = width * height * 4 | 0;
-  while (ptr < len) {
-    dst[ptr] = 0xFF;ptr = ptr + 4 | 0;
-  }
-}
-
-module.exports = function resize(options) {
-  var src = options.src;
-  var srcW = options.width;
-  var srcH = options.height;
-  var destW = options.toWidth;
-  var destH = options.toHeight;
-  var scaleX = options.scaleX || options.toWidth / options.width;
-  var scaleY = options.scaleY || options.toHeight / options.height;
-  var offsetX = options.offsetX || 0;
-  var offsetY = options.offsetY || 0;
-  var dest = options.dest || new Uint8Array(destW * destH * 4);
-  var quality = typeof options.quality === 'undefined' ? 3 : options.quality;
-  var alpha = options.alpha || false;
-
-  var filtersX = createFilters(quality, srcW, destW, scaleX, offsetX),
-      filtersY = createFilters(quality, srcH, destH, scaleY, offsetY);
-
-  var tmp = new Uint8Array(destW * srcH * 4);
-
-  // To use single function we need src & tmp of the same type.
-  // But src can be CanvasPixelArray, and tmp - Uint8Array. So, keep
-  // vertical and horizontal passes separately to avoid deoptimization.
-
-  convolveHorizontally(src, tmp, srcW, srcH, destW, filtersX);
-  convolveVertically(tmp, dest, srcH, destW, destH, filtersY);
-
-  // That's faster than doing checks in convolver.
-  // !!! Note, canvas data is not premultipled. We don't need other
-  // alpha corrections.
-
-  if (!alpha) resetAlpha(dest, destW, destH);
-
-  return dest;
-};
-
-},{"./convolve":10,"./resize_filter_gen":14}],14:[function(require,module,exports){
-// Calculate convolution filters for each destination point,
-// and pack data to Int16Array:
-//
-// [ shift, length, data..., shift2, length2, data..., ... ]
-//
-// - shift - offset in src image
-// - length - filter length (in src points)
-// - data - filter values sequence
-//
-'use strict';
-
-var FILTER_INFO = require('./resize_filter_info');
-
-// Precision of fixed FP values
-var FIXED_FRAC_BITS = 14;
-
-function toFixedPoint(num) {
-  return Math.round(num * ((1 << FIXED_FRAC_BITS) - 1));
-}
-
-module.exports = function resizeFilterGen(quality, srcSize, destSize, scale, offset) {
-
-  var filterFunction = FILTER_INFO[quality].filter;
-
-  var scaleInverted = 1.0 / scale;
-  var scaleClamped = Math.min(1.0, scale); // For upscale
-
-  // Filter window (averaging interval), scaled to src image
-  var srcWindow = FILTER_INFO[quality].win / scaleClamped;
-
-  var destPixel, srcPixel, srcFirst, srcLast, filterElementSize, floatFilter, fxpFilter, total, pxl, idx, floatVal, filterTotal, filterVal;
-  var leftNotEmpty, rightNotEmpty, filterShift, filterSize;
-
-  var maxFilterElementSize = Math.floor((srcWindow + 1) * 2);
-  var packedFilter = new Int16Array((maxFilterElementSize + 2) * destSize);
-  var packedFilterPtr = 0;
-
-  var slowCopy = !packedFilter.subarray || !packedFilter.set;
-
-  // For each destination pixel calculate source range and built filter values
-  for (destPixel = 0; destPixel < destSize; destPixel++) {
-
-    // Scaling should be done relative to central pixel point
-    srcPixel = (destPixel + 0.5) * scaleInverted + offset;
-
-    srcFirst = Math.max(0, Math.floor(srcPixel - srcWindow));
-    srcLast = Math.min(srcSize - 1, Math.ceil(srcPixel + srcWindow));
-
-    filterElementSize = srcLast - srcFirst + 1;
-    floatFilter = new Float32Array(filterElementSize);
-    fxpFilter = new Int16Array(filterElementSize);
-
-    total = 0.0;
-
-    // Fill filter values for calculated range
-    for (pxl = srcFirst, idx = 0; pxl <= srcLast; pxl++, idx++) {
-      floatVal = filterFunction((pxl + 0.5 - srcPixel) * scaleClamped);
-      total += floatVal;
-      floatFilter[idx] = floatVal;
-    }
-
-    // Normalize filter, convert to fixed point and accumulate conversion error
-    filterTotal = 0;
-
-    for (idx = 0; idx < floatFilter.length; idx++) {
-      filterVal = floatFilter[idx] / total;
-      filterTotal += filterVal;
-      fxpFilter[idx] = toFixedPoint(filterVal);
-    }
-
-    // Compensate normalization error, to minimize brightness drift
-    fxpFilter[destSize >> 1] += toFixedPoint(1.0 - filterTotal);
-
-    //
-    // Now pack filter to useable form
-    //
-    // 1. Trim heading and tailing zero values, and compensate shitf/length
-    // 2. Put all to single array in this format:
-    //
-    //    [ pos shift, data length, value1, value2, value3, ... ]
-    //
-
-    leftNotEmpty = 0;
-    while (leftNotEmpty < fxpFilter.length && fxpFilter[leftNotEmpty] === 0) {
-      leftNotEmpty++;
-    }
-
-    if (leftNotEmpty < fxpFilter.length) {
-      rightNotEmpty = fxpFilter.length - 1;
-      while (rightNotEmpty > 0 && fxpFilter[rightNotEmpty] === 0) {
-        rightNotEmpty--;
-      }
-
-      filterShift = srcFirst + leftNotEmpty;
-      filterSize = rightNotEmpty - leftNotEmpty + 1;
-
-      packedFilter[packedFilterPtr++] = filterShift; // shift
-      packedFilter[packedFilterPtr++] = filterSize; // size
-
-      if (!slowCopy) {
-        packedFilter.set(fxpFilter.subarray(leftNotEmpty, rightNotEmpty + 1), packedFilterPtr);
-        packedFilterPtr += filterSize;
-      } else {
-        // fallback for old IE < 11, without subarray/set methods
-        for (idx = leftNotEmpty; idx <= rightNotEmpty; idx++) {
-          packedFilter[packedFilterPtr++] = fxpFilter[idx];
-        }
-      }
-    } else {
-      // zero data, write header only
-      packedFilter[packedFilterPtr++] = 0; // shift
-      packedFilter[packedFilterPtr++] = 0; // size
-    }
-  }
-  return packedFilter;
-};
-
-},{"./resize_filter_info":15}],15:[function(require,module,exports){
-// Filter definitions to build tables for
-// resizing convolvers.
-//
-// Presets for quality 0..3. Filter functions + window size
-//
-'use strict';
-
-module.exports = [{ // Nearest neibor (Box)
-  win: 0.5,
-  filter: function filter(x) {
-    return x >= -0.5 && x < 0.5 ? 1.0 : 0.0;
-  }
-}, { // Hamming
-  win: 1.0,
-  filter: function filter(x) {
-    if (x <= -1.0 || x >= 1.0) {
-      return 0.0;
-    }
-    if (x > -1.19209290E-07 && x < 1.19209290E-07) {
-      return 1.0;
-    }
-    var xpi = x * Math.PI;
-    return Math.sin(xpi) / xpi * (0.54 + 0.46 * Math.cos(xpi / 1.0));
-  }
-}, { // Lanczos, win = 2
-  win: 2.0,
-  filter: function filter(x) {
-    if (x <= -2.0 || x >= 2.0) {
-      return 0.0;
-    }
-    if (x > -1.19209290E-07 && x < 1.19209290E-07) {
-      return 1.0;
-    }
-    var xpi = x * Math.PI;
-    return Math.sin(xpi) / xpi * Math.sin(xpi / 2.0) / (xpi / 2.0);
-  }
-}, { // Lanczos, win = 3
-  win: 3.0,
-  filter: function filter(x) {
-    if (x <= -3.0 || x >= 3.0) {
-      return 0.0;
-    }
-    if (x > -1.19209290E-07 && x < 1.19209290E-07) {
-      return 1.0;
-    }
-    var xpi = x * Math.PI;
-    return Math.sin(xpi) / xpi * Math.sin(xpi / 3.0) / (xpi / 3.0);
-  }
-}];
-
-},{}],16:[function(require,module,exports){
-'use strict';
-
-var createFilters = require('./resize_filter_gen');
-
-function resetAlpha(dst, width, height) {
-  var ptr = 3,
-      len = width * height * 4 | 0;
-  while (ptr < len) {
-    dst[ptr] = 0xFF;ptr = ptr + 4 | 0;
-  }
-}
-
-function asUint8Array(src) {
-  return new Uint8Array(src.buffer, 0, src.byteLength);
-}
-
-var IS_LE = true;
-// should not crash everything on module load in old browsers
-try {
-  IS_LE = new Uint32Array(new Uint8Array([1, 0, 0, 0]).buffer)[0] === 1;
-} catch (__) {}
-
-function copyInt16asLE(src, target, target_offset) {
-  if (IS_LE) {
-    target.set(asUint8Array(src), target_offset);
-    return;
-  }
-
-  for (var ptr = target_offset, i = 0; i < src.length; i++) {
-    var data = src[i];
-    target[ptr++] = data & 0xFF;
-    target[ptr++] = data >> 8 & 0xFF;
-  }
-}
-
-module.exports = function resize_wasm(options) {
-  var src = options.src;
-  var srcW = options.width;
-  var srcH = options.height;
-  var destW = options.toWidth;
-  var destH = options.toHeight;
-  var scaleX = options.scaleX || options.toWidth / options.width;
-  var scaleY = options.scaleY || options.toHeight / options.height;
-  var offsetX = options.offsetX || 0.0;
-  var offsetY = options.offsetY || 0.0;
-  var dest = options.dest || new Uint8Array(destW * destH * 4);
-  var quality = typeof options.quality === 'undefined' ? 3 : options.quality;
-  var alpha = options.alpha || false;
-
-  var filtersX = createFilters(quality, srcW, destW, scaleX, offsetX),
-      filtersY = createFilters(quality, srcH, destH, scaleY, offsetY);
-
-  // destination is 0 too.
-  var src_offset = 0;
-  // buffer between convolve passes
-  var tmp_offset = this.__align(src_offset + Math.max(src.byteLength, dest.byteLength), 8);
-  var filtersX_offset = this.__align(tmp_offset + srcH * destW * 4, 8);
-  var filtersY_offset = this.__align(filtersX_offset + filtersX.byteLength, 8);
-  var alloc_bytes = filtersY_offset + filtersY.byteLength;
-
-  var instance = this.__instance('resize', alloc_bytes);
-
-  //
-  // Fill memory block with data to process
-  //
-
-  var mem = new Uint8Array(this.__memory.buffer);
-  var mem32 = new Uint32Array(this.__memory.buffer);
-
-  // 32-bit copy is much faster in chrome
-  var src32 = new Uint32Array(src.buffer);
-  mem32.set(src32);
-
-  // We should guarantee LE bytes order. Filters are not big, so
-  // speed difference is not significant vs direct .set()
-  copyInt16asLE(filtersX, mem, filtersX_offset);
-  copyInt16asLE(filtersY, mem, filtersY_offset);
-
-  //
-  // Now call webassembly method
-  // emsdk does method names with '_'
-  var fn = instance.exports.convolveHV || instance.exports._convolveHV;
-
-  fn(filtersX_offset, filtersY_offset, tmp_offset, srcW, srcH, destW, destH);
-
-  //
-  // Copy data back to typed array
-  //
-
-  // 32-bit copy is much faster in chrome
-  var dest32 = new Uint32Array(dest.buffer);
-  dest32.set(new Uint32Array(this.__memory.buffer, 0, destH * destW));
-
-  // That's faster than doing checks in convolver.
-  // !!! Note, canvas data is not premultipled. We don't need other
-  // alpha corrections.
-
-  if (!alpha) resetAlpha(dest, destW, destH);
-
-  return dest;
-};
-
-},{"./resize_filter_gen":14}],17:[function(require,module,exports){
-'use strict';
-
-var GC_INTERVAL = 100;
-
-function Pool(create, idle) {
-  this.create = create;
-
-  this.available = [];
-  this.acquired = {};
-  this.lastId = 1;
-
-  this.timeoutId = 0;
-  this.idle = idle || 2000;
-}
-
-Pool.prototype.acquire = function () {
-  var _this = this;
-
-  var resource = void 0;
-
-  if (this.available.length !== 0) {
-    resource = this.available.pop();
-  } else {
-    resource = this.create();
-    resource.id = this.lastId++;
-    resource.release = function () {
-      return _this.release(resource);
-    };
-  }
-  this.acquired[resource.id] = resource;
-  return resource;
-};
-
-Pool.prototype.release = function (resource) {
-  var _this2 = this;
-
-  delete this.acquired[resource.id];
-
-  resource.lastUsed = Date.now();
-  this.available.push(resource);
-
-  if (this.timeoutId === 0) {
-    this.timeoutId = setTimeout(function () {
-      return _this2.gc();
-    }, GC_INTERVAL);
-  }
-};
-
-Pool.prototype.gc = function () {
-  var _this3 = this;
-
-  var now = Date.now();
-
-  this.available = this.available.filter(function (resource) {
-    if (now - resource.lastUsed > _this3.idle) {
-      resource.destroy();
-      return false;
-    }
-    return true;
-  });
-
-  if (this.available.length !== 0) {
-    this.timeoutId = setTimeout(function () {
-      return _this3.gc();
-    }, GC_INTERVAL);
-  } else {
-    this.timeoutId = 0;
-  }
-};
-
-module.exports = Pool;
-
-},{}],18:[function(require,module,exports){
-'use strict';
-
-/*
- * pixelFloor and pixelCeil are modified versions of Math.floor and Math.ceil
- * functions which take into account floating point arithmetic errors.
- * Those errors can cause undesired increments/decrements of sizes and offsets:
- * Math.ceil(36 / (36 / 500)) = 501
- * pixelCeil(36 / (36 / 500)) = 500
- */
-
-var PIXEL_EPSILON = 1e-5;
-
-function pixelFloor(x) {
-  var nearest = Math.round(x);
-
-  if (Math.abs(x - nearest) < PIXEL_EPSILON) {
-    return nearest;
-  }
-  return Math.floor(x);
-}
-
-function pixelCeil(x) {
-  var nearest = Math.round(x);
-
-  if (Math.abs(x - nearest) < PIXEL_EPSILON) {
-    return nearest;
-  }
-  return Math.ceil(x);
-}
-
-module.exports = function createRegions(options) {
-  var scaleX = options.toWidth / options.width;
-  var scaleY = options.toHeight / options.height;
-
-  var innerTileWidth = pixelFloor(options.srcTileSize * scaleX) - 2 * options.destTileBorder;
-  var innerTileHeight = pixelFloor(options.srcTileSize * scaleY) - 2 * options.destTileBorder;
-
-  var x, y;
-  var innerX, innerY, toTileWidth, toTileHeight;
-  var tiles = [];
-  var tile;
-
-  // we go top-to-down instead of left-to-right to make image displayed from top to
-  // doesn in the browser
-  for (innerY = 0; innerY < options.toHeight; innerY += innerTileHeight) {
-    for (innerX = 0; innerX < options.toWidth; innerX += innerTileWidth) {
-      x = innerX - options.destTileBorder;
-      if (x < 0) {
-        x = 0;
-      }
-      toTileWidth = innerX + innerTileWidth + options.destTileBorder - x;
-      if (x + toTileWidth >= options.toWidth) {
-        toTileWidth = options.toWidth - x;
-      }
-
-      y = innerY - options.destTileBorder;
-      if (y < 0) {
-        y = 0;
-      }
-      toTileHeight = innerY + innerTileHeight + options.destTileBorder - y;
-      if (y + toTileHeight >= options.toHeight) {
-        toTileHeight = options.toHeight - y;
-      }
-
-      tile = {
-        toX: x,
-        toY: y,
-        toWidth: toTileWidth,
-        toHeight: toTileHeight,
-
-        toInnerX: innerX,
-        toInnerY: innerY,
-        toInnerWidth: innerTileWidth,
-        toInnerHeight: innerTileHeight,
-
-        offsetX: x / scaleX - pixelFloor(x / scaleX),
-        offsetY: y / scaleY - pixelFloor(y / scaleY),
-        scaleX: scaleX,
-        scaleY: scaleY,
-
-        x: pixelFloor(x / scaleX),
-        y: pixelFloor(y / scaleY),
-        width: pixelCeil(toTileWidth / scaleX),
-        height: pixelCeil(toTileHeight / scaleY)
-      };
-
-      tiles.push(tile);
-    }
-  }
-
-  return tiles;
-};
-
-},{}],19:[function(require,module,exports){
-'use strict';
-
-function objClass(obj) {
-  return Object.prototype.toString.call(obj);
-}
-
-module.exports.isCanvas = function isCanvas(element) {
-  //return (element.nodeName && element.nodeName.toLowerCase() === 'canvas') ||
-  var cname = objClass(element);
-
-  return cname === '[object HTMLCanvasElement]' /* browser */ || cname === '[object Canvas]' /* node-canvas */;
-};
-
-module.exports.isImage = function isImage(element) {
-  //return element.nodeName && element.nodeName.toLowerCase() === 'img';
-  return objClass(element) === '[object HTMLImageElement]';
-};
-
-module.exports.limiter = function limiter(concurrency) {
-  var active = 0,
-      queue = [];
-
-  function roll() {
-    if (active < concurrency && queue.length) {
-      active++;
-      queue.shift()();
-    }
-  }
-
-  return function limit(fn) {
-    return new Promise(function (resolve, reject) {
-      queue.push(function () {
-        fn().then(function (result) {
-          resolve(result);
-          active--;
-          roll();
-        }, function (err) {
-          reject(err);
-          active--;
-          roll();
-        });
-      });
-
-      roll();
-    });
-  };
-};
-
-module.exports.cib_quality_name = function cib_quality_name(num) {
-  switch (num) {
-    case 0:
-      return 'pixelated';
-    case 1:
-      return 'low';
-    case 2:
-      return 'medium';
-  }
-  return 'high';
-};
-
-module.exports.cib_support = function cib_support() {
-  return Promise.resolve().then(function () {
-    if (typeof createImageBitmap === 'undefined' || typeof document === 'undefined') {
-      return false;
-    }
-
-    var c = document.createElement('canvas');
-    c.width = 100;
-    c.height = 100;
-
-    return createImageBitmap(c, 0, 0, 100, 100, {
-      resizeWidth: 10,
-      resizeHeight: 10,
-      resizeQuality: 'high'
-    }).then(function (bitmap) {
-      var status = bitmap.width === 10;
-
-      // Branch below is filtered on upper level. We do not call resize
-      // detection for basic ImageBitmap.
-      //
-      // https://developer.mozilla.org/en-US/docs/Web/API/ImageBitmap
-      // old Crome 51 has ImageBitmap without .close(). Then this code
-      // will throw and return 'false' as expected.
-      //
-      bitmap.close();
-      c = null;
-      return status;
-    });
-  }).catch(function () {
-    return false;
-  });
-};
-
-},{}],20:[function(require,module,exports){
-// Web Worker wrapper for image resize function
-
-'use strict';
-
-module.exports = function () {
-  var MathLib = require('./mathlib');
-
-  var mathLib = void 0;
-
-  /* eslint-disable no-undef */
-  onmessage = function onmessage(ev) {
-    var opts = ev.data.opts;
-
-    if (!mathLib) mathLib = new MathLib(ev.data.features);
-
-    // Use multimath's sync auto-init. Avoid Promise use in old browsers,
-    // because polyfills are not propagated to webworker.
-    var result = mathLib.resizeAndUnsharp(opts);
-
-    postMessage({ result: result }, [result.buffer]);
-  };
-};
-
-},{"./mathlib":9}],21:[function(require,module,exports){
-if (typeof Object.create === 'function') {
-  // implementation from standard node.js 'util' module
-  module.exports = function inherits(ctor, superCtor) {
-    ctor.super_ = superCtor
-    ctor.prototype = Object.create(superCtor.prototype, {
-      constructor: {
-        value: ctor,
-        enumerable: false,
-        writable: true,
-        configurable: true
-      }
-    });
-  };
-} else {
-  // old school shim for old browsers
-  module.exports = function inherits(ctor, superCtor) {
-    ctor.super_ = superCtor
-    var TempCtor = function () {}
-    TempCtor.prototype = superCtor.prototype
-    ctor.prototype = new TempCtor()
-    ctor.prototype.constructor = ctor
-  }
-}
-
 },{}],22:[function(require,module,exports){
-arguments[4][8][0].apply(exports,arguments)
-},{"dup":8}],23:[function(require,module,exports){
 var bundleFn = arguments[3];
 var sources = arguments[4];
 var cache = arguments[5];
@@ -2032,5 +2030,5 @@ Pica.prototype.debug = function () {};
 
 module.exports = Pica;
 
-},{"./lib/mathlib":9,"./lib/pool":17,"./lib/tiler":18,"./lib/utils":19,"./lib/worker":20,"object-assign":22,"webworkify":23}]},{},[])("/")
+},{"./lib/mathlib":1,"./lib/pool":9,"./lib/tiler":10,"./lib/utils":11,"./lib/worker":12,"object-assign":21,"webworkify":22}]},{},[])("/")
 });
