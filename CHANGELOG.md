@@ -1,3 +1,9 @@
+4.0.1 / 2017-10-13
+------------------
+
+- Attempt to fix failure when WebAssembly disabled via CSP.
+
+
 4.0.0 / 2017-09-30
 ------------------
 
