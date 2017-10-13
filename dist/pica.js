@@ -1,4 +1,4 @@
-/* pica 4.0.0 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+/* pica 4.0.1 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 // Collection of math functions
 //
 // 1. Combine components together
@@ -45,7 +45,7 @@ MathLib.prototype.resizeAndUnsharp = function resizeAndUnsharp(options, cache) {
 
 module.exports = MathLib;
 
-},{"./mm_resize":4,"inherits":14,"multimath":15,"multimath/lib/unsharp_mask":17}],2:[function(require,module,exports){
+},{"./mm_resize":4,"inherits":14,"multimath":15,"multimath/lib/unsharp_mask":18}],2:[function(require,module,exports){
 // Resize convolvers, pure JS implementation
 //
 'use strict';
@@ -960,7 +960,9 @@ if (typeof Object.create === 'function') {
 'use strict';
 
 
-var assign = require('object-assign');
+var assign         = require('object-assign');
+var base64decode   = require('./lib/base64decode');
+var hasWebAssembly = require('./lib/wa_detect');
 
 
 var DEFAULT_OPTIONS = {
@@ -972,13 +974,15 @@ var DEFAULT_OPTIONS = {
 function MultiMath(options) {
   if (!(this instanceof MultiMath)) return new MultiMath(options);
 
-  this.options = assign({}, DEFAULT_OPTIONS, options || {});
+  var opts = assign({}, DEFAULT_OPTIONS, options || {});
+
+  this.options         = opts;
 
   this.__cache         = {};
-  this.has_wasm        = typeof WebAssembly !== 'undefined';
+  this.has_wasm        = hasWebAssembly();
 
   this.__init_promise  = null;
-  this.__modules       = options.modules || {};
+  this.__modules       = opts.modules || {};
   this.__memory        = null;
   this.__wasm          = {};
 
@@ -1025,15 +1029,100 @@ MultiMath.prototype.init = function () {
     return WebAssembly.compile(self.__base64decode(module.wasm_src))
       .then(function (m) { self.__wasm[name] = m; });
   }))
-  .then(function () { return self; });
+    .then(function () { return self; });
 
   return this.__init_promise;
 };
 
 
+////////////////////////////////////////////////////////////////////////////////
+// Methods below are for internal use from plugins
+
+
+// Simple decode base64 to typed array. Useful to load embedded webassembly
+// code. You probably don't need to call this method directly.
+//
+MultiMath.prototype.__base64decode = base64decode;
+
+
+// Increase current memory to include specified number of bytes. Do nothing if
+// size is already ok. You probably don't need to call this method directly,
+// because it will be invoked from `.__instance()`.
+//
+MultiMath.prototype.__reallocate = function mem_grow_to(bytes) {
+  if (!this.__memory) {
+    this.__memory = new WebAssembly.Memory({
+      initial: Math.ceil(bytes / (64 * 1024))
+    });
+    return this.__memory;
+  }
+
+  var mem_size = this.__memory.buffer.byteLength;
+
+  if (mem_size < bytes) {
+    this.__memory.grow(Math.ceil((bytes - mem_size) / (64 * 1024)));
+  }
+
+  return this.__memory;
+};
+
+
+// Returns instantinated webassembly item by name, with specified memory size
+// and environment.
+// - use cache if available
+// - do sync module init, if async init was not called earlier
+// - allocate memory if not enougth
+// - can export functions to webassembly via "env_extra",
+//   for example, { exp: Math.exp }
+//
+MultiMath.prototype.__instance = function instance(name, memsize, env_extra) {
+  if (memsize) this.__reallocate(memsize);
+
+  // If .init() was not called, do sync compile
+  if (!this.__wasm[name]) {
+    var module = this.__modules[name];
+    this.__wasm[name] = new WebAssembly.Module(this.__base64decode(module.wasm_src));
+  }
+
+  if (!this.__cache[name]) {
+    var env_base = {
+      memoryBase: 0,
+      memory: this.__memory,
+      tableBase: 0,
+      table: new WebAssembly.Table({ initial: 0, element: 'anyfunc' })
+    };
+
+    this.__cache[name] = new WebAssembly.Instance(this.__wasm[name], {
+      env: assign(env_base, env_extra || {})
+    });
+  }
+
+  return this.__cache[name];
+};
+
+
+// Helper to calculate memory aligh for pointers. Webassembly does not require
+// this, but you may wish to experiment. Default base = 8;
+//
+MultiMath.prototype.__align = function align(number, base) {
+  base = base || 8;
+  var reminder = number % base;
+  return number + (reminder ? base - reminder : 0);
+};
+
+
+module.exports = MultiMath;
+
+},{"./lib/base64decode":16,"./lib/wa_detect":22,"object-assign":23}],16:[function(require,module,exports){
+// base64 decode str -> Uint8Array, to load WA modules
+//
+'use strict';
+
+
 var BASE64_MAP = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
-MultiMath.prototype.__base64decode = function base64decode(str) {
+
+module.exports = function base64decode(str) {
   var input = str.replace(/[\r\n=]/g, ''), // remove CR/LF & padding to simplify scan
       max   = input.length;
 
@@ -1072,60 +1161,7 @@ MultiMath.prototype.__base64decode = function base64decode(str) {
   return out;
 };
 
-
-MultiMath.prototype.__reallocate = function mem_grow_to(bytes) {
-  if (!this.__memory) {
-    this.__memory = new WebAssembly.Memory({
-      initial: Math.ceil(bytes / (64 * 1024))
-    });
-    return this.__memory;
-  }
-
-  var mem_size = this.__memory.buffer.byteLength;
-
-  if (mem_size < bytes) {
-    this.__memory.grow(Math.ceil((bytes - mem_size) / (64 * 1024)));
-  }
-
-  return this.__memory;
-};
-
-
-MultiMath.prototype.__instance = function instance(name, memsize, env_extra) {
-  if (memsize) this.__reallocate(memsize);
-
-  // If .init() was not called, do sync compile
-  if (!this.__wasm[name]) {
-    var module = this.__modules[name];
-    this.__wasm[name] = new WebAssembly.Module(this.__base64decode(module.wasm_src));
-  }
-
-  if (!this.__cache[name]) {
-    var env_base = {
-      memoryBase: 0,
-      memory: this.__memory,
-      tableBase: 0,
-      table: new WebAssembly.Table({ initial: 0, element: 'anyfunc' })
-    };
-
-    this.__cache[name] = new WebAssembly.Instance(this.__wasm[name], {
-      env: assign(env_base, env_extra || {})
-    });
-  }
-
-  return this.__cache[name];
-};
-
-
-MultiMath.prototype.__align = function align(number, base) {
-  var reminder = number % base;
-  return number + (reminder ? base - reminder : 0);
-};
-
-
-module.exports = MultiMath;
-
-},{"object-assign":21}],16:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 // Calculates 16-bit precision HSL lightness from 8-bit rgba buffer
 //
 'use strict';
@@ -1146,7 +1182,7 @@ module.exports = function hsl_l16_js(img, width, height) {
   return out;
 };
 
-},{}],17:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 'use strict';
 
 module.exports = {
@@ -1156,7 +1192,7 @@ module.exports = {
   wasm_src: require('./unsharp_mask_wasm_base64')
 };
 
-},{"./unsharp_mask":18,"./unsharp_mask_wasm":19,"./unsharp_mask_wasm_base64":20}],18:[function(require,module,exports){
+},{"./unsharp_mask":19,"./unsharp_mask_wasm":20,"./unsharp_mask_wasm_base64":21}],19:[function(require,module,exports){
 // Unsharp mask filter
 //
 // http://stackoverflow.com/a/23322820/1031804
@@ -1198,6 +1234,7 @@ module.exports = function unsharp(img, width, height, amount, radius, threshold)
 
   var size = width * height;
 
+  /* eslint-disable indent */
   for (var i = 0; i < size; i++) {
     diff = 2 * (lightness[i] - blured[i]);
 
@@ -1273,7 +1310,7 @@ module.exports = function unsharp(img, width, height, amount, radius, threshold)
   }
 };
 
-},{"./hsl_l16":16,"glur/mono16":13}],19:[function(require,module,exports){
+},{"./hsl_l16":17,"glur/mono16":13}],20:[function(require,module,exports){
 'use strict';
 
 
@@ -1330,7 +1367,7 @@ module.exports = function unsharp(img, width, height, amount, radius, threshold)
   img32.set(new Uint32Array(this.__memory.buffer, 0, pixels));
 };
 
-},{}],20:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 // This is autogenerated file from math.wasm, don't edit.
 //
 'use strict';
@@ -1338,7 +1375,55 @@ module.exports = function unsharp(img, width, height, amount, radius, threshold)
 /* eslint-disable max-len */
 module.exports = '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';
 
-},{}],21:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
+// Detect WebAssembly support.
+// - Check global WebAssembly object
+// - Try to load simple module (can be disabled via CSP)
+//
+'use strict';
+
+
+var base64decode = require('./base64decode');
+
+// See support/wa_detect/detect.c
+// Dummy module with `function detect() { return 1; }`
+var detector_src = 'AGFzbQEAAAABBQFgAAF/Ag8BA2VudgZtZW1vcnkCAAEDAgEABAQBcAAABwoBBmRldGVjdAAACQEACgYBBABBAQs=';
+
+
+var wa;
+
+
+module.exports = function hasWebAssembly() {
+  // use cache if called before;
+  if (typeof wa !== 'undefined') return wa;
+
+  wa = false;
+
+  if (typeof WebAssembly === 'undefined') return wa;
+
+  // If WebAssenbly is disabled, code can throw on compile
+  try {
+    var module = new WebAssembly.Module(base64decode(detector_src));
+
+    var env = {
+      memoryBase: 0,
+      memory:     new WebAssembly.Memory({ initial: 1 }),
+      tableBase:  0,
+      table:      new WebAssembly.Table({ initial: 0, element: 'anyfunc' })
+    };
+
+    var instance = new WebAssembly.Instance(module, { env: env });
+    var detect = instance.exports.detect;
+
+    if (detect() === 1) wa = true;
+
+    return wa;
+  } catch (__) {}
+
+  return wa;
+};
+
+},{"./base64decode":16}],23:[function(require,module,exports){
 /*
 object-assign
 (c) Sindre Sorhus
@@ -1430,7 +1515,7 @@ module.exports = shouldUseNative() ? Object.assign : function (target, source) {
 	return to;
 };
 
-},{}],22:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 var bundleFn = arguments[3];
 var sources = arguments[4];
 var cache = arguments[5];
@@ -2030,5 +2115,5 @@ Pica.prototype.debug = function () {};
 
 module.exports = Pica;
 
-},{"./lib/mathlib":1,"./lib/pool":9,"./lib/tiler":10,"./lib/utils":11,"./lib/worker":12,"object-assign":21,"webworkify":22}]},{},[])("/")
+},{"./lib/mathlib":1,"./lib/pool":9,"./lib/tiler":10,"./lib/utils":11,"./lib/worker":12,"object-assign":23,"webworkify":24}]},{},[])("/")
 });
