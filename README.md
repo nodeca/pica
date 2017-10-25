@@ -91,7 +91,7 @@ pica.resize(from, to, {
 
 // Resize & convert to blob
 pica.resize(from, to)
-  .then(result => pica.toBlob(result, 'image/jpeg', 90))
+  .then(result => pica.toBlob(result, 'image/jpeg', 0.90))
   .then(blob => console.log('resized to canvas & created blob!'));
 ```
 
