@@ -148,7 +148,7 @@ taken from source and destination objects.
   - __unsharpThreshold__ - 0..255. Default = `0`. Threshold for
     applying unsharp mask.
   - __cancelToken__ - Promise instance. If defined, current
-    operation will be termitated on rejection.
+    operation will be terminated on rejection.
 
 Result is Promise, resolved with `to` on success.
 
