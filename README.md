@@ -233,7 +233,7 @@ We didn't have time to test all possible combinations, but in general:
   [createImageBitmap](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/createImageBitmap)
   are not required, but they will be used if available.
 - If you plan to use only pure math core,
-  then [typed arrays support](http://caniuse.com/#feat=typedarrays) will be enougth.
+  then [typed arrays support](http://caniuse.com/#feat=typedarrays) will be enough.
 
 __Note.__ Though you can run this package on `node.js`, browsers
 are the main target platform. On server side we recommend to use
