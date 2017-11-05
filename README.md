@@ -58,13 +58,19 @@ Install
 
 node.js (to develop, build via browserify and so on):
 
-```bash
+```sh
 npm install pica
+```
+
+Transforms plugins for build via browserify:
+
+```sh
+npm install babelify babel-core babel-preset-es2015
 ```
 
 bower:
 
-```bash
+```sh
 bower install pica
 ```
 
