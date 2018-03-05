@@ -1,4 +1,4 @@
-/* pica 4.0.1 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+/* pica 4.0.2 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function(){function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s}return e})()({1:[function(require,module,exports){
 // Collection of math functions
 //
 // 1. Combine components together
@@ -478,9 +478,9 @@ module.exports = function resize_wasm(options) {
   // destination is 0 too.
   var src_offset = 0;
   // buffer between convolve passes
-  var tmp_offset = this.__align(src_offset + Math.max(src.byteLength, dest.byteLength), 8);
-  var filtersX_offset = this.__align(tmp_offset + srcH * destW * 4, 8);
-  var filtersY_offset = this.__align(filtersX_offset + filtersX.byteLength, 8);
+  var tmp_offset = this.__align(src_offset + Math.max(src.byteLength, dest.byteLength));
+  var filtersX_offset = this.__align(tmp_offset + srcH * destW * 4);
+  var filtersY_offset = this.__align(filtersX_offset + filtersX.byteLength);
   var alloc_bytes = filtersY_offset + filtersY.byteLength;
 
   var instance = this.__instance('resize', alloc_bytes);
@@ -1383,13 +1383,6 @@ module.exports = 'AGFzbQEAAAABMQZgAXwBfGACfX8AYAZ/f39/f38AYAh/f39/f39/fQBgBH9/f3
 'use strict';
 
 
-var base64decode = require('./base64decode');
-
-// See support/wa_detect/detect.c
-// Dummy module with `function detect() { return 1; }`
-var detector_src = 'AGFzbQEAAAABBQFgAAF/Ag8BA2VudgZtZW1vcnkCAAEDAgEABAQBcAAABwoBBmRldGVjdAAACQEACgYBBABBAQs=';
-
-
 var wa;
 
 
@@ -1403,19 +1396,17 @@ module.exports = function hasWebAssembly() {
 
   // If WebAssenbly is disabled, code can throw on compile
   try {
-    var module = new WebAssembly.Module(base64decode(detector_src));
+    // https://github.com/brion/min-wasm-fail/blob/master/min-wasm-fail.in.js
+    // Additional check that WA internals are correct
 
-    var env = {
-      memoryBase: 0,
-      memory:     new WebAssembly.Memory({ initial: 1 }),
-      tableBase:  0,
-      table:      new WebAssembly.Table({ initial: 0, element: 'anyfunc' })
-    };
+    /* eslint-disable comma-spacing, max-len */
+    var bin      = new Uint8Array([ 0,97,115,109,1,0,0,0,1,6,1,96,1,127,1,127,3,2,1,0,5,3,1,0,1,7,8,1,4,116,101,115,116,0,0,10,16,1,14,0,32,0,65,1,54,2,0,32,0,40,2,0,11 ]);
+    var module   = new WebAssembly.Module(bin);
+    var instance = new WebAssembly.Instance(module, {});
 
-    var instance = new WebAssembly.Instance(module, { env: env });
-    var detect = instance.exports.detect;
-
-    if (detect() === 1) wa = true;
+    // test storing to and loading from a non-zero location via a parameter.
+    // Safari on iOS 11.2.5 returns 0 unexpectedly at non-zero locations
+    if (instance.exports.test(4) !== 0) wa = true;
 
     return wa;
   } catch (__) {}
@@ -1423,7 +1414,7 @@ module.exports = function hasWebAssembly() {
   return wa;
 };
 
-},{"./base64decode":16}],23:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 /*
 object-assign
 (c) Sindre Sorhus
@@ -1547,7 +1538,7 @@ module.exports = function (fn, options) {
             wcache[key] = key;
         }
         sources[wkey] = [
-            Function(['require','module','exports'], '(' + fn + ')(self)'),
+            'function(require,module,exports){' + fn + '(self); }',
             wcache
         ];
     }
@@ -1555,12 +1546,11 @@ module.exports = function (fn, options) {
 
     var scache = {}; scache[wkey] = wkey;
     sources[skey] = [
-        Function(['require'], (
-            // try to call default if defined to also support babel esmodule
-            // exports
+        'function(require,module,exports){' +
+            // try to call default if defined to also support babel esmodule exports
             'var f = require(' + stringify(wkey) + ');' +
-            '(f.default ? f.default : f)(self);'
-        )),
+            '(f.default ? f.default : f)(self);' +
+        '}',
         scache
     ];
 
