@@ -1,3 +1,10 @@
+4.0.2 / 2018-03-05
+------------------
+
+- Multimath bump, should fix issue with broken WebAssembly engine in IOS 11.2.x
+  Webkit (Safary/Chrome).
+
+
 4.0.1 / 2017-10-13
 ------------------
 
