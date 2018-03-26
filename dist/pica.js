@@ -1,4 +1,4 @@
-/* pica 4.0.2 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function(){function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s}return e})()({1:[function(require,module,exports){
+/* pica 4.1.0 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function(){function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s}return e})()({1:[function(require,module,exports){
 // Collection of math functions
 //
 // 1. Combine components together
@@ -45,7 +45,7 @@ MathLib.prototype.resizeAndUnsharp = function resizeAndUnsharp(options, cache) {
 
 module.exports = MathLib;
 
-},{"./mm_resize":4,"inherits":14,"multimath":15,"multimath/lib/unsharp_mask":18}],2:[function(require,module,exports){
+},{"./mm_resize":4,"inherits":15,"multimath":16,"multimath/lib/unsharp_mask":19}],2:[function(require,module,exports){
 // Resize convolvers, pure JS implementation
 //
 'use strict';
@@ -599,6 +599,63 @@ Pool.prototype.gc = function () {
 module.exports = Pool;
 
 },{}],10:[function(require,module,exports){
+// Add intermediate resizing steps when scaling down by a very large factor.
+//
+// For example, when resizing 10000x10000 down to 10x10, it'll resize it to
+// 300x300 first.
+//
+// It's needed because tiler has issues when the entire tile is scaled down
+// to a few pixels (1024px source tile with border size 3 should result in
+// at least 3+3+2 = 8px target tile, so max scale factor is 128 here).
+//
+// Also, adding intermediate steps can speed up processing if we use lower
+// quality algorithms for first stages.
+//
+
+'use strict';
+
+// min size = 0 results in infinite loop,
+// min size = 1 can consume large amount of memory
+
+var MIN_INNER_TILE_SIZE = 2;
+
+module.exports = function createStages(fromWidth, fromHeight, toWidth, toHeight, srcTileSize, destTileBorder) {
+  var scaleX = toWidth / fromWidth;
+  var scaleY = toHeight / fromHeight;
+
+  // derived from createRegions equation:
+  // innerTileWidth = pixelFloor(srcTileSize * scaleX) - 2 * destTileBorder;
+  var minScale = (2 * destTileBorder + MIN_INNER_TILE_SIZE + 1) / srcTileSize;
+
+  // refuse to scale image multiple times by less than twice each time,
+  // it could only happen because of invalid options
+  if (minScale > 0.5) return [[toWidth, toHeight]];
+
+  var stageCount = Math.ceil(Math.log(Math.min(scaleX, scaleY)) / Math.log(minScale));
+
+  // no additional resizes are necessary,
+  // stageCount can be zero or be negative when enlarging the image
+  if (stageCount <= 1) return [[toWidth, toHeight]];
+
+  var result = [];
+
+  for (var i = 0; i < stageCount; i++) {
+    var width = Math.round(Math.pow(Math.pow(fromWidth, stageCount - i - 1) * Math.pow(toWidth, i + 1), 1 / stageCount));
+
+    var height = Math.round(Math.pow(Math.pow(fromHeight, stageCount - i - 1) * Math.pow(toHeight, i + 1), 1 / stageCount));
+
+    result.push([width, height]);
+  }
+
+  return result;
+};
+
+},{}],11:[function(require,module,exports){
+// Split original image into multiple 1024x1024 chunks to reduce memory usage
+// (images have to be unpacked into typed arrays for resizing) and allow
+// parallel processing of multiple tiles at a time.
+//
+
 'use strict';
 
 /*
@@ -635,6 +692,11 @@ module.exports = function createRegions(options) {
 
   var innerTileWidth = pixelFloor(options.srcTileSize * scaleX) - 2 * options.destTileBorder;
   var innerTileHeight = pixelFloor(options.srcTileSize * scaleY) - 2 * options.destTileBorder;
+
+  // prevent infinite loop, this should never happen
+  if (innerTileWidth < 1 || innerTileHeight < 1) {
+    throw new Error('Internal error in pica: target tile width/height is too small.');
+  }
 
   var x, y;
   var innerX, innerY, toTileWidth, toTileHeight;
@@ -692,7 +754,7 @@ module.exports = function createRegions(options) {
   return tiles;
 };
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 'use strict';
 
 function objClass(obj) {
@@ -786,7 +848,7 @@ module.exports.cib_support = function cib_support() {
   });
 };
 
-},{}],12:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 // Web Worker wrapper for image resize function
 
 'use strict';
@@ -810,7 +872,7 @@ module.exports = function () {
   };
 };
 
-},{"./mathlib":1}],13:[function(require,module,exports){
+},{"./mathlib":1}],14:[function(require,module,exports){
 // Calculate Gaussian blur of an image using IIR filter
 // The method is taken from Intel's white paper and code example attached to it:
 // https://software.intel.com/en-us/articles/iir-gaussian-blur-filter
@@ -931,7 +993,7 @@ function blurMono16(src, width, height, radius) {
 
 module.exports = blurMono16;
 
-},{}],14:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -956,7 +1018,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],15:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 'use strict';
 
 
@@ -1113,7 +1175,7 @@ MultiMath.prototype.__align = function align(number, base) {
 
 module.exports = MultiMath;
 
-},{"./lib/base64decode":16,"./lib/wa_detect":22,"object-assign":23}],16:[function(require,module,exports){
+},{"./lib/base64decode":17,"./lib/wa_detect":23,"object-assign":24}],17:[function(require,module,exports){
 // base64 decode str -> Uint8Array, to load WA modules
 //
 'use strict';
@@ -1161,7 +1223,7 @@ module.exports = function base64decode(str) {
   return out;
 };
 
-},{}],17:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 // Calculates 16-bit precision HSL lightness from 8-bit rgba buffer
 //
 'use strict';
@@ -1182,7 +1244,7 @@ module.exports = function hsl_l16_js(img, width, height) {
   return out;
 };
 
-},{}],18:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 'use strict';
 
 module.exports = {
@@ -1192,7 +1254,7 @@ module.exports = {
   wasm_src: require('./unsharp_mask_wasm_base64')
 };
 
-},{"./unsharp_mask":19,"./unsharp_mask_wasm":20,"./unsharp_mask_wasm_base64":21}],19:[function(require,module,exports){
+},{"./unsharp_mask":20,"./unsharp_mask_wasm":21,"./unsharp_mask_wasm_base64":22}],20:[function(require,module,exports){
 // Unsharp mask filter
 //
 // http://stackoverflow.com/a/23322820/1031804
@@ -1310,7 +1372,7 @@ module.exports = function unsharp(img, width, height, amount, radius, threshold)
   }
 };
 
-},{"./hsl_l16":17,"glur/mono16":13}],20:[function(require,module,exports){
+},{"./hsl_l16":18,"glur/mono16":14}],21:[function(require,module,exports){
 'use strict';
 
 
@@ -1367,7 +1429,7 @@ module.exports = function unsharp(img, width, height, amount, radius, threshold)
   img32.set(new Uint32Array(this.__memory.buffer, 0, pixels));
 };
 
-},{}],21:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 // This is autogenerated file from math.wasm, don't edit.
 //
 'use strict';
@@ -1375,7 +1437,7 @@ module.exports = function unsharp(img, width, height, amount, radius, threshold)
 /* eslint-disable max-len */
 module.exports = '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';
 
-},{}],22:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 // Detect WebAssembly support.
 // - Check global WebAssembly object
 // - Try to load simple module (can be disabled via CSP)
@@ -1414,7 +1476,7 @@ module.exports = function hasWebAssembly() {
   return wa;
 };
 
-},{}],23:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 /*
 object-assign
 (c) Sindre Sorhus
@@ -1506,7 +1568,7 @@ module.exports = shouldUseNative() ? Object.assign : function (target, source) {
 	return to;
 };
 
-},{}],24:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 var bundleFn = arguments[3];
 var sources = arguments[4];
 var cache = arguments[5];
@@ -1591,6 +1653,8 @@ module.exports = function (fn, options) {
 },{}],"/":[function(require,module,exports){
 'use strict';
 
+var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
+
 var assign = require('object-assign');
 var webworkify = require('webworkify');
 
@@ -1598,6 +1662,7 @@ var MathLib = require('./lib/mathlib');
 var Pool = require('./lib/pool');
 var utils = require('./lib/utils');
 var worker = require('./lib/worker');
+var createStages = require('./lib/stepper');
 var createRegions = require('./lib/tiler');
 
 // Deduplicate pools & limiters with the same configs
@@ -1656,7 +1721,7 @@ function workerFabric() {
 function Pica(options) {
   if (!(this instanceof Pica)) return new Pica(options);
 
-  this.options = assign(DEFAULT_PICA_OPTS, options || {});
+  this.options = assign({}, DEFAULT_PICA_OPTS, options || {});
 
   var limiter_key = 'lk_' + this.options.concurrency;
 
@@ -1784,7 +1849,7 @@ Pica.prototype.resize = function (from, to, options) {
 
   this.debug('Start resize...');
 
-  var opts = DEFAULT_RESIZE_OPTS;
+  var opts = assign({}, DEFAULT_RESIZE_OPTS);
 
   if (!isNaN(options)) {
     opts = assign(opts, { quality: options });
@@ -1793,9 +1858,11 @@ Pica.prototype.resize = function (from, to, options) {
   }
 
   opts.toWidth = to.width;
-  opts.toHeigth = to.height;
+  opts.toHeight = to.height;
   opts.width = from.naturalWidth || from.width;
   opts.height = from.naturalHeight || from.height;
+
+  if (opts.unsharpRadius > 2) opts.unsharpRadius = 2;
 
   var canceled = false;
   var cancelToken = null;
@@ -1809,18 +1876,21 @@ Pica.prototype.resize = function (from, to, options) {
     });
   }
 
-  var toCtx = to.getContext('2d', { alpha: Boolean(opts.alpha) });
+  var DEST_TILE_BORDER = 3; // Max possible filter window size
+  var destTileBorder = Math.ceil(Math.max(DEST_TILE_BORDER, 2.5 * opts.unsharpRadius | 0));
 
   return this.init().then(function () {
     if (canceled) return cancelToken;
 
     // if createImageBitmap supports resize, just do it and return
     if (_this2.features.cib) {
+      var toCtx = to.getContext('2d', { alpha: Boolean(opts.alpha) });
+
       _this2.debug('Resize via createImageBitmap()');
 
       return createImageBitmap(from, {
         resizeWidth: opts.toWidth,
-        resizeHeight: opts.toHeigth,
+        resizeHeight: opts.toHeight,
         resizeQuality: utils.cib_quality_name(opts.quality)
       }).then(function (imageBitmap) {
         if (canceled) return cancelToken;
@@ -1841,16 +1911,16 @@ Pica.prototype.resize = function (from, to, options) {
         var tmpCanvas = document.createElement('canvas');
 
         tmpCanvas.width = opts.toWidth;
-        tmpCanvas.height = opts.toHeigth;
+        tmpCanvas.height = opts.toHeight;
 
         var tmpCtx = tmpCanvas.getContext('2d', { alpha: Boolean(opts.alpha) });
 
         tmpCtx.drawImage(imageBitmap, 0, 0);
         imageBitmap.close();
 
-        var iData = tmpCtx.getImageData(0, 0, opts.toWidth, opts.toHeigth);
+        var iData = tmpCtx.getImageData(0, 0, opts.toWidth, opts.toHeight);
 
-        _this2.__mathlib.unsharp(iData.data, opts.toWidth, opts.toHeigth, opts.unsharpAmount, opts.unsharpRadius, opts.unsharpThreshold);
+        _this2.__mathlib.unsharp(iData.data, opts.toWidth, opts.toHeight, opts.unsharpAmount, opts.unsharpRadius, opts.unsharpThreshold);
 
         toCtx.putImageData(iData, 0, 0);
         iData = tmpCtx = tmpCanvas = toCtx = null;
@@ -1864,9 +1934,6 @@ Pica.prototype.resize = function (from, to, options) {
     //
     // No easy way, let's resize manually via arrays
     //
-
-    var srcCtx = void 0;
-    var srcImageBitmap = void 0;
 
     // Share cache between calls:
     //
@@ -1904,164 +1971,211 @@ Pica.prototype.resize = function (from, to, options) {
       });
     };
 
-    var processTile = function processTile(tile) {
-      return _this2.__limit(function () {
-        if (canceled) return cancelToken;
+    var tileAndResize = function tileAndResize(from, to, opts) {
+      var srcCtx = void 0;
+      var srcImageBitmap = void 0;
+      var toCtx = void 0;
 
-        var srcImageData = void 0;
-
-        // Extract tile RGBA buffer, depending on input type
-        if (utils.isCanvas(from)) {
-          _this2.debug('Get tile pixel data');
-
-          // If input is Canvas - extract region data directly
-          srcImageData = srcCtx.getImageData(tile.x, tile.y, tile.width, tile.height);
-        } else {
-          // If input is Image or decoded to ImageBitmap,
-          // draw region to temporary canvas and extract data from it
-          //
-          // Note! Attempt to reuse this canvas causes significant slowdown in chrome
-          //
-          _this2.debug('Draw tile imageBitmap/image to temporary canvas');
-
-          var tmpCanvas = document.createElement('canvas');
-          tmpCanvas.width = tile.width;
-          tmpCanvas.height = tile.height;
-
-          var tmpCtx = tmpCanvas.getContext('2d', { alpha: Boolean(opts.alpha) });
-          tmpCtx.globalCompositeOperation = 'copy';
-          tmpCtx.drawImage(srcImageBitmap || from, tile.x, tile.y, tile.width, tile.height, 0, 0, tile.width, tile.height);
-
-          _this2.debug('Get tile pixel data');
-
-          srcImageData = tmpCtx.getImageData(0, 0, tile.width, tile.height);
-          tmpCtx = tmpCanvas = null;
-        }
-
-        var o = {
-          src: srcImageData.data,
-          width: tile.width,
-          height: tile.height,
-          toWidth: tile.toWidth,
-          toHeight: tile.toHeight,
-          scaleX: tile.scaleX,
-          scaleY: tile.scaleY,
-          offsetX: tile.offsetX,
-          offsetY: tile.offsetY,
-          quality: opts.quality,
-          alpha: opts.alpha,
-          unsharpAmount: opts.unsharpAmount,
-          unsharpRadius: opts.unsharpRadius,
-          unsharpThreshold: opts.unsharpThreshold
-        };
-
-        _this2.debug('Invoke resize math');
-
-        return Promise.resolve().then(function () {
-          return invokeResize(o);
-        }).then(function (result) {
+      var processTile = function processTile(tile) {
+        return _this2.__limit(function () {
           if (canceled) return cancelToken;
 
-          srcImageData = null;
+          var srcImageData = void 0;
 
-          var toImageData = void 0;
+          // Extract tile RGBA buffer, depending on input type
+          if (utils.isCanvas(from)) {
+            _this2.debug('Get tile pixel data');
 
-          _this2.debug('Convert raw rgba tile result to ImageData');
-
-          if (CAN_NEW_IMAGE_DATA) {
-            // this branch is for modern browsers
-            // If `new ImageData()` & Uint8ClampedArray suported
-            toImageData = new ImageData(new Uint8ClampedArray(result), tile.toWidth, tile.toHeight);
+            // If input is Canvas - extract region data directly
+            srcImageData = srcCtx.getImageData(tile.x, tile.y, tile.width, tile.height);
           } else {
-            // fallback for `node-canvas` and old browsers
-            // (IE11 has ImageData but does not support `new ImageData()`)
-            toImageData = toCtx.createImageData(tile.toWidth, tile.toHeight);
+            // If input is Image or decoded to ImageBitmap,
+            // draw region to temporary canvas and extract data from it
+            //
+            // Note! Attempt to reuse this canvas causes significant slowdown in chrome
+            //
+            _this2.debug('Draw tile imageBitmap/image to temporary canvas');
 
-            if (toImageData.data.set) {
-              toImageData.data.set(result);
+            var tmpCanvas = document.createElement('canvas');
+            tmpCanvas.width = tile.width;
+            tmpCanvas.height = tile.height;
+
+            var tmpCtx = tmpCanvas.getContext('2d', { alpha: Boolean(opts.alpha) });
+            tmpCtx.globalCompositeOperation = 'copy';
+            tmpCtx.drawImage(srcImageBitmap || from, tile.x, tile.y, tile.width, tile.height, 0, 0, tile.width, tile.height);
+
+            _this2.debug('Get tile pixel data');
+
+            srcImageData = tmpCtx.getImageData(0, 0, tile.width, tile.height);
+            tmpCtx = tmpCanvas = null;
+          }
+
+          var o = {
+            src: srcImageData.data,
+            width: tile.width,
+            height: tile.height,
+            toWidth: tile.toWidth,
+            toHeight: tile.toHeight,
+            scaleX: tile.scaleX,
+            scaleY: tile.scaleY,
+            offsetX: tile.offsetX,
+            offsetY: tile.offsetY,
+            quality: opts.quality,
+            alpha: opts.alpha,
+            unsharpAmount: opts.unsharpAmount,
+            unsharpRadius: opts.unsharpRadius,
+            unsharpThreshold: opts.unsharpThreshold
+          };
+
+          _this2.debug('Invoke resize math');
+
+          return Promise.resolve().then(function () {
+            return invokeResize(o);
+          }).then(function (result) {
+            if (canceled) return cancelToken;
+
+            srcImageData = null;
+
+            var toImageData = void 0;
+
+            _this2.debug('Convert raw rgba tile result to ImageData');
+
+            if (CAN_NEW_IMAGE_DATA) {
+              // this branch is for modern browsers
+              // If `new ImageData()` & Uint8ClampedArray suported
+              toImageData = new ImageData(new Uint8ClampedArray(result), tile.toWidth, tile.toHeight);
             } else {
-              // IE9 don't have `.set()`
-              for (var i = toImageData.data.length - 1; i >= 0; i--) {
-                toImageData.data[i] = result[i];
+              // fallback for `node-canvas` and old browsers
+              // (IE11 has ImageData but does not support `new ImageData()`)
+              toImageData = toCtx.createImageData(tile.toWidth, tile.toHeight);
+
+              if (toImageData.data.set) {
+                toImageData.data.set(result);
+              } else {
+                // IE9 don't have `.set()`
+                for (var i = toImageData.data.length - 1; i >= 0; i--) {
+                  toImageData.data[i] = result[i];
+                }
               }
             }
-          }
 
-          _this2.debug('Draw tile');
+            _this2.debug('Draw tile');
 
-          if (NEED_SAFARI_FIX) {
-            // Safari draws thin white stripes between tiles without this fix
-            toCtx.putImageData(toImageData, tile.toX, tile.toY, tile.toInnerX - tile.toX, tile.toInnerY - tile.toY, tile.toInnerWidth + 1e-5, tile.toInnerHeight + 1e-5);
-          } else {
-            toCtx.putImageData(toImageData, tile.toX, tile.toY, tile.toInnerX - tile.toX, tile.toInnerY - tile.toY, tile.toInnerWidth, tile.toInnerHeight);
-          }
+            if (NEED_SAFARI_FIX) {
+              // Safari draws thin white stripes between tiles without this fix
+              toCtx.putImageData(toImageData, tile.toX, tile.toY, tile.toInnerX - tile.toX, tile.toInnerY - tile.toY, tile.toInnerWidth + 1e-5, tile.toInnerHeight + 1e-5);
+            } else {
+              toCtx.putImageData(toImageData, tile.toX, tile.toY, tile.toInnerX - tile.toX, tile.toInnerY - tile.toY, tile.toInnerWidth, tile.toInnerHeight);
+            }
 
+            return null;
+          });
+        });
+      };
+
+      // Need to normalize data source first. It can be canvas or image.
+      // If image - try to decode in background if possible
+      return Promise.resolve().then(function () {
+        toCtx = to.getContext('2d', { alpha: Boolean(opts.alpha) });
+
+        if (utils.isCanvas(from)) {
+          srcCtx = from.getContext('2d', { alpha: Boolean(opts.alpha) });
           return null;
+        }
+
+        if (utils.isImage(from)) {
+          // try do decode image in background for faster next operations
+          if (!CAN_CREATE_IMAGE_BITMAP) return null;
+
+          _this2.debug('Decode image via createImageBitmap');
+
+          return createImageBitmap(from).then(function (imageBitmap) {
+            srcImageBitmap = imageBitmap;
+          });
+        }
+
+        throw new Error('".from" should be image or canvas');
+      }).then(function () {
+        if (canceled) return cancelToken;
+
+        _this2.debug('Calculate tiles');
+
+        //
+        // Here we are with "normalized" source,
+        // follow to tiling
+        //
+
+        var regions = createRegions({
+          width: opts.width,
+          height: opts.height,
+          srcTileSize: _this2.options.tile,
+          toWidth: opts.toWidth,
+          toHeight: opts.toHeight,
+          destTileBorder: destTileBorder
+        });
+
+        var jobs = regions.map(function (tile) {
+          return processTile(tile);
+        });
+
+        function cleanup() {
+          if (srcImageBitmap) {
+            srcImageBitmap.close();
+            srcImageBitmap = null;
+          }
+        }
+
+        _this2.debug('Process tiles');
+
+        return Promise.all(jobs).then(function () {
+          _this2.debug('Finished!');
+          cleanup();return to;
+        }, function (err) {
+          cleanup();throw err;
         });
       });
     };
 
-    // Need normalize data source first. It can be canvas or image.
-    // If image - try to decode in background if possible
-    return Promise.resolve().then(function () {
-      if (utils.isCanvas(from)) {
-        srcCtx = from.getContext('2d', { alpha: Boolean(opts.alpha) });
-        return null;
-      }
-
-      if (utils.isImage(from)) {
-        // try do decode image in background for faster next operations
-        if (!CAN_CREATE_IMAGE_BITMAP) return null;
-
-        _this2.debug('Decode image via createImageBitmap');
-
-        return createImageBitmap(from).then(function (imageBitmap) {
-          srcImageBitmap = imageBitmap;
-        });
-      }
-
-      throw new Error('".from" should be image or canvas');
-    }).then(function () {
+    var processStages = function processStages(stages, from, to, opts) {
       if (canceled) return cancelToken;
 
-      _this2.debug('Calculate tiles');
+      var _stages$shift = stages.shift(),
+          _stages$shift2 = _slicedToArray(_stages$shift, 2),
+          toWidth = _stages$shift2[0],
+          toHeight = _stages$shift2[1];
 
-      //
-      // Here we are with "normalized" source,
-      // follow to tiling
-      //
+      var isLastStage = stages.length === 0;
 
-      var DEST_TILE_BORDER = 3; // Max possible filter window size
-
-      var regions = createRegions({
-        width: opts.width,
-        height: opts.height,
-        srcTileSize: _this2.options.tile,
-        toWidth: opts.toWidth,
-        toHeight: opts.toHeigth,
-        destTileBorder: Math.ceil(Math.max(DEST_TILE_BORDER, 2.5 * opts.unsharpRadius | 0))
+      opts = assign({}, opts, {
+        toWidth: toWidth,
+        toHeight: toHeight,
+        // only use user-defined quality for the last stage,
+        // use simpler (Hamming) filter for the first stages where
+        // scale factor is large enough (more than 2-3)
+        quality: isLastStage ? opts.quality : Math.min(1, opts.quality)
       });
 
-      var jobs = regions.map(function (tile) {
-        return processTile(tile);
-      });
+      var tmpCanvas = void 0;
 
-      function cleanup() {
-        if (srcImageBitmap) {
-          srcImageBitmap.close();
-          srcImageBitmap = null;
-        }
+      if (!isLastStage) {
+        // create temporary canvas
+        tmpCanvas = document.createElement('canvas');
+        tmpCanvas.width = toWidth;
+        tmpCanvas.height = toHeight;
       }
 
-      _this2.debug('Process tiles');
+      return tileAndResize(from, isLastStage ? to : tmpCanvas, opts).then(function () {
+        if (isLastStage) return;
 
-      return Promise.all(jobs).then(function () {
-        _this2.debug('Finished!');
-        cleanup();return to;
-      }, function (err) {
-        cleanup();throw err;
+        opts.width = toWidth;
+        opts.height = toHeight;
+        processStages(stages, tmpCanvas, to, opts);
       });
-    });
+    };
+
+    var stages = createStages(opts.width, opts.height, opts.toWidth, opts.toHeight, _this2.options.tile, destTileBorder);
+
+    return processStages(stages, from, to, opts);
   });
 };
 
@@ -2070,7 +2184,7 @@ Pica.prototype.resize = function (from, to, options) {
 Pica.prototype.resizeBuffer = function (options) {
   var _this3 = this;
 
-  var opts = assign(DEFAULT_RESIZE_OPTS, options);
+  var opts = assign({}, DEFAULT_RESIZE_OPTS, options);
 
   return this.init().then(function () {
     return _this3.__mathlib.resizeAndUnsharp(opts);
@@ -2105,5 +2219,5 @@ Pica.prototype.debug = function () {};
 
 module.exports = Pica;
 
-},{"./lib/mathlib":1,"./lib/pool":9,"./lib/tiler":10,"./lib/utils":11,"./lib/worker":12,"object-assign":23,"webworkify":24}]},{},[])("/")
+},{"./lib/mathlib":1,"./lib/pool":9,"./lib/stepper":10,"./lib/tiler":11,"./lib/utils":12,"./lib/worker":13,"object-assign":24,"webworkify":25}]},{},[])("/")
 });
