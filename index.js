@@ -528,11 +528,11 @@ Pica.prototype.resize = function (from, to, options) {
       }
 
       return tileAndResize(from, (isLastStage ? to : tmpCanvas), opts).then(() => {
-        if (isLastStage) return;
+        if (isLastStage) return to;
 
         opts.width = toWidth;
         opts.height = toHeight;
-        processStages(stages, tmpCanvas, to, opts);
+        return processStages(stages, tmpCanvas, to, opts);
       });
     };
 
