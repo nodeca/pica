@@ -80,6 +80,29 @@ load module in node.js style as `require('pica')` - your project MUST
 be compiled with [browserify](https://github.com/substack/node-browserify)
 to properly use Web Workers. In other case - use `require('pica/dist/pica')`.
 
+**Webpack notice**
+
+If you use Webpack to bundle your application, you probably need to define a [resolve
+alias](https://webpack.js.org/configuration/resolve/#resolve-alias) into your webpack config, like this:
+
+```js
+{
+  resolve: {
+    alias: {
+      // Use compiled pica files from /dist folder
+      pica: 'pica/dist/pica.js',
+    },
+  }
+}
+```
+
+After that, you will be able to use pica as usual:
+
+```js
+import Pica from 'pica';
+const pica = Pica();
+pica.resize(img, canvas).then(...);
+```
 
 Use
 ---
