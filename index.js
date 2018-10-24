@@ -209,10 +209,14 @@ Pica.prototype.resize = function (from, to, options) {
     opts = assign(opts, options);
   }
 
-  opts.toWidth  = to.width || 1;
-  opts.toHeight = to.height || 1;
+  opts.toWidth  = to.width;
+  opts.toHeight = to.height;
   opts.width    = from.naturalWidth || from.width;
   opts.height   = from.naturalHeight || from.height;
+
+  if (to.width === 0 || to.height === 0) {
+    return Promise.reject(`Invalid output size: ${to.width}x${to.height}`);
+  }
 
   if (opts.unsharpRadius > 2) opts.unsharpRadius = 2;
 
