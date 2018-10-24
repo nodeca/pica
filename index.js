@@ -214,8 +214,9 @@ Pica.prototype.resize = function (from, to, options) {
   opts.width    = from.naturalWidth || from.width;
   opts.height   = from.naturalHeight || from.height;
 
+  // Prevent stepper from infinite loop
   if (to.width === 0 || to.height === 0) {
-    return Promise.reject(`Invalid output size: ${to.width}x${to.height}`);
+    return Promise.reject(new Error(`Invalid output size: ${to.width}x${to.height}`));
   }
 
   if (opts.unsharpRadius > 2) opts.unsharpRadius = 2;

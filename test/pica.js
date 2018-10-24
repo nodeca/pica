@@ -9,7 +9,7 @@ const Canvas = require('canvas');
 describe('API', function () {
 
   // Need node 8 to run
-  it('Upscale (unexpected use) via wasm shoudl not crash', function () {
+  it('Upscale (unexpected use) via wasm should not crash', function () {
     const p = _pica({ features: [ 'wasm' ] });
 
     const input = new Uint8Array(500 * 500 * 4);
@@ -36,6 +36,22 @@ describe('API', function () {
 
     return _pica().resize(src, to).then(result => {
       assert.strictEqual(result, to);
+    });
+  });
+
+  it('Resize with invalid size should fail with promise rejection', function () {
+    let src = new Canvas();
+
+    src.width = 1000;
+    src.height = 1000;
+
+    let to = new Canvas();
+
+    to.width = 0;
+    to.height = 0;
+
+    return _pica().resize(src, to).catch(err => {
+      assert.equal(err.message, 'Invalid output size: 0x0');
     });
   });
 
