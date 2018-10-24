@@ -39,7 +39,7 @@ describe('API', function () {
     });
   });
 
-  it('Resize with invalid size should fail with promise rejection', function () {
+  it('Resize with bad output size should fail', function () {
     let src = new Canvas();
 
     src.width = 1000;
@@ -50,7 +50,9 @@ describe('API', function () {
     to.width = 0;
     to.height = 0;
 
-    return _pica().resize(src, to).catch(err => {
+    return _pica().resize(src, to)
+    .then(() => { throw new Error('Resize should fail'); })
+    .catch(err => {
       assert.equal(err.message, 'Invalid output size: 0x0');
     });
   });
