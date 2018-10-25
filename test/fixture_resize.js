@@ -16,14 +16,13 @@ const OUTPUT_DIRECTORY   = path.join(__dirname, '..');
 describe('Fixture resize', function () {
 
   it('.resizeCanvas() should be correct for the given fixture', function () {
-    const Canvas     = require('canvas');
-    const Image      = Canvas.Image;
+    const { createCanvas, Image } = require('canvas');
     //
     // Shim browser method
     //
     global.document = global.document || {};
     global.document.createElement = global.document.createElement || function (name) {
-      if (name === 'canvas') return new Canvas();
+      if (name === 'canvas') return createCanvas();
       throw new Error('createElement(' + name + ') not shimmed');
     };
 
@@ -34,7 +33,7 @@ describe('Fixture resize', function () {
 
     srcImage.src = fs.readFileSync(path.join(FIXTURES_DIRECTORY, 'original.jpg'));
 
-    let srcCanvas = new Canvas();
+    let srcCanvas = createCanvas();
 
     srcCanvas.width = srcImage.width;
     srcCanvas.height = srcImage.height;
@@ -47,7 +46,7 @@ describe('Fixture resize', function () {
 
     fixtureImage.src = fs.readFileSync(path.join(FIXTURES_DIRECTORY, 'resized.png'));
 
-    let fixtureCanvas = new Canvas();
+    let fixtureCanvas = createCanvas();
 
     fixtureCanvas.width = fixtureImage.width;
     fixtureCanvas.height = fixtureImage.height;
@@ -57,13 +56,13 @@ describe('Fixture resize', function () {
     fixtureCtx.drawImage(fixtureImage, 0, 0);
 
     let fixtureImageData = fixtureCtx.getImageData(0, 0, fixtureCanvas.width, fixtureCanvas.height);
-    let destCanvas = new Canvas();
+    let destCanvas = createCanvas();
 
     destCanvas.width = fixtureImage.width;
     destCanvas.height = fixtureImage.height;
 
     let destCtx = destCanvas.getContext('2d');
-    let diffCanvas = new Canvas();
+    let diffCanvas = createCanvas();
 
     diffCanvas.width = fixtureImage.width;
     diffCanvas.height = fixtureImage.height;

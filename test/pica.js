@@ -3,7 +3,7 @@
 
 const _pica  = require('../');
 const assert = require('assert');
-const Canvas = require('canvas');
+const { createCanvas } = require('canvas');
 
 
 describe('API', function () {
@@ -24,12 +24,12 @@ describe('API', function () {
   });
 
   it('Should return result in promise', function () {
-    let src = new Canvas();
+    let src = createCanvas();
 
     src.width = 1000;
     src.height = 1000;
 
-    let to = new Canvas();
+    let to = createCanvas();
 
     to.width = 100;
     to.height = 100;
@@ -40,10 +40,10 @@ describe('API', function () {
   });
 
   it('Resize with bad output size should fail', function () {
-    let src = new Canvas();
+    let src = createCanvas();
     src.width = 1000;
     src.height = 1000;
-    let to = new Canvas();
+    let to = createCanvas();
     to.width = 0;
     to.height = 0;
     return _pica().resize(src, to)
