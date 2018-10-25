@@ -1,3 +1,10 @@
+4.2.0 / 2018-10-25
+------------------
+
+- Added bounds check for invalid output canvas size (#155).
+- Maintenance: dev deps bump.
+
+
 4.1.1 / 2018-03-31
 ------------------
 
