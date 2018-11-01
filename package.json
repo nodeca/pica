@@ -26,7 +26,7 @@
         "babelify",
         {
           "presets": [
-            "es2015"
+            "@babel/preset-env"
           ]
         }
       ]
@@ -36,11 +36,12 @@
     "inherits": "^2.0.3",
     "multimath": "^1.0.3",
     "object-assign": "^4.1.1",
-    "webworkify": "^1.3.0"
+    "webworkify": "^1.5.0"
   },
   "devDependencies": {
-    "babel-preset-es2015": "^6.24.1",
-    "babelify": "^7.3.0",
+    "@babel/core": "^7.1.2",
+    "@babel/preset-env": "^7.1.0",
+    "babelify": "^10.0.0",
     "benchmark": "^2.1.0",
     "browserify": "^16.2.3",
     "canvas": "^2.0.0",

@@ -65,7 +65,7 @@ npm install pica
 Transforms plugins for build via browserify:
 
 ```sh
-npm install babelify babel-core babel-preset-es2015
+npm install babelify @babel/core @babel/preset-env
 ```
 
 bower:
