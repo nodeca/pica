@@ -1,4 +1,4 @@
-/* pica 4.2.0 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+/* pica 5.0.0 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 // Collection of math functions
 //
 // 1. Combine components together
@@ -7,9 +7,11 @@
 'use strict';
 
 var inherits = require('inherits');
+
 var Multimath = require('multimath');
 
 var mm_unsharp_mask = require('multimath/lib/unsharp_mask');
+
 var mm_resize = require('./mm_resize');
 
 function MathLib(requested_features) {
@@ -19,14 +21,11 @@ function MathLib(requested_features) {
     js: __requested_features.indexOf('js') >= 0,
     wasm: __requested_features.indexOf('wasm') >= 0
   };
-
   Multimath.call(this, features);
-
   this.features = {
     js: features.js,
     wasm: features.wasm && this.has_wasm
   };
-
   this.use(mm_unsharp_mask);
   this.use(mm_resize);
 }
@@ -48,17 +47,12 @@ module.exports = MathLib;
 },{"./mm_resize":4,"inherits":15,"multimath":16,"multimath/lib/unsharp_mask":19}],2:[function(require,module,exports){
 // Resize convolvers, pure JS implementation
 //
-'use strict';
-
-// Precision of fixed FP values
+'use strict'; // Precision of fixed FP values
 //var FIXED_FRAC_BITS = 14;
-
 
 function clampTo8(i) {
   return i < 0 ? 0 : i > 255 ? 255 : i;
-}
-
-// Convolve image in horizontal directions and transpose output. In theory,
+} // Convolve image in horizontal directions and transpose output. In theory,
 // transpose allow:
 //
 // - use the same convolver for both passes (this fails due different
@@ -67,110 +61,113 @@ function clampTo8(i) {
 //
 // But in real life this doesn't work :)
 //
-function convolveHorizontally(src, dest, srcW, srcH, destW, filters) {
 
+
+function convolveHorizontally(src, dest, srcW, srcH, destW, filters) {
   var r, g, b, a;
   var filterPtr, filterShift, filterSize;
   var srcPtr, srcY, destX, filterVal;
   var srcOffset = 0,
-      destOffset = 0;
+      destOffset = 0; // For each row
 
-  // For each row
   for (srcY = 0; srcY < srcH; srcY++) {
-    filterPtr = 0;
+    filterPtr = 0; // Apply precomputed filters to each destination row point
 
-    // Apply precomputed filters to each destination row point
     for (destX = 0; destX < destW; destX++) {
       // Get the filter that determines the current output pixel.
       filterShift = filters[filterPtr++];
       filterSize = filters[filterPtr++];
-
       srcPtr = srcOffset + filterShift * 4 | 0;
+      r = g = b = a = 0; // Apply the filter to the row to get the destination pixel r, g, b, a
 
-      r = g = b = a = 0;
-
-      // Apply the filter to the row to get the destination pixel r, g, b, a
       for (; filterSize > 0; filterSize--) {
-        filterVal = filters[filterPtr++];
-
-        // Use reverse order to workaround deopts in old v8 (node v.10)
+        filterVal = filters[filterPtr++]; // Use reverse order to workaround deopts in old v8 (node v.10)
         // Big thanks to @mraleph (Vyacheslav Egorov) for the tip.
+
         a = a + filterVal * src[srcPtr + 3] | 0;
         b = b + filterVal * src[srcPtr + 2] | 0;
         g = g + filterVal * src[srcPtr + 1] | 0;
         r = r + filterVal * src[srcPtr] | 0;
         srcPtr = srcPtr + 4 | 0;
-      }
-
-      // Bring this value back in range. All of the filter scaling factors
+      } // Bring this value back in range. All of the filter scaling factors
       // are in fixed point with FIXED_FRAC_BITS bits of fractional part.
       //
       // (!) Add 1/2 of value before clamping to get proper rounding. In other
       // case brightness loss will be noticeable if you resize image with white
       // border and place it on white background.
       //
-      dest[destOffset + 3] = clampTo8(a + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
-      dest[destOffset + 2] = clampTo8(b + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
-      dest[destOffset + 1] = clampTo8(g + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
-      dest[destOffset] = clampTo8(r + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
+
+
+      dest[destOffset + 3] = clampTo8(a + (1 << 13) >> 14
+      /*FIXED_FRAC_BITS*/
+      );
+      dest[destOffset + 2] = clampTo8(b + (1 << 13) >> 14
+      /*FIXED_FRAC_BITS*/
+      );
+      dest[destOffset + 1] = clampTo8(g + (1 << 13) >> 14
+      /*FIXED_FRAC_BITS*/
+      );
+      dest[destOffset] = clampTo8(r + (1 << 13) >> 14
+      /*FIXED_FRAC_BITS*/
+      );
       destOffset = destOffset + srcH * 4 | 0;
     }
 
     destOffset = (srcY + 1) * 4 | 0;
     srcOffset = (srcY + 1) * srcW * 4 | 0;
   }
-}
-
-// Technically, convolvers are the same. But input array and temporary
+} // Technically, convolvers are the same. But input array and temporary
 // buffer can be of different type (especially, in old browsers). So,
 // keep code in separate functions to avoid deoptimizations & speed loss.
 
-function convolveVertically(src, dest, srcW, srcH, destW, filters) {
 
+function convolveVertically(src, dest, srcW, srcH, destW, filters) {
   var r, g, b, a;
   var filterPtr, filterShift, filterSize;
   var srcPtr, srcY, destX, filterVal;
   var srcOffset = 0,
-      destOffset = 0;
+      destOffset = 0; // For each row
 
-  // For each row
   for (srcY = 0; srcY < srcH; srcY++) {
-    filterPtr = 0;
+    filterPtr = 0; // Apply precomputed filters to each destination row point
 
-    // Apply precomputed filters to each destination row point
     for (destX = 0; destX < destW; destX++) {
       // Get the filter that determines the current output pixel.
       filterShift = filters[filterPtr++];
       filterSize = filters[filterPtr++];
-
       srcPtr = srcOffset + filterShift * 4 | 0;
+      r = g = b = a = 0; // Apply the filter to the row to get the destination pixel r, g, b, a
 
-      r = g = b = a = 0;
-
-      // Apply the filter to the row to get the destination pixel r, g, b, a
       for (; filterSize > 0; filterSize--) {
-        filterVal = filters[filterPtr++];
-
-        // Use reverse order to workaround deopts in old v8 (node v.10)
+        filterVal = filters[filterPtr++]; // Use reverse order to workaround deopts in old v8 (node v.10)
         // Big thanks to @mraleph (Vyacheslav Egorov) for the tip.
+
         a = a + filterVal * src[srcPtr + 3] | 0;
         b = b + filterVal * src[srcPtr + 2] | 0;
         g = g + filterVal * src[srcPtr + 1] | 0;
         r = r + filterVal * src[srcPtr] | 0;
         srcPtr = srcPtr + 4 | 0;
-      }
-
-      // Bring this value back in range. All of the filter scaling factors
+      } // Bring this value back in range. All of the filter scaling factors
       // are in fixed point with FIXED_FRAC_BITS bits of fractional part.
       //
       // (!) Add 1/2 of value before clamping to get proper rounding. In other
       // case brightness loss will be noticeable if you resize image with white
       // border and place it on white background.
       //
-      dest[destOffset + 3] = clampTo8(a + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
-      dest[destOffset + 2] = clampTo8(b + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
-      dest[destOffset + 1] = clampTo8(g + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
-      dest[destOffset] = clampTo8(r + (1 << 13) >> 14 /*FIXED_FRAC_BITS*/);
+
+
+      dest[destOffset + 3] = clampTo8(a + (1 << 13) >> 14
+      /*FIXED_FRAC_BITS*/
+      );
+      dest[destOffset + 2] = clampTo8(b + (1 << 13) >> 14
+      /*FIXED_FRAC_BITS*/
+      );
+      dest[destOffset + 1] = clampTo8(g + (1 << 13) >> 14
+      /*FIXED_FRAC_BITS*/
+      );
+      dest[destOffset] = clampTo8(r + (1 << 13) >> 14
+      /*FIXED_FRAC_BITS*/
+      );
       destOffset = destOffset + srcH * 4 | 0;
     }
 
@@ -188,7 +185,6 @@ module.exports = {
 // This is autogenerated file from math.wasm, don't edit.
 //
 'use strict';
-
 /* eslint-disable max-len */
 
 module.exports = 'AGFzbQEAAAABFAJgBn9/f39/fwBgB39/f39/f38AAg8BA2VudgZtZW1vcnkCAAEDAwIAAQQEAXAAAAcZAghjb252b2x2ZQAACmNvbnZvbHZlSFYAAQkBAArmAwLBAwEQfwJAIANFDQAgBEUNACAFQQRqIRVBACEMQQAhDQNAIA0hDkEAIRFBACEHA0AgB0ECaiESAn8gBSAHQQF0IgdqIgZBAmouAQAiEwRAQQAhCEEAIBNrIRQgFSAHaiEPIAAgDCAGLgEAakECdGohEEEAIQlBACEKQQAhCwNAIBAoAgAiB0EYdiAPLgEAIgZsIAtqIQsgB0H/AXEgBmwgCGohCCAHQRB2Qf8BcSAGbCAKaiEKIAdBCHZB/wFxIAZsIAlqIQkgD0ECaiEPIBBBBGohECAUQQFqIhQNAAsgEiATagwBC0EAIQtBACEKQQAhCUEAIQggEgshByABIA5BAnRqIApBgMAAakEOdSIGQf8BIAZB/wFIG0EQdEGAgPwHcUEAIAZBAEobIAtBgMAAakEOdSIGQf8BIAZB/wFIG0EYdEEAIAZBAEobciAJQYDAAGpBDnUiBkH/ASAGQf8BSBtBCHRBgP4DcUEAIAZBAEobciAIQYDAAGpBDnUiBkH/ASAGQf8BSBtB/wFxQQAgBkEAShtyNgIAIA4gA2ohDiARQQFqIhEgBEcNAAsgDCACaiEMIA1BAWoiDSADRw0ACwsLIQACQEEAIAIgAyAEIAUgABAAIAJBACAEIAUgBiABEAALCw==';
@@ -207,14 +203,18 @@ module.exports = {
 'use strict';
 
 var createFilters = require('./resize_filter_gen');
+
 var convolveHorizontally = require('./convolve').convolveHorizontally;
+
 var convolveVertically = require('./convolve').convolveVertically;
 
 function resetAlpha(dst, width, height) {
   var ptr = 3,
       len = width * height * 4 | 0;
+
   while (ptr < len) {
-    dst[ptr] = 0xFF;ptr = ptr + 4 | 0;
+    dst[ptr] = 0xFF;
+    ptr = ptr + 4 | 0;
   }
 }
 
@@ -231,25 +231,18 @@ module.exports = function resize(options) {
   var dest = options.dest || new Uint8Array(destW * destH * 4);
   var quality = typeof options.quality === 'undefined' ? 3 : options.quality;
   var alpha = options.alpha || false;
-
   var filtersX = createFilters(quality, srcW, destW, scaleX, offsetX),
       filtersY = createFilters(quality, srcH, destH, scaleY, offsetY);
-
-  var tmp = new Uint8Array(destW * srcH * 4);
-
-  // To use single function we need src & tmp of the same type.
+  var tmp = new Uint8Array(destW * srcH * 4); // To use single function we need src & tmp of the same type.
   // But src can be CanvasPixelArray, and tmp - Uint8Array. So, keep
   // vertical and horizontal passes separately to avoid deoptimization.
 
   convolveHorizontally(src, tmp, srcW, srcH, destW, filtersX);
-  convolveVertically(tmp, dest, srcH, destW, destH, filtersY);
-
-  // That's faster than doing checks in convolver.
+  convolveVertically(tmp, dest, srcH, destW, destH, filtersY); // That's faster than doing checks in convolver.
   // !!! Note, canvas data is not premultipled. We don't need other
   // alpha corrections.
 
   if (!alpha) resetAlpha(dest, destW, destH);
-
   return dest;
 };
 
@@ -265,9 +258,9 @@ module.exports = function resize(options) {
 //
 'use strict';
 
-var FILTER_INFO = require('./resize_filter_info');
+var FILTER_INFO = require('./resize_filter_info'); // Precision of fixed FP values
 
-// Precision of fixed FP values
+
 var FIXED_FRAC_BITS = 14;
 
 function toFixedPoint(num) {
@@ -275,59 +268,46 @@ function toFixedPoint(num) {
 }
 
 module.exports = function resizeFilterGen(quality, srcSize, destSize, scale, offset) {
-
   var filterFunction = FILTER_INFO[quality].filter;
-
   var scaleInverted = 1.0 / scale;
   var scaleClamped = Math.min(1.0, scale); // For upscale
-
   // Filter window (averaging interval), scaled to src image
-  var srcWindow = FILTER_INFO[quality].win / scaleClamped;
 
+  var srcWindow = FILTER_INFO[quality].win / scaleClamped;
   var destPixel, srcPixel, srcFirst, srcLast, filterElementSize, floatFilter, fxpFilter, total, pxl, idx, floatVal, filterTotal, filterVal;
   var leftNotEmpty, rightNotEmpty, filterShift, filterSize;
-
   var maxFilterElementSize = Math.floor((srcWindow + 1) * 2);
   var packedFilter = new Int16Array((maxFilterElementSize + 2) * destSize);
   var packedFilterPtr = 0;
+  var slowCopy = !packedFilter.subarray || !packedFilter.set; // For each destination pixel calculate source range and built filter values
 
-  var slowCopy = !packedFilter.subarray || !packedFilter.set;
-
-  // For each destination pixel calculate source range and built filter values
   for (destPixel = 0; destPixel < destSize; destPixel++) {
-
     // Scaling should be done relative to central pixel point
     srcPixel = (destPixel + 0.5) * scaleInverted + offset;
-
     srcFirst = Math.max(0, Math.floor(srcPixel - srcWindow));
     srcLast = Math.min(srcSize - 1, Math.ceil(srcPixel + srcWindow));
-
     filterElementSize = srcLast - srcFirst + 1;
     floatFilter = new Float32Array(filterElementSize);
     fxpFilter = new Int16Array(filterElementSize);
+    total = 0.0; // Fill filter values for calculated range
 
-    total = 0.0;
-
-    // Fill filter values for calculated range
     for (pxl = srcFirst, idx = 0; pxl <= srcLast; pxl++, idx++) {
       floatVal = filterFunction((pxl + 0.5 - srcPixel) * scaleClamped);
       total += floatVal;
       floatFilter[idx] = floatVal;
-    }
+    } // Normalize filter, convert to fixed point and accumulate conversion error
 
-    // Normalize filter, convert to fixed point and accumulate conversion error
+
     filterTotal = 0;
 
     for (idx = 0; idx < floatFilter.length; idx++) {
       filterVal = floatFilter[idx] / total;
       filterTotal += filterVal;
       fxpFilter[idx] = toFixedPoint(filterVal);
-    }
+    } // Compensate normalization error, to minimize brightness drift
 
-    // Compensate normalization error, to minimize brightness drift
-    fxpFilter[destSize >> 1] += toFixedPoint(1.0 - filterTotal);
 
-    //
+    fxpFilter[destSize >> 1] += toFixedPoint(1.0 - filterTotal); //
     // Now pack filter to useable form
     //
     // 1. Trim heading and tailing zero values, and compensate shitf/length
@@ -337,20 +317,22 @@ module.exports = function resizeFilterGen(quality, srcSize, destSize, scale, off
     //
 
     leftNotEmpty = 0;
+
     while (leftNotEmpty < fxpFilter.length && fxpFilter[leftNotEmpty] === 0) {
       leftNotEmpty++;
     }
 
     if (leftNotEmpty < fxpFilter.length) {
       rightNotEmpty = fxpFilter.length - 1;
+
       while (rightNotEmpty > 0 && fxpFilter[rightNotEmpty] === 0) {
         rightNotEmpty--;
       }
 
       filterShift = srcFirst + leftNotEmpty;
       filterSize = rightNotEmpty - leftNotEmpty + 1;
-
       packedFilter[packedFilterPtr++] = filterShift; // shift
+
       packedFilter[packedFilterPtr++] = filterSize; // size
 
       if (!slowCopy) {
@@ -365,9 +347,11 @@ module.exports = function resizeFilterGen(quality, srcSize, destSize, scale, off
     } else {
       // zero data, write header only
       packedFilter[packedFilterPtr++] = 0; // shift
+
       packedFilter[packedFilterPtr++] = 0; // size
     }
   }
+
   return packedFilter;
 };
 
@@ -379,44 +363,54 @@ module.exports = function resizeFilterGen(quality, srcSize, destSize, scale, off
 //
 'use strict';
 
-module.exports = [{ // Nearest neibor (Box)
+module.exports = [{
+  // Nearest neibor (Box)
   win: 0.5,
   filter: function filter(x) {
     return x >= -0.5 && x < 0.5 ? 1.0 : 0.0;
   }
-}, { // Hamming
+}, {
+  // Hamming
   win: 1.0,
   filter: function filter(x) {
     if (x <= -1.0 || x >= 1.0) {
       return 0.0;
     }
+
     if (x > -1.19209290E-07 && x < 1.19209290E-07) {
       return 1.0;
     }
+
     var xpi = x * Math.PI;
     return Math.sin(xpi) / xpi * (0.54 + 0.46 * Math.cos(xpi / 1.0));
   }
-}, { // Lanczos, win = 2
+}, {
+  // Lanczos, win = 2
   win: 2.0,
   filter: function filter(x) {
     if (x <= -2.0 || x >= 2.0) {
       return 0.0;
     }
+
     if (x > -1.19209290E-07 && x < 1.19209290E-07) {
       return 1.0;
     }
+
     var xpi = x * Math.PI;
     return Math.sin(xpi) / xpi * Math.sin(xpi / 2.0) / (xpi / 2.0);
   }
-}, { // Lanczos, win = 3
+}, {
+  // Lanczos, win = 3
   win: 3.0,
   filter: function filter(x) {
     if (x <= -3.0 || x >= 3.0) {
       return 0.0;
     }
+
     if (x > -1.19209290E-07 && x < 1.19209290E-07) {
       return 1.0;
     }
+
     var xpi = x * Math.PI;
     return Math.sin(xpi) / xpi * Math.sin(xpi / 3.0) / (xpi / 3.0);
   }
@@ -430,8 +424,10 @@ var createFilters = require('./resize_filter_gen');
 function resetAlpha(dst, width, height) {
   var ptr = 3,
       len = width * height * 4 | 0;
+
   while (ptr < len) {
-    dst[ptr] = 0xFF;ptr = ptr + 4 | 0;
+    dst[ptr] = 0xFF;
+    ptr = ptr + 4 | 0;
   }
 }
 
@@ -439,8 +435,8 @@ function asUint8Array(src) {
   return new Uint8Array(src.buffer, 0, src.byteLength);
 }
 
-var IS_LE = true;
-// should not crash everything on module load in old browsers
+var IS_LE = true; // should not crash everything on module load in old browsers
+
 try {
   IS_LE = new Uint32Array(new Uint8Array([1, 0, 0, 0]).buffer)[0] === 1;
 } catch (__) {}
@@ -471,57 +467,48 @@ module.exports = function resize_wasm(options) {
   var dest = options.dest || new Uint8Array(destW * destH * 4);
   var quality = typeof options.quality === 'undefined' ? 3 : options.quality;
   var alpha = options.alpha || false;
-
   var filtersX = createFilters(quality, srcW, destW, scaleX, offsetX),
-      filtersY = createFilters(quality, srcH, destH, scaleY, offsetY);
+      filtersY = createFilters(quality, srcH, destH, scaleY, offsetY); // destination is 0 too.
 
-  // destination is 0 too.
-  var src_offset = 0;
-  // buffer between convolve passes
+  var src_offset = 0; // buffer between convolve passes
+
   var tmp_offset = this.__align(src_offset + Math.max(src.byteLength, dest.byteLength));
+
   var filtersX_offset = this.__align(tmp_offset + srcH * destW * 4);
+
   var filtersY_offset = this.__align(filtersX_offset + filtersX.byteLength);
+
   var alloc_bytes = filtersY_offset + filtersY.byteLength;
 
-  var instance = this.__instance('resize', alloc_bytes);
-
-  //
+  var instance = this.__instance('resize', alloc_bytes); //
   // Fill memory block with data to process
   //
 
+
   var mem = new Uint8Array(this.__memory.buffer);
-  var mem32 = new Uint32Array(this.__memory.buffer);
+  var mem32 = new Uint32Array(this.__memory.buffer); // 32-bit copy is much faster in chrome
 
-  // 32-bit copy is much faster in chrome
   var src32 = new Uint32Array(src.buffer);
-  mem32.set(src32);
-
-  // We should guarantee LE bytes order. Filters are not big, so
+  mem32.set(src32); // We should guarantee LE bytes order. Filters are not big, so
   // speed difference is not significant vs direct .set()
-  copyInt16asLE(filtersX, mem, filtersX_offset);
-  copyInt16asLE(filtersY, mem, filtersY_offset);
 
-  //
+  copyInt16asLE(filtersX, mem, filtersX_offset);
+  copyInt16asLE(filtersY, mem, filtersY_offset); //
   // Now call webassembly method
   // emsdk does method names with '_'
+
   var fn = instance.exports.convolveHV || instance.exports._convolveHV;
-
-  fn(filtersX_offset, filtersY_offset, tmp_offset, srcW, srcH, destW, destH);
-
-  //
+  fn(filtersX_offset, filtersY_offset, tmp_offset, srcW, srcH, destW, destH); //
   // Copy data back to typed array
   //
-
   // 32-bit copy is much faster in chrome
-  var dest32 = new Uint32Array(dest.buffer);
-  dest32.set(new Uint32Array(this.__memory.buffer, 0, destH * destW));
 
-  // That's faster than doing checks in convolver.
+  var dest32 = new Uint32Array(dest.buffer);
+  dest32.set(new Uint32Array(this.__memory.buffer, 0, destH * destW)); // That's faster than doing checks in convolver.
   // !!! Note, canvas data is not premultipled. We don't need other
   // alpha corrections.
 
   if (!alpha) resetAlpha(dest, destW, destH);
-
   return dest;
 };
 
@@ -532,11 +519,9 @@ var GC_INTERVAL = 100;
 
 function Pool(create, idle) {
   this.create = create;
-
   this.available = [];
   this.acquired = {};
   this.lastId = 1;
-
   this.timeoutId = 0;
   this.idle = idle || 2000;
 }
@@ -544,17 +529,19 @@ function Pool(create, idle) {
 Pool.prototype.acquire = function () {
   var _this = this;
 
-  var resource = void 0;
+  var resource;
 
   if (this.available.length !== 0) {
     resource = this.available.pop();
   } else {
     resource = this.create();
     resource.id = this.lastId++;
+
     resource.release = function () {
       return _this.release(resource);
     };
   }
+
   this.acquired[resource.id] = resource;
   return resource;
 };
@@ -563,7 +550,6 @@ Pool.prototype.release = function (resource) {
   var _this2 = this;
 
   delete this.acquired[resource.id];
-
   resource.lastUsed = Date.now();
   this.available.push(resource);
 
@@ -578,12 +564,12 @@ Pool.prototype.gc = function () {
   var _this3 = this;
 
   var now = Date.now();
-
   this.available = this.available.filter(function (resource) {
     if (now - resource.lastUsed > _this3.idle) {
       resource.destroy();
       return false;
     }
+
     return true;
   });
 
@@ -611,39 +597,29 @@ module.exports = Pool;
 // Also, adding intermediate steps can speed up processing if we use lower
 // quality algorithms for first stages.
 //
-
-'use strict';
-
-// min size = 0 results in infinite loop,
+'use strict'; // min size = 0 results in infinite loop,
 // min size = 1 can consume large amount of memory
 
 var MIN_INNER_TILE_SIZE = 2;
 
 module.exports = function createStages(fromWidth, fromHeight, toWidth, toHeight, srcTileSize, destTileBorder) {
   var scaleX = toWidth / fromWidth;
-  var scaleY = toHeight / fromHeight;
-
-  // derived from createRegions equation:
+  var scaleY = toHeight / fromHeight; // derived from createRegions equation:
   // innerTileWidth = pixelFloor(srcTileSize * scaleX) - 2 * destTileBorder;
-  var minScale = (2 * destTileBorder + MIN_INNER_TILE_SIZE + 1) / srcTileSize;
 
-  // refuse to scale image multiple times by less than twice each time,
+  var minScale = (2 * destTileBorder + MIN_INNER_TILE_SIZE + 1) / srcTileSize; // refuse to scale image multiple times by less than twice each time,
   // it could only happen because of invalid options
+
   if (minScale > 0.5) return [[toWidth, toHeight]];
-
-  var stageCount = Math.ceil(Math.log(Math.min(scaleX, scaleY)) / Math.log(minScale));
-
-  // no additional resizes are necessary,
+  var stageCount = Math.ceil(Math.log(Math.min(scaleX, scaleY)) / Math.log(minScale)); // no additional resizes are necessary,
   // stageCount can be zero or be negative when enlarging the image
-  if (stageCount <= 1) return [[toWidth, toHeight]];
 
+  if (stageCount <= 1) return [[toWidth, toHeight]];
   var result = [];
 
   for (var i = 0; i < stageCount; i++) {
     var width = Math.round(Math.pow(Math.pow(fromWidth, stageCount - i - 1) * Math.pow(toWidth, i + 1), 1 / stageCount));
-
     var height = Math.round(Math.pow(Math.pow(fromHeight, stageCount - i - 1) * Math.pow(toHeight, i + 1), 1 / stageCount));
-
     result.push([width, height]);
   }
 
@@ -655,9 +631,7 @@ module.exports = function createStages(fromWidth, fromHeight, toWidth, toHeight,
 // (images have to be unpacked into typed arrays for resizing) and allow
 // parallel processing of multiple tiles at a time.
 //
-
 'use strict';
-
 /*
  * pixelFloor and pixelCeil are modified versions of Math.floor and Math.ceil
  * functions which take into account floating point arithmetic errors.
@@ -674,6 +648,7 @@ function pixelFloor(x) {
   if (Math.abs(x - nearest) < PIXEL_EPSILON) {
     return nearest;
   }
+
   return Math.floor(x);
 }
 
@@ -683,17 +658,16 @@ function pixelCeil(x) {
   if (Math.abs(x - nearest) < PIXEL_EPSILON) {
     return nearest;
   }
+
   return Math.ceil(x);
 }
 
 module.exports = function createRegions(options) {
   var scaleX = options.toWidth / options.width;
   var scaleY = options.toHeight / options.height;
-
   var innerTileWidth = pixelFloor(options.srcTileSize * scaleX) - 2 * options.destTileBorder;
-  var innerTileHeight = pixelFloor(options.srcTileSize * scaleY) - 2 * options.destTileBorder;
+  var innerTileHeight = pixelFloor(options.srcTileSize * scaleY) - 2 * options.destTileBorder; // prevent infinite loop, this should never happen
 
-  // prevent infinite loop, this should never happen
   if (innerTileWidth < 1 || innerTileHeight < 1) {
     throw new Error('Internal error in pica: target tile width/height is too small.');
   }
@@ -701,26 +675,31 @@ module.exports = function createRegions(options) {
   var x, y;
   var innerX, innerY, toTileWidth, toTileHeight;
   var tiles = [];
-  var tile;
-
-  // we go top-to-down instead of left-to-right to make image displayed from top to
+  var tile; // we go top-to-down instead of left-to-right to make image displayed from top to
   // doesn in the browser
+
   for (innerY = 0; innerY < options.toHeight; innerY += innerTileHeight) {
     for (innerX = 0; innerX < options.toWidth; innerX += innerTileWidth) {
       x = innerX - options.destTileBorder;
+
       if (x < 0) {
         x = 0;
       }
+
       toTileWidth = innerX + innerTileWidth + options.destTileBorder - x;
+
       if (x + toTileWidth >= options.toWidth) {
         toTileWidth = options.toWidth - x;
       }
 
       y = innerY - options.destTileBorder;
+
       if (y < 0) {
         y = 0;
       }
+
       toTileHeight = innerY + innerTileHeight + options.destTileBorder - y;
+
       if (y + toTileHeight >= options.toHeight) {
         toTileHeight = options.toHeight - y;
       }
@@ -730,23 +709,19 @@ module.exports = function createRegions(options) {
         toY: y,
         toWidth: toTileWidth,
         toHeight: toTileHeight,
-
         toInnerX: innerX,
         toInnerY: innerY,
         toInnerWidth: innerTileWidth,
         toInnerHeight: innerTileHeight,
-
         offsetX: x / scaleX - pixelFloor(x / scaleX),
         offsetY: y / scaleY - pixelFloor(y / scaleY),
         scaleX: scaleX,
         scaleY: scaleY,
-
         x: pixelFloor(x / scaleX),
         y: pixelFloor(y / scaleY),
         width: pixelCeil(toTileWidth / scaleX),
         height: pixelCeil(toTileHeight / scaleY)
       };
-
       tiles.push(tile);
     }
   }
@@ -764,8 +739,11 @@ function objClass(obj) {
 module.exports.isCanvas = function isCanvas(element) {
   //return (element.nodeName && element.nodeName.toLowerCase() === 'canvas') ||
   var cname = objClass(element);
-
-  return cname === '[object HTMLCanvasElement]' /* browser */ || cname === '[object Canvas]' /* node-canvas */;
+  return cname === '[object HTMLCanvasElement]'
+  /* browser */
+  || cname === '[object Canvas]'
+  /* node-canvas */
+  ;
 };
 
 module.exports.isImage = function isImage(element) {
@@ -797,7 +775,6 @@ module.exports.limiter = function limiter(concurrency) {
           roll();
         });
       });
-
       roll();
     });
   };
@@ -807,11 +784,14 @@ module.exports.cib_quality_name = function cib_quality_name(num) {
   switch (num) {
     case 0:
       return 'pixelated';
+
     case 1:
       return 'low';
+
     case 2:
       return 'medium';
   }
+
   return 'high';
 };
 
@@ -824,21 +804,19 @@ module.exports.cib_support = function cib_support() {
     var c = document.createElement('canvas');
     c.width = 100;
     c.height = 100;
-
     return createImageBitmap(c, 0, 0, 100, 100, {
       resizeWidth: 10,
       resizeHeight: 10,
       resizeQuality: 'high'
     }).then(function (bitmap) {
-      var status = bitmap.width === 10;
-
-      // Branch below is filtered on upper level. We do not call resize
+      var status = bitmap.width === 10; // Branch below is filtered on upper level. We do not call resize
       // detection for basic ImageBitmap.
       //
       // https://developer.mozilla.org/en-US/docs/Web/API/ImageBitmap
       // old Crome 51 has ImageBitmap without .close(). Then this code
       // will throw and return 'false' as expected.
       //
+
       bitmap.close();
       c = null;
       return status;
@@ -850,25 +828,23 @@ module.exports.cib_support = function cib_support() {
 
 },{}],13:[function(require,module,exports){
 // Web Worker wrapper for image resize function
-
 'use strict';
 
 module.exports = function () {
   var MathLib = require('./mathlib');
 
-  var mathLib = void 0;
-
+  var mathLib;
   /* eslint-disable no-undef */
+
   onmessage = function onmessage(ev) {
     var opts = ev.data.opts;
-
-    if (!mathLib) mathLib = new MathLib(ev.data.features);
-
-    // Use multimath's sync auto-init. Avoid Promise use in old browsers,
+    if (!mathLib) mathLib = new MathLib(ev.data.features); // Use multimath's sync auto-init. Avoid Promise use in old browsers,
     // because polyfills are not propagated to webworker.
-    var result = mathLib.resizeAndUnsharp(opts);
 
-    postMessage({ result: result }, [result.buffer]);
+    var result = mathLib.resizeAndUnsharp(opts);
+    postMessage({
+      result: result
+    }, [result.buffer]);
   };
 };
 
@@ -1653,23 +1629,35 @@ module.exports = function (fn, options) {
 },{}],"/":[function(require,module,exports){
 'use strict';
 
-var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
+function _slicedToArray(arr, i) { return _arrayWithHoles(arr) || _iterableToArrayLimit(arr, i) || _nonIterableRest(); }
+
+function _nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance"); }
+
+function _iterableToArrayLimit(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
+
+function _arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
 
 var assign = require('object-assign');
+
 var webworkify = require('webworkify');
 
 var MathLib = require('./lib/mathlib');
+
 var Pool = require('./lib/pool');
+
 var utils = require('./lib/utils');
+
 var worker = require('./lib/worker');
+
 var createStages = require('./lib/stepper');
-var createRegions = require('./lib/tiler');
 
-// Deduplicate pools & limiters with the same configs
+var createRegions = require('./lib/tiler'); // Deduplicate pools & limiters with the same configs
 // when user creates multiple pica instances.
-var singletones = {};
 
+
+var singletones = {};
 var NEED_SAFARI_FIX = false;
+
 try {
   if (typeof navigator !== 'undefined' && navigator.userAgent) {
     NEED_SAFARI_FIX = navigator.userAgent.indexOf('Safari') >= 0;
@@ -1677,6 +1665,7 @@ try {
 } catch (e) {}
 
 var concurrency = 1;
+
 if (typeof navigator !== 'undefined') {
   concurrency = Math.min(navigator.hardwareConcurrency || 1, 4);
 }
@@ -1687,7 +1676,6 @@ var DEFAULT_PICA_OPTS = {
   features: ['js', 'wasm', 'ww'],
   idle: 2000
 };
-
 var DEFAULT_RESIZE_OPTS = {
   quality: 3,
   alpha: false,
@@ -1695,9 +1683,8 @@ var DEFAULT_RESIZE_OPTS = {
   unsharpRadius: 0.0,
   unsharpThreshold: 0
 };
-
-var CAN_NEW_IMAGE_DATA = void 0;
-var CAN_CREATE_IMAGE_BITMAP = void 0;
+var CAN_NEW_IMAGE_DATA;
+var CAN_CREATE_IMAGE_BITMAP;
 
 function workerFabric() {
   return {
@@ -1707,54 +1694,50 @@ function workerFabric() {
 
       if (typeof window !== 'undefined') {
         var url = window.URL || window.webkitURL || window.mozURL || window.msURL;
+
         if (url && url.revokeObjectURL && this.value.objectURL) {
           url.revokeObjectURL(this.value.objectURL);
         }
       }
     }
   };
-}
-
-////////////////////////////////////////////////////////////////////////////////
+} ////////////////////////////////////////////////////////////////////////////////
 // API methods
+
 
 function Pica(options) {
   if (!(this instanceof Pica)) return new Pica(options);
-
   this.options = assign({}, DEFAULT_PICA_OPTS, options || {});
-
-  var limiter_key = 'lk_' + this.options.concurrency;
-
-  // Share limiters to avoid multiple parallel workers when user creates
+  var limiter_key = "lk_".concat(this.options.concurrency); // Share limiters to avoid multiple parallel workers when user creates
   // multiple pica instances.
+
   this.__limit = singletones[limiter_key] || utils.limiter(this.options.concurrency);
+  if (!singletones[limiter_key]) singletones[limiter_key] = this.__limit; // List of supported features, according to options & browser/node.js
 
-  if (!singletones[limiter_key]) singletones[limiter_key] = this.__limit;
-
-  // List of supported features, according to options & browser/node.js
   this.features = {
-    js: false, // pure JS implementation, can be disabled for testing
-    wasm: false, // webassembly implementation for heavy functions
-    cib: false, // resize via createImageBitmap (only FF at this moment)
+    js: false,
+    // pure JS implementation, can be disabled for testing
+    wasm: false,
+    // webassembly implementation for heavy functions
+    cib: false,
+    // resize via createImageBitmap (only FF at this moment)
     ww: false // webworkers
+
   };
+  this.__workersPool = null; // Store requested features for webworkers
 
-  this.__workersPool = null;
-
-  // Store requested features for webworkers
   this.__requested_features = [];
-
   this.__mathlib = null;
 }
 
 Pica.prototype.init = function () {
   var _this = this;
 
-  if (this.__initPromise) return this.__initPromise;
+  if (this.__initPromise) return this.__initPromise; // Test if we can create ImageData without canvas and memory copy
 
-  // Test if we can create ImageData without canvas and memory copy
   if (CAN_NEW_IMAGE_DATA !== false && CAN_NEW_IMAGE_DATA !== true) {
     CAN_NEW_IMAGE_DATA = false;
+
     if (typeof ImageData !== 'undefined' && typeof Uint8ClampedArray !== 'undefined') {
       try {
         /* eslint-disable no-new */
@@ -1762,9 +1745,7 @@ Pica.prototype.init = function () {
         CAN_NEW_IMAGE_DATA = true;
       } catch (__) {}
     }
-  }
-
-  // ImageBitmap can be effective in 2 places:
+  } // ImageBitmap can be effective in 2 places:
   //
   // 1. Threaded jpeg unpack (basic)
   // 2. Built-in resize (blocked due problem in chrome, see issue #89)
@@ -1772,8 +1753,10 @@ Pica.prototype.init = function () {
   // For basic use we also need ImageBitmap wo support .close() method,
   // see https://developer.mozilla.org/ru/docs/Web/API/ImageBitmap
 
+
   if (CAN_CREATE_IMAGE_BITMAP !== false && CAN_CREATE_IMAGE_BITMAP !== true) {
     CAN_CREATE_IMAGE_BITMAP = false;
+
     if (typeof ImageBitmap !== 'undefined') {
       if (ImageBitmap.prototype && ImageBitmap.prototype.close) {
         CAN_CREATE_IMAGE_BITMAP = true;
@@ -1790,21 +1773,19 @@ Pica.prototype.init = function () {
   }
 
   this.__requested_features = features;
+  this.__mathlib = new MathLib(features); // Check WebWorker support if requested
 
-  this.__mathlib = new MathLib(features);
-
-  // Check WebWorker support if requested
   if (features.indexOf('ww') >= 0) {
     if (typeof window !== 'undefined' && 'Worker' in window) {
       // IE <= 11 don't allow to create webworkers from string. We should check it.
       // https://connect.microsoft.com/IE/feedback/details/801810/web-workers-from-blob-urls-in-ie-10-and-11
       try {
         var wkr = require('webworkify')(function () {});
-        wkr.terminate();
-        this.features.ww = true;
 
-        // pool uniqueness depends on pool config + webworker config
-        var wpool_key = 'wp_' + JSON.stringify(this.options);
+        wkr.terminate();
+        this.features.ww = true; // pool uniqueness depends on pool config + webworker config
+
+        var wpool_key = "wp_".concat(JSON.stringify(this.options));
 
         if (singletones[wpool_key]) {
           this.__workersPool = singletones[wpool_key];
@@ -1821,7 +1802,7 @@ Pica.prototype.init = function () {
     assign(_this.features, mathlib.features);
   });
 
-  var checkCibResize = void 0;
+  var checkCibResize;
 
   if (!CAN_CREATE_IMAGE_BITMAP) {
     checkCibResize = Promise.resolve(false);
@@ -1829,18 +1810,18 @@ Pica.prototype.init = function () {
     checkCibResize = utils.cib_support().then(function (status) {
       if (_this.features.cib && features.indexOf('cib') < 0) {
         _this.debug('createImageBitmap() resize supported, but disabled by config');
+
         return;
       }
 
       if (features.indexOf('cib') >= 0) _this.features.cib = status;
     });
-  }
+  } // Init math lib. That's async because can load some
 
-  // Init math lib. That's async because can load some
+
   this.__initPromise = Promise.all([initMath, checkCibResize]).then(function () {
     return _this;
   });
-
   return this.__initPromise;
 };
 
@@ -1848,11 +1829,12 @@ Pica.prototype.resize = function (from, to, options) {
   var _this2 = this;
 
   this.debug('Start resize...');
-
   var opts = assign({}, DEFAULT_RESIZE_OPTS);
 
   if (!isNaN(options)) {
-    opts = assign(opts, { quality: options });
+    opts = assign(opts, {
+      quality: options
+    });
   } else if (options) {
     opts = assign(opts, options);
   }
@@ -1860,36 +1842,37 @@ Pica.prototype.resize = function (from, to, options) {
   opts.toWidth = to.width;
   opts.toHeight = to.height;
   opts.width = from.naturalWidth || from.width;
-  opts.height = from.naturalHeight || from.height;
+  opts.height = from.naturalHeight || from.height; // Prevent stepper from infinite loop
 
-  // Prevent stepper from infinite loop
   if (to.width === 0 || to.height === 0) {
-    return Promise.reject(new Error('Invalid output size: ' + to.width + 'x' + to.height));
+    return Promise.reject(new Error("Invalid output size: ".concat(to.width, "x").concat(to.height)));
   }
 
   if (opts.unsharpRadius > 2) opts.unsharpRadius = 2;
-
   var canceled = false;
   var cancelToken = null;
 
   if (opts.cancelToken) {
     // Wrap cancelToken to avoid successive resolve & set flag
     cancelToken = opts.cancelToken.then(function (data) {
-      canceled = true;throw data;
+      canceled = true;
+      throw data;
     }, function (err) {
-      canceled = true;throw err;
+      canceled = true;
+      throw err;
     });
   }
 
   var DEST_TILE_BORDER = 3; // Max possible filter window size
+
   var destTileBorder = Math.ceil(Math.max(DEST_TILE_BORDER, 2.5 * opts.unsharpRadius | 0));
-
   return this.init().then(function () {
-    if (canceled) return cancelToken;
+    if (canceled) return cancelToken; // if createImageBitmap supports resize, just do it and return
 
-    // if createImageBitmap supports resize, just do it and return
     if (_this2.features.cib) {
-      var toCtx = to.getContext('2d', { alpha: Boolean(opts.alpha) });
+      var toCtx = to.getContext('2d', {
+        alpha: Boolean(opts.alpha)
+      });
 
       _this2.debug('Resize via createImageBitmap()');
 
@@ -1898,9 +1881,8 @@ Pica.prototype.resize = function (from, to, options) {
         resizeHeight: opts.toHeight,
         resizeQuality: utils.cib_quality_name(opts.quality)
       }).then(function (imageBitmap) {
-        if (canceled) return cancelToken;
+        if (canceled) return cancelToken; // if no unsharp - draw directly to output canvas
 
-        // if no unsharp - draw directly to output canvas
         if (!opts.unsharpAmount) {
           toCtx.drawImage(imageBitmap, 0, 0);
           imageBitmap.close();
@@ -1914,15 +1896,13 @@ Pica.prototype.resize = function (from, to, options) {
         _this2.debug('Unsharp result');
 
         var tmpCanvas = document.createElement('canvas');
-
         tmpCanvas.width = opts.toWidth;
         tmpCanvas.height = opts.toHeight;
-
-        var tmpCtx = tmpCanvas.getContext('2d', { alpha: Boolean(opts.alpha) });
-
+        var tmpCtx = tmpCanvas.getContext('2d', {
+          alpha: Boolean(opts.alpha)
+        });
         tmpCtx.drawImage(imageBitmap, 0, 0);
         imageBitmap.close();
-
         var iData = tmpCtx.getImageData(0, 0, opts.toWidth, opts.toHeight);
 
         _this2.__mathlib.unsharp(iData.data, opts.toWidth, opts.toHeight, opts.unsharpAmount, opts.unsharpRadius, opts.unsharpThreshold);
@@ -1934,24 +1914,21 @@ Pica.prototype.resize = function (from, to, options) {
 
         return to;
       });
-    }
-
-    //
+    } //
     // No easy way, let's resize manually via arrays
     //
-
     // Share cache between calls:
     //
     // - wasm instance
     // - wasm memory object
     //
-    var cache = {};
 
-    // Call resizer in webworker or locally, depending on config
+
+    var cache = {}; // Call resizer in webworker or locally, depending on config
+
     var invokeResize = function invokeResize(opts) {
       return Promise.resolve().then(function () {
         if (!_this2.features.ww) return _this2.__mathlib.resizeAndUnsharp(opts, cache);
-
         return new Promise(function (resolve, reject) {
           var w = _this2.__workersPool.acquire();
 
@@ -1961,7 +1938,6 @@ Pica.prototype.resize = function (from, to, options) {
 
           w.value.onmessage = function (ev) {
             w.release();
-
             if (ev.data.err) reject(ev.data.err);else resolve(ev.data.result);
           };
 
@@ -1977,21 +1953,19 @@ Pica.prototype.resize = function (from, to, options) {
     };
 
     var tileAndResize = function tileAndResize(from, to, opts) {
-      var srcCtx = void 0;
-      var srcImageBitmap = void 0;
-      var toCtx = void 0;
+      var srcCtx;
+      var srcImageBitmap;
+      var toCtx;
 
       var processTile = function processTile(tile) {
         return _this2.__limit(function () {
           if (canceled) return cancelToken;
+          var srcImageData; // Extract tile RGBA buffer, depending on input type
 
-          var srcImageData = void 0;
-
-          // Extract tile RGBA buffer, depending on input type
           if (utils.isCanvas(from)) {
-            _this2.debug('Get tile pixel data');
+            _this2.debug('Get tile pixel data'); // If input is Canvas - extract region data directly
 
-            // If input is Canvas - extract region data directly
+
             srcImageData = srcCtx.getImageData(tile.x, tile.y, tile.width, tile.height);
           } else {
             // If input is Image or decoded to ImageBitmap,
@@ -2004,8 +1978,9 @@ Pica.prototype.resize = function (from, to, options) {
             var tmpCanvas = document.createElement('canvas');
             tmpCanvas.width = tile.width;
             tmpCanvas.height = tile.height;
-
-            var tmpCtx = tmpCanvas.getContext('2d', { alpha: Boolean(opts.alpha) });
+            var tmpCtx = tmpCanvas.getContext('2d', {
+              alpha: Boolean(opts.alpha)
+            });
             tmpCtx.globalCompositeOperation = 'copy';
             tmpCtx.drawImage(srcImageBitmap || from, tile.x, tile.y, tile.width, tile.height, 0, 0, tile.width, tile.height);
 
@@ -2038,10 +2013,8 @@ Pica.prototype.resize = function (from, to, options) {
             return invokeResize(o);
           }).then(function (result) {
             if (canceled) return cancelToken;
-
             srcImageData = null;
-
-            var toImageData = void 0;
+            var toImageData;
 
             _this2.debug('Convert raw rgba tile result to ImageData');
 
@@ -2076,15 +2049,19 @@ Pica.prototype.resize = function (from, to, options) {
             return null;
           });
         });
-      };
-
-      // Need to normalize data source first. It can be canvas or image.
+      }; // Need to normalize data source first. It can be canvas or image.
       // If image - try to decode in background if possible
+
+
       return Promise.resolve().then(function () {
-        toCtx = to.getContext('2d', { alpha: Boolean(opts.alpha) });
+        toCtx = to.getContext('2d', {
+          alpha: Boolean(opts.alpha)
+        });
 
         if (utils.isCanvas(from)) {
-          srcCtx = from.getContext('2d', { alpha: Boolean(opts.alpha) });
+          srcCtx = from.getContext('2d', {
+            alpha: Boolean(opts.alpha)
+          });
           return null;
         }
 
@@ -2103,12 +2080,11 @@ Pica.prototype.resize = function (from, to, options) {
       }).then(function () {
         if (canceled) return cancelToken;
 
-        _this2.debug('Calculate tiles');
-
-        //
+        _this2.debug('Calculate tiles'); //
         // Here we are with "normalized" source,
         // follow to tiling
         //
+
 
         var regions = createRegions({
           width: opts.width,
@@ -2118,7 +2094,6 @@ Pica.prototype.resize = function (from, to, options) {
           toHeight: opts.toHeight,
           destTileBorder: destTileBorder
         });
-
         var jobs = regions.map(function (tile) {
           return processTile(tile);
         });
@@ -2134,9 +2109,12 @@ Pica.prototype.resize = function (from, to, options) {
 
         return Promise.all(jobs).then(function () {
           _this2.debug('Finished!');
-          cleanup();return to;
+
+          cleanup();
+          return to;
         }, function (err) {
-          cleanup();throw err;
+          cleanup();
+          throw err;
         });
       });
     };
@@ -2150,7 +2128,6 @@ Pica.prototype.resize = function (from, to, options) {
           toHeight = _stages$shift2[1];
 
       var isLastStage = stages.length === 0;
-
       opts = assign({}, opts, {
         toWidth: toWidth,
         toHeight: toHeight,
@@ -2159,8 +2136,7 @@ Pica.prototype.resize = function (from, to, options) {
         // scale factor is large enough (more than 2-3)
         quality: isLastStage ? opts.quality : Math.min(1, opts.quality)
       });
-
-      var tmpCanvas = void 0;
+      var tmpCanvas;
 
       if (!isLastStage) {
         // create temporary canvas
@@ -2171,7 +2147,6 @@ Pica.prototype.resize = function (from, to, options) {
 
       return tileAndResize(from, isLastStage ? to : tmpCanvas, opts).then(function () {
         if (isLastStage) return to;
-
         opts.width = toWidth;
         opts.height = toHeight;
         return processStages(stages, tmpCanvas, to, opts);
@@ -2179,18 +2154,16 @@ Pica.prototype.resize = function (from, to, options) {
     };
 
     var stages = createStages(opts.width, opts.height, opts.toWidth, opts.toHeight, _this2.options.tile, destTileBorder);
-
     return processStages(stages, from, to, opts);
   });
-};
-
-// RGBA buffer resize
+}; // RGBA buffer resize
 //
+
+
 Pica.prototype.resizeBuffer = function (options) {
   var _this3 = this;
 
   var opts = assign({}, DEFAULT_RESIZE_OPTS, options);
-
   return this.init().then(function () {
     return _this3.__mathlib.resizeAndUnsharp(opts);
   });
@@ -2198,16 +2171,15 @@ Pica.prototype.resizeBuffer = function (options) {
 
 Pica.prototype.toBlob = function (canvas, mimeType, quality) {
   mimeType = mimeType || 'image/png';
-
   return new Promise(function (resolve) {
     if (canvas.toBlob) {
       canvas.toBlob(function (blob) {
         return resolve(blob);
       }, mimeType, quality);
       return;
-    }
+    } // Fallback for old browsers
 
-    // Fallback for old browsers
+
     var asString = atob(canvas.toDataURL(mimeType, quality).split(',')[1]);
     var len = asString.length;
     var asBuffer = new Uint8Array(len);
@@ -2216,7 +2188,9 @@ Pica.prototype.toBlob = function (canvas, mimeType, quality) {
       asBuffer[i] = asString.charCodeAt(i);
     }
 
-    resolve(new Blob([asBuffer], { type: mimeType }));
+    resolve(new Blob([asBuffer], {
+      type: mimeType
+    }));
   });
 };
 
