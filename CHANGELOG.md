@@ -1,3 +1,9 @@
+5.0.0 / 2018-11-02
+------------------
+
+- Maintenance, babelify upgrade: switch to @babel/core and @babel/preset-env.
+
+
 4.2.0 / 2018-10-25
 ------------------
 
