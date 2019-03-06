@@ -27,7 +27,7 @@ var qualityInfo = [
   'Hamming (win 1px)',
   'Lanczos (win 2px)',
   'Lanczos (win 3px)',
-]
+];
 
 
 var resizer;
@@ -165,7 +165,7 @@ var quality           = Number($('#pica-quality').val());
 var unsharpAmount     = Number($('#pica-unsharp-amount').val());
 var unsharpRadius     = Number($('#pica-unsharp-radius').val());
 var unsharpThreshold  = Number($('#pica-unsharp-threshold').val());
-var alpha             = $('#pica-use-alpha').is(":checked")
+var alpha             = $('#pica-use-alpha').is(":checked");
 
 resizer_mode.ww   = $('#pica-use-ww').is(":checked");
 resizer_mode.cib  = $('#pica-use-cib').is(":checked");
