@@ -2,6 +2,7 @@
   "name": "pica",
   "description": "High quality image resize in browser.",
   "version": "5.0.0",
+  "types": "index.d.ts",
   "keywords": [
     "resize",
     "scale",
@@ -18,7 +19,8 @@
   "files": [
     "dist/",
     "lib/",
-    "index.js"
+    "index.js",
+    "index.d.ts"
   ],
   "browserify": {
     "transform": [
