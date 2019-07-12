@@ -277,7 +277,7 @@ Pica.prototype.resize = function (from, to, options) {
 
         let iData = tmpCtx.getImageData(0, 0, opts.toWidth, opts.toHeight);
 
-        this.__mathlib.unsharp(
+        this.__mathlib.unsharp_mask(
           iData.data,
           opts.toWidth,
           opts.toHeight,
