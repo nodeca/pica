@@ -1,3 +1,11 @@
+5.1.0 / 2019-07-15
+------------------
+
+- Bump multimath dependency.
+- Avoid possible CSP warnings, caused by WASM check, when feature not requested
+  in options.
+
+
 5.0.1 / 2019-07-12
 ------------------
 
