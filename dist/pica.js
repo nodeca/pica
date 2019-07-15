@@ -1,4 +1,4 @@
-/* pica 5.0.1 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+/* pica 5.1.0 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 // Collection of math functions
 //
 // 1. Combine components together
@@ -24,7 +24,7 @@ function MathLib(requested_features) {
   Multimath.call(this, features);
   this.features = {
     js: features.js,
-    wasm: features.wasm && this.has_wasm
+    wasm: features.wasm && this.has_wasm()
   };
   this.use(mm_unsharp_mask);
   this.use(mm_resize);
@@ -1021,7 +1021,6 @@ function MultiMath(options) {
   this.options         = opts;
 
   this.__cache         = {};
-  this.has_wasm        = hasWebAssembly();
 
   this.__init_promise  = null;
   this.__modules       = opts.modules || {};
@@ -1036,14 +1035,17 @@ function MultiMath(options) {
 }
 
 
+MultiMath.prototype.has_wasm = hasWebAssembly;
+
+
 MultiMath.prototype.use = function (module) {
   this.__modules[module.name] = module;
 
   // Pin the best possible implementation
-  if (!this.has_wasm || !this.options.wasm || !module.wasm_fn) {
-    this[module.name] = module.fn;
-  } else {
+  if (this.options.wasm && this.has_wasm() && module.wasm_fn) {
     this[module.name] = module.wasm_fn;
+  } else {
+    this[module.name] = module.fn;
   }
 
   return this;
@@ -1053,7 +1055,7 @@ MultiMath.prototype.use = function (module) {
 MultiMath.prototype.init = function () {
   if (this.__init_promise) return this.__init_promise;
 
-  if (!this.options.js && this.options.wasm && !this.has_wasm) {
+  if (!this.options.js && this.options.wasm && !this.has_wasm()) {
     return Promise.reject(new Error('mathlib: only "wasm" was enabled, but it\'s not supported'));
   }
 
@@ -1062,7 +1064,7 @@ MultiMath.prototype.init = function () {
   this.__init_promise = Promise.all(Object.keys(self.__modules).map(function (name) {
     var module = self.__modules[name];
 
-    if (!self.has_wasm || !self.options.wasm || !module.wasm_fn) return null;
+    if (!self.options.wasm || !self.has_wasm() || !module.wasm_fn) return null;
 
     // If already compiled - exit
     if (self.__wasm[name]) return null;
