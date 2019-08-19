@@ -205,7 +205,7 @@ binary data (for example, if you decode jpeg files "manually").
   - __width__ - src image width.
   - __height__ - src image height.
   - __toWidth__ - output width, >=0, in pixels.
-  - __toHeigh__ - output height, >=0, in pixels.
+  - __toHeight__ - output height, >=0, in pixels.
   - __quality__ - 0..3. Default = `3` (lanczos, win=3).
   - __alpha__ - use alpha channel. Default = `false`.
   - __unsharpAmount__ - >=0, in percents. Default = `0` (off).
