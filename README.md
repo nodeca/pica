@@ -281,17 +281,3 @@ You can find these links useful:
 - chromium skia sources:
   [image_operations.cc](http://src.chromium.org/svn/trunk/src/skia/ext/image_operations.cc),
   [convolver.cc](http://src.chromium.org/svn/trunk/src/skia/ext/convolver.cc).
-
-
-Authors
--------
-
-- Vitaly Puzrin [@puzrin](https://github.com/puzrin)
-- Alexander Rodin [@a-rodin](https://github.com/a-rodin)
-- Loïc Faure-Lacroix [@llacroix](https://github.com/llacroix)
-
-
-Licence
--------
-
-[MIT](https://github.com/nodeca/pica/blob/master/LICENSE)
