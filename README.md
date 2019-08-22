@@ -281,3 +281,9 @@ You can find these links useful:
 - chromium skia sources:
   [image_operations.cc](http://src.chromium.org/svn/trunk/src/skia/ext/image_operations.cc),
   [convolver.cc](http://src.chromium.org/svn/trunk/src/skia/ext/convolver.cc).
+
+
+Support pica
+------------
+
+You can support this project via [Tidelift subscription](https://tidelift.com/subscription/pkg/npm-pica?utm_source=npm-pica&utm_medium=referral&utm_campaign=readme).
