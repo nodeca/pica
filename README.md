@@ -238,7 +238,7 @@ understand resize math :)
 
 ### Unsharp mask
 
-Ifter scale down image can look a bit blured. It's good idea to sharpen it
+After scale down image can look a bit blured. It's good idea to sharpen it
 a bit. Pica has built-in "unsharp mask" filter (off by default).
 Set `unsharpAmount` to positive number to activate the filter.
 
