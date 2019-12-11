@@ -205,7 +205,7 @@ binary data (for example, if you decode jpeg files "manually").
   - __width__ - src image width.
   - __height__ - src image height.
   - __toWidth__ - output width, >=0, in pixels.
-  - __toHeigh__ - output height, >=0, in pixels.
+  - __toHeight__ - output height, >=0, in pixels.
   - __quality__ - 0..3. Default = `3` (lanczos, win=3).
   - __alpha__ - use alpha channel. Default = `false`.
   - __unsharpAmount__ - >=0, in percents. Default = `0` (off).
@@ -238,7 +238,7 @@ understand resize math :)
 
 ### Unsharp mask
 
-Ifter scale down image can look a bit blured. It's good idea to sharpen it
+After scale down image can look a bit blured. It's good idea to sharpen it
 a bit. Pica has built-in "unsharp mask" filter (off by default).
 Set `unsharpAmount` to positive number to activate the filter.
 
@@ -283,15 +283,7 @@ You can find these links useful:
   [convolver.cc](http://src.chromium.org/svn/trunk/src/skia/ext/convolver.cc).
 
 
-Authors
--------
+Support pica
+------------
 
-- Vitaly Puzrin [@puzrin](https://github.com/puzrin)
-- Alexander Rodin [@a-rodin](https://github.com/a-rodin)
-- Loïc Faure-Lacroix [@llacroix](https://github.com/llacroix)
-
-
-Licence
--------
-
-[MIT](https://github.com/nodeca/pica/blob/master/LICENSE)
+You can support this project via [Tidelift subscription](https://tidelift.com/subscription/pkg/npm-pica?utm_source=npm-pica&utm_medium=referral&utm_campaign=readme).
