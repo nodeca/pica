@@ -74,6 +74,14 @@ bower:
 bower install pica
 ```
 
+via a script tag:
+```html
+<script src="https://unpkg.com/pica@5.1.0/dist/pica.min.js"></script>
+<script>
+  const p = pica();
+  ...
+</script>
+```
 
 __Attention!__. Compiled files are in `/dist` folder! If you wish to
 load module in node.js style as `require('pica')` - your project MUST
