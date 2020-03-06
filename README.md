@@ -31,6 +31,8 @@ Here is a short list of problems you can face:
   - Due to JS security restrictions, you can process images
     from the same domain or local files only. If you load images from
     remote domain use proper `Access-Control-Allow-Origin` header.
+  - iOS has a memory limits for canvas elements, that may cause 
+    problems in some cases, [more details](https://github.com/nodeca/pica/wiki/iOS-Memory-Limit).
   - If you plan to show images on screen after load, you should parse
     `exif` header to get proper orientation. Images can be rotated.
 - Saving image:
