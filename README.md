@@ -31,7 +31,7 @@ Here is a short list of problems you can face:
   - Due to JS security restrictions, you can process images
     from the same domain or local files only. If you load images from
     remote domain use proper `Access-Control-Allow-Origin` header.
-  - iOS has a memory limits for canvas elements, that may cause 
+  - iOS has a memory limits for canvas elements, that may cause
     problems in some cases, [more details](https://github.com/nodeca/pica/wiki/iOS-Memory-Limit).
   - If you plan to show images on screen after load, you should parse
     `exif` header to get proper orientation. Images can be rotated.
@@ -71,36 +71,6 @@ bower:
 
 ```sh
 bower install pica
-```
-
-
-__Attention!__. Compiled files are in `/dist` folder! If you wish to
-load module in node.js style as `require('pica')` - your project MUST
-be compiled with [browserify](https://github.com/substack/node-browserify)
-to properly use Web Workers. In other case - use `require('pica/dist/pica')`.
-
-**Webpack notice**
-
-If you use Webpack to bundle your application, you probably need to define a [resolve
-alias](https://webpack.js.org/configuration/resolve/#resolve-alias) into your webpack config, like this:
-
-```js
-{
-  resolve: {
-    alias: {
-      // Use compiled pica files from /dist folder
-      pica: 'pica/dist/pica.js',
-    },
-  }
-}
-```
-
-After that, you will be able to use pica as usual:
-
-```js
-import Pica from 'pica';
-const pica = Pica();
-pica.resize(img, canvas).then(...);
 ```
 
 Use
