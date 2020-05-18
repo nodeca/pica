@@ -45,8 +45,8 @@
     "benchmark": "^2.1.0",
     "browserify": "^16.2.3",
     "canvas": "^2.0.0",
-    "eslint": "^6.0.1",
-    "mocha": "^6.1.4",
+    "eslint": "^7.0.0",
+    "mocha": "^7.1.2",
     "pixelmatch": "^5.0.2",
     "uglify-js": "^3.0.24"
   }
