@@ -1,3 +1,9 @@
+5.1.1 / 2020-05-18
+------------------
+
+- Suppress `createImageBitmap` errors to use fallback, #190.
+
+
 5.1.0 / 2019-07-15
 ------------------
 
