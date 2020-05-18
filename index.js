@@ -461,7 +461,11 @@ Pica.prototype.resize = function (from, to, options) {
           return createImageBitmap(from)
             .then(imageBitmap => {
               srcImageBitmap = imageBitmap;
-            });
+            })
+            // Suppress error to use fallback, if method fails
+            // https://github.com/nodeca/pica/issues/190
+            /* eslint-disable no-unused-vars */
+            .catch(e => null);
         }
 
         throw new Error('".from" should be image or canvas');
