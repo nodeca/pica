@@ -578,6 +578,14 @@ Pica.prototype.toBlob = function (canvas, mimeType, quality) {
       return;
     }
 
+    if (canvas.convertToBlob) {
+      resolve(canvas.convertToBlob({
+        type: mimeType,
+        quality
+      }));
+      return;
+    }
+
     // Fallback for old browsers
     const asString = atob(canvas.toDataURL(mimeType, quality).split(',')[1]);
     const len      = asString.length;
