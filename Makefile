@@ -47,7 +47,7 @@ browserify:
 	# Browserify
 	( printf "/* ${NPM_PACKAGE} ${NPM_VERSION} ${GITHUB_PROJ} */" ; \
 		./node_modules/.bin/browserify -r ./ -s pica \
-		) > dist/pica.js
+		) | ./node_modules/.bin/derequire > dist/pica.js
 	# Minify
 	./node_modules/.bin/uglifyjs dist/pica.js -c -m \
 		--preamble "/* ${NPM_PACKAGE} ${NPM_VERSION} ${GITHUB_PROJ} */" \
