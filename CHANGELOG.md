@@ -1,3 +1,9 @@
+5.3.0 / 2020-06-09
+------------------
+
+- Use `derequire` to allow nested `browserify` for `/dist/pica.js`. 
+
+
 5.2.0 / 2020-05-25
 ------------------
 
