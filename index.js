@@ -338,6 +338,7 @@ Pica.prototype.resize = function (from, to, options) {
     const tileAndResize = (from, to, opts) => {
       let srcCtx;
       let srcImageBitmap;
+      let isImageBitmapReused = false;
       let toCtx;
 
       const processTile = (tile => this.__limit(() => {
@@ -452,6 +453,12 @@ Pica.prototype.resize = function (from, to, options) {
           return null;
         }
 
+        if (utils.isImageBitmap(from)) {
+          srcImageBitmap = from;
+          isImageBitmapReused = true;
+          return null;
+        }
+
         if (utils.isImage(from)) {
           // try do decode image in background for faster next operations
           if (!CAN_CREATE_IMAGE_BITMAP) return null;
@@ -468,7 +475,7 @@ Pica.prototype.resize = function (from, to, options) {
             .catch(e => null);
         }
 
-        throw new Error('".from" should be image or canvas');
+        throw new Error('Pica: ".from" should be Image, Canvas or ImageBitmap');
       })
       .then(() => {
         if (canceled) return cancelToken;
@@ -493,7 +500,7 @@ Pica.prototype.resize = function (from, to, options) {
 
         function cleanup() {
           if (srcImageBitmap) {
-            srcImageBitmap.close();
+            if (!isImageBitmapReused) srcImageBitmap.close();
             srcImageBitmap = null;
           }
         }

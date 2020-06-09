@@ -104,7 +104,16 @@ var updateResized = _.debounce(function () {
 
   start = performance.now();
 
-  //resizer.resize(img, offScreenCanvas, {
+  /*createImageBitmap($('#src')[0]).then(image_bitmap => {
+    return resizer.resize(image_bitmap, offScreenCanvas, {
+      quality: quality,
+      alpha: alpha,
+      unsharpAmount: unsharpAmount,
+      unsharpRadius: unsharpRadius,
+      unsharpThreshold: unsharpThreshold,
+      transferable: true
+    });
+  })*/
   resizer.resize($('#src')[0], offScreenCanvas, {
     quality: quality,
     alpha: alpha,

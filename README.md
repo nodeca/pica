@@ -163,7 +163,7 @@ But, as you can see in demo, result is still pixelated. So:
 Resize image from one canvas (or image) to another. Sizes are
 taken from source and destination objects.
 
-- __from__ - source canvas or image.
+- __from__ - source, can be `Canvas`, `Image` or `ImageBitmap`.
 - __to__ - destination canvas, its size is supposed to be non-zero.
 - __options__ - quality (number) or object:
   - __quality__ - 0..3. Default = `3` (lanczos, win=3).
