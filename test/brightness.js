@@ -3,7 +3,7 @@
 'use strict';
 
 
-const pica   = require('../')();
+const pica   = require('../index.js')();
 const assert = require('assert');
 
 

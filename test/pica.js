@@ -1,7 +1,7 @@
 'use strict';
 
 
-const _pica  = require('../');
+const _pica  = require('../index.js');
 const assert = require('assert');
 const { createCanvas } = require('canvas');
 
