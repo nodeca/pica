@@ -9,25 +9,6 @@ REMOTE_REPO ?= $(shell git config --get remote.${REMOTE_NAME}.url)
 CURR_HEAD   := $(firstword $(shell git show-ref --hash HEAD | cut -b -6) master)
 GITHUB_PROJ := nodeca/${NPM_PACKAGE}
 
-
-help:
-	echo "make help       - Print this help"
-	echo "make lint       - Lint sources with JSHint"
-	echo "make test       - Run tests"
-	echo "make cover      - Create coverage report"
-	echo "make doc        - Generate documentation"
-	echo "make browserify - Build browserified packages"
-	echo "make publish    - Set new version tag and publish npm package"
-
-
-lint:
-	./node_modules/.bin/eslint .
-
-
-test: lint
-	./node_modules/.bin/mocha
-
-
 wasm:
 	@# install: multimath => ./support/llvm_install.sh
 	@# https://github.com/nodeca/multimath
@@ -39,28 +20,6 @@ wasm:
 	rm ./lib/mm_resize/convolve.s
 	node ./node_modules/multimath/support/wasm_wrap.js ./lib/mm_resize/convolve.wasm ./lib/mm_resize/convolve_wasm_base64.js
 	make browserify
-
-
-browserify:
-	rm -rf ./dist
-	mkdir dist
-	# Browserify
-	( printf "/* ${NPM_PACKAGE} ${NPM_VERSION} ${GITHUB_PROJ} */" ; \
-		./node_modules/.bin/browserify -r ./ -s pica \
-		) | ./node_modules/.bin/derequire > dist/pica.js
-	# Minify
-	./node_modules/.bin/uglifyjs dist/pica.js -c -m \
-		--preamble "/* ${NPM_PACKAGE} ${NPM_VERSION} ${GITHUB_PROJ} */" \
-		> dist/pica.min.js
-
-
-gh-pages:
-	if [ "git branch --list gh-pages" ]; then \
-		git branch -D gh-pages ; \
-		fi
-	git branch gh-pages
-	git push origin gh-pages -f
-
 
 publish:
 	@if test 0 -ne `git status --porcelain | wc -l` ; then \

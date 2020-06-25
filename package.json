@@ -9,29 +9,24 @@
     "lanczos",
     "canvas"
   ],
+  "main": "dist/pica.js",
   "homepage": "https://github.com/nodeca/pica",
   "license": "MIT",
   "repository": "nodeca/pica",
   "scripts": {
-    "test": "make test"
+    "test": "npm run lint && mocha",
+    "lint": "eslint .",
+    "gh-pages": "gh-pages -d . -s {demo,dist}/* -f",
+    "browserify": "browserify -r ./index.js -s pica -t [ babelify --presets [ @babel/preset-env ] ] -p [ browserify-header --file support/header.js ] | derequire > dist/pica.js",
+    "minify": "terser dist/pica.js -c -m > dist/pica.min.js",
+    "build": "npm run browserify && npm run minify",
+    "prepublishOnly": "npm run gh-pages"
   },
   "files": [
     "dist/",
     "lib/",
     "index.js"
   ],
-  "browserify": {
-    "transform": [
-      [
-        "babelify",
-        {
-          "presets": [
-            "@babel/preset-env"
-          ]
-        }
-      ]
-    ]
-  },
   "dependencies": {
     "inherits": "^2.0.3",
     "multimath": "^2.0.0",
@@ -44,11 +39,13 @@
     "babelify": "^10.0.0",
     "benchmark": "^2.1.0",
     "browserify": "^16.2.3",
+    "browserify-header": "^1.0.1",
     "canvas": "^2.0.0",
     "derequire": "^2.1.0",
     "eslint": "^7.0.0",
-    "mocha": "^7.1.2",
+    "gh-pages": "^3.1.0",
+    "mocha": "^8.0.1",
     "pixelmatch": "^5.0.2",
-    "uglify-js": "^3.0.24"
+    "terser": "^4.8.0"
   }
 }
