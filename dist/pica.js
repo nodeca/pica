@@ -1,4 +1,11 @@
-/* pica 5.3.0 nodeca/pica */(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(_dereq_,module,exports){
+/*!
+
+pica
+https://github.com/nodeca/pica
+
+*/
+
+(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.pica = f()}})(function(){var define,module,exports;return (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(_dereq_,module,exports){
 // Collection of math functions
 //
 // 1. Combine components together
@@ -737,7 +744,6 @@ function objClass(obj) {
 }
 
 module.exports.isCanvas = function isCanvas(element) {
-  //return (element.nodeName && element.nodeName.toLowerCase() === 'canvas') ||
   var cname = objClass(element);
   return cname === '[object HTMLCanvasElement]'
   /* browser */
@@ -747,8 +753,11 @@ module.exports.isCanvas = function isCanvas(element) {
 };
 
 module.exports.isImage = function isImage(element) {
-  //return element.nodeName && element.nodeName.toLowerCase() === 'img';
   return objClass(element) === '[object HTMLImageElement]';
+};
+
+module.exports.isImageBitmap = function isImageBitmap(element) {
+  return objClass(element) === '[object ImageBitmap]';
 };
 
 module.exports.limiter = function limiter(concurrency) {
@@ -1632,7 +1641,7 @@ module.exports = function (fn, options) {
     return worker;
 };
 
-},{}],"/":[function(_dereq_,module,exports){
+},{}],"/index.js":[function(_dereq_,module,exports){
 'use strict';
 
 function _slicedToArray(arr, i) { return _arrayWithHoles(arr) || _iterableToArrayLimit(arr, i) || _unsupportedIterableToArray(arr, i) || _nonIterableRest(); }
@@ -1965,6 +1974,7 @@ Pica.prototype.resize = function (from, to, options) {
     var tileAndResize = function tileAndResize(from, to, opts) {
       var srcCtx;
       var srcImageBitmap;
+      var isImageBitmapReused = false;
       var toCtx;
 
       var processTile = function processTile(tile) {
@@ -2075,6 +2085,12 @@ Pica.prototype.resize = function (from, to, options) {
           return null;
         }
 
+        if (utils.isImageBitmap(from)) {
+          srcImageBitmap = from;
+          isImageBitmapReused = true;
+          return null;
+        }
+
         if (utils.isImage(from)) {
           // try do decode image in background for faster next operations
           if (!CAN_CREATE_IMAGE_BITMAP) return null;
@@ -2092,7 +2108,7 @@ Pica.prototype.resize = function (from, to, options) {
           });
         }
 
-        throw new Error('".from" should be image or canvas');
+        throw new Error('Pica: ".from" should be Image, Canvas or ImageBitmap');
       }).then(function () {
         if (canceled) return cancelToken;
 
@@ -2116,7 +2132,7 @@ Pica.prototype.resize = function (from, to, options) {
 
         function cleanup() {
           if (srcImageBitmap) {
-            srcImageBitmap.close();
+            if (!isImageBitmapReused) srcImageBitmap.close();
             srcImageBitmap = null;
           }
         }
@@ -2222,5 +2238,5 @@ Pica.prototype.debug = function () {};
 
 module.exports = Pica;
 
-},{"./lib/mathlib":1,"./lib/pool":9,"./lib/stepper":10,"./lib/tiler":11,"./lib/utils":12,"./lib/worker":13,"object-assign":24,"webworkify":25}]},{},[])("/")
+},{"./lib/mathlib":1,"./lib/pool":9,"./lib/stepper":10,"./lib/tiler":11,"./lib/utils":12,"./lib/worker":13,"object-assign":24,"webworkify":25}]},{},[])("/index.js")
 });
