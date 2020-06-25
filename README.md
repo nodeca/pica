@@ -55,53 +55,10 @@ Here is a short list of problems you can face:
 Install
 -------
 
-node.js (to develop, build via browserify and so on):
-
 ```sh
 npm install pica
 ```
 
-Transforms plugins for build via browserify:
-
-```sh
-npm install babelify @babel/core @babel/preset-env
-```
-
-bower:
-
-```sh
-bower install pica
-```
-
-
-__Attention!__. Compiled files are in `/dist` folder! If you wish to
-load module in node.js style as `require('pica')` - your project MUST
-be compiled with [browserify](https://github.com/substack/node-browserify)
-to properly use Web Workers. In other case - use `require('pica/dist/pica')`.
-
-**Webpack notice**
-
-If you use Webpack to bundle your application, you probably need to define a [resolve
-alias](https://webpack.js.org/configuration/resolve/#resolve-alias) into your webpack config, like this:
-
-```js
-{
-  resolve: {
-    alias: {
-      // Use compiled pica files from /dist folder
-      pica: 'pica/dist/pica.js',
-    },
-  }
-}
-```
-
-After that, you will be able to use pica as usual:
-
-```js
-import Pica from 'pica';
-const pica = Pica();
-pica.resize(img, canvas).then(...);
-```
 
 Use
 ---

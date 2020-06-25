@@ -1,7 +1,10 @@
-5.4.0 / WIP
+6.0.0 / 2020-06-25
 ------------------
 
+- Use `dist/pica.js` as main entry. No more workarounds needed for webpack.
 - Added `ImageBitmap` input support.
+- Avoid babelify dependency in dependent packages if browserify used.
+- Rewrite build scripts.
 
 
 5.3.0 / 2020-06-09
