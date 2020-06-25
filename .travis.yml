@@ -1,11 +1,2 @@
 language: node_js
-node_js:
-  - '10'
-
-# Needed for node_canvas build
-addons:
-  apt:
-    packages:
-      - libgif-dev
-sudo: false
-dist: trusty
+node_js: node
