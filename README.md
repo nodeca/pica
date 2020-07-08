@@ -18,8 +18,9 @@ With pica you can:
 - Generate thumbnails in browser.
 - ...
 
-Note. Old browsers may need `Promise` polyfill to work.
-For example, [lie](https://github.com/calvinmetcalf/lie).
+**Note. If you need File/Blob resize (from form's file input), consider use
+[image-blob-reduce](https://github.com/nodeca/image-blob-reduce).** It has
+additional machinery to process orientation, keep EXIF metadata and so on. 
 
 
 Prior to use
@@ -33,15 +34,13 @@ Here is a short list of problems you can face:
     remote domain use proper `Access-Control-Allow-Origin` header.
   - iOS has a memory limits for canvas elements, that may cause 
     problems in some cases, [more details](https://github.com/nodeca/pica/wiki/iOS-Memory-Limit).
-  - If you plan to show images on screen after load, you should parse
-    `exif` header to get proper orientation. Images can be rotated.
+  - If your source data is jpeg image, it can be rotated. Consider use
+    [image-blob-reduce](https://github.com/nodeca/image-blob-reduce).
 - Saving image:
   - Some ancient browsers do not support `canvas.toBlob()` method.
     Use `pica.toBlob()`, it includes required shim.
-  - It's a good idea to keep `exif` data, to avoid rotation info loss.
-    The most simple way is to cut original header and glue it to
-    resized result. Look [here](https://github.com/nodeca/nodeca.users/blob/master/client/users/uploader/uploader.js)
-    for examples.
+  - For jpeg source, it's a good idea to keep `exif` data. Consider use
+    [image-blob-reduce](https://github.com/nodeca/image-blob-reduce).
 - Quality
   - JS canvas does not support access to info about gamma correction.
     Bitmaps have 8 bits per channel. That causes some quality loss,
@@ -92,24 +91,18 @@ Create resizer instance with given config (optional):
   to restrict peak memory use. Default 1024.
 - __features__ - list of features to use. Default is
   `[ 'js', 'wasm', 'ww' ]`. Can be `[ 'js', 'wasm', 'cib', 'ww' ]`
-  or `[ 'all' ]`. Note, resize via `createImageBitmap()` ('cib')
-  disabled by default due problems with quality.
+  or `[ 'all' ]`.
 - __idle__ - cache timeout, ms. Webworkers create is not fast.
   This option allow reuse webworkers effectively. Default 2000.
 - __concurrency__ - max webworkers pool size. Default is autodetected
   CPU count, but not more than 4.
 
 __Important!__ Latest browsers may support resize via [createImageBitmap](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/createImageBitmap).
-You can try this feature by enabling `chrome://flags/#enable-experimental-canvas-features`
-in Chrome AND enabling `cib` in pica options:
+This feature is supported (`cib`) but disabled by default and not recommended
+for use. So:
 
-```js
-const pica = require('pica')({ features: [ 'js', 'wasm', 'ww', 'cib' ] });
-```
-
-But, as you can see in demo, result is still pixelated. So:
-
-- `createImageBitmap()` is used for non-blocking image decode (when available)
+- `createImageBitmap()` is used for non-blocking image decode (when available,
+  without downscale).
 - It's resize feature is blocked by default pica config. Enable it only on your
   own risk. Result with enabled `cib` will depend on your browser. Result
   without `cib` will be predictable and good.
@@ -239,7 +232,9 @@ You can find these links useful:
   [convolver.cc](http://src.chromium.org/svn/trunk/src/skia/ext/convolver.cc).
 
 
-Support pica
-------------
+pica for enterprise
+-------------------
 
-You can support this project via [Tidelift subscription](https://tidelift.com/subscription/pkg/npm-pica?utm_source=npm-pica&utm_medium=referral&utm_campaign=readme).
+Available as part of the Tidelift Subscription.
+
+The maintainers of pica and thousands of other packages are working with Tidelift to deliver commercial support and maintenance for the open source packages you use to build your applications. Save time, reduce risk, and improve code health, while paying the maintainers of the exact packages you use. [Learn more.](https://tidelift.com/subscription/pkg/npm-pica?utm_source=npm-pica&utm_medium=referral&utm_campaign=enterprise&utm_term=repo)
