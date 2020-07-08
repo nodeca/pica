@@ -6,6 +6,12 @@ env:
 #parserOptions:
 #  ecmaVersion: 6
 
+ignorePatterns:
+  - benchmark/implementations
+  - demo
+  - dist
+  - node_modules
+
 globals:
   createImageBitmap: false
   WebAssembly:       false
