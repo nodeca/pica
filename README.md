@@ -96,7 +96,13 @@ Create resizer instance with given config (optional):
   This option allow reuse webworkers effectively. Default 2000.
 - __concurrency__ - max webworkers pool size. Default is autodetected
   CPU count, but not more than 4.
-
+- __createCanvas__ - function which returns a new canvas, used internally
+   by pica.
+   Default returns a [\<canvas\> element](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API),
+   but this function could return an [OffscreenCanvas](https://developer.mozilla.org/en-US/docs/Web/API/OffscreenCanvas)
+   instead (to run pica in a Service Worker). Function signature: createCanvas(width: number, height: number): Canvas
+     
+   
 __Important!__ Latest browsers may support resize via [createImageBitmap](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/createImageBitmap).
 This feature is supported (`cib`) but disabled by default and not recommended
 for use. So:
