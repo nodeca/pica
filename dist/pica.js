@@ -804,15 +804,13 @@ module.exports.cib_quality_name = function cib_quality_name(num) {
   return 'high';
 };
 
-module.exports.cib_support = function cib_support() {
+module.exports.cib_support = function cib_support(createCanvas) {
   return Promise.resolve().then(function () {
-    if (typeof createImageBitmap === 'undefined' || typeof document === 'undefined') {
+    if (typeof createImageBitmap === 'undefined') {
       return false;
     }
 
-    var c = document.createElement('canvas');
-    c.width = 100;
-    c.height = 100;
+    var c = createCanvas(100, 100);
     return createImageBitmap(c, 0, 0, 100, 100, {
       resizeWidth: 10,
       resizeHeight: 10,
@@ -1693,7 +1691,13 @@ var DEFAULT_PICA_OPTS = {
   tile: 1024,
   concurrency: concurrency,
   features: ['js', 'wasm', 'ww'],
-  idle: 2000
+  idle: 2000,
+  createCanvas: function createCanvas(width, height) {
+    var tmpCanvas = document.createElement('canvas');
+    tmpCanvas.width = width;
+    tmpCanvas.height = height;
+    return tmpCanvas;
+  }
 };
 var DEFAULT_RESIZE_OPTS = {
   quality: 3,
@@ -1826,7 +1830,7 @@ Pica.prototype.init = function () {
   if (!CAN_CREATE_IMAGE_BITMAP) {
     checkCibResize = Promise.resolve(false);
   } else {
-    checkCibResize = utils.cib_support().then(function (status) {
+    checkCibResize = utils.cib_support(this.options.createCanvas).then(function (status) {
       if (_this.features.cib && features.indexOf('cib') < 0) {
         _this.debug('createImageBitmap() resize supported, but disabled by config');
 
@@ -1914,9 +1918,8 @@ Pica.prototype.resize = function (from, to, options) {
 
         _this2.debug('Unsharp result');
 
-        var tmpCanvas = document.createElement('canvas');
-        tmpCanvas.width = opts.toWidth;
-        tmpCanvas.height = opts.toHeight;
+        var tmpCanvas = _this2.options.createCanvas(opts.toWidth, opts.toHeight);
+
         var tmpCtx = tmpCanvas.getContext('2d', {
           alpha: Boolean(opts.alpha)
         });
@@ -1995,9 +1998,8 @@ Pica.prototype.resize = function (from, to, options) {
             //
             _this2.debug('Draw tile imageBitmap/image to temporary canvas');
 
-            var tmpCanvas = document.createElement('canvas');
-            tmpCanvas.width = tile.width;
-            tmpCanvas.height = tile.height;
+            var tmpCanvas = _this2.options.createCanvas(tile.width, tile.height);
+
             var tmpCtx = tmpCanvas.getContext('2d', {
               alpha: Boolean(opts.alpha)
             });
@@ -2172,9 +2174,7 @@ Pica.prototype.resize = function (from, to, options) {
 
       if (!isLastStage) {
         // create temporary canvas
-        tmpCanvas = document.createElement('canvas');
-        tmpCanvas.width = toWidth;
-        tmpCanvas.height = toHeight;
+        tmpCanvas = _this2.options.createCanvas(toWidth, toHeight);
       }
 
       return tileAndResize(from, isLastStage ? to : tmpCanvas, opts).then(function () {
