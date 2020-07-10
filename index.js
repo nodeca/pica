@@ -36,7 +36,13 @@ const DEFAULT_PICA_OPTS = {
   tile: 1024,
   concurrency,
   features: [ 'js', 'wasm', 'ww' ],
-  idle: 2000
+  idle: 2000,
+  createCanvas:  function (width, height) {
+    let tmpCanvas = document.createElement('canvas');
+    tmpCanvas.width  = width;
+    tmpCanvas.height = height;
+    return tmpCanvas;
+  }
 };
 
 
@@ -180,7 +186,7 @@ Pica.prototype.init = function () {
   if (!CAN_CREATE_IMAGE_BITMAP) {
     checkCibResize = Promise.resolve(false);
   } else {
-    checkCibResize = utils.cib_support().then(status => {
+    checkCibResize = utils.cib_support(this.options.createCanvas).then(status => {
       if (this.features.cib && features.indexOf('cib') < 0) {
         this.debug('createImageBitmap() resize supported, but disabled by config');
         return;
@@ -265,10 +271,7 @@ Pica.prototype.resize = function (from, to, options) {
 
         this.debug('Unsharp result');
 
-        let tmpCanvas = document.createElement('canvas');
-
-        tmpCanvas.width  = opts.toWidth;
-        tmpCanvas.height = opts.toHeight;
+        let tmpCanvas = this.options.createCanvas(opts.toWidth, opts.toHeight);
 
         let tmpCtx = tmpCanvas.getContext('2d', { alpha: Boolean(opts.alpha) });
 
@@ -360,9 +363,7 @@ Pica.prototype.resize = function (from, to, options) {
           //
           this.debug('Draw tile imageBitmap/image to temporary canvas');
 
-          let tmpCanvas = document.createElement('canvas');
-          tmpCanvas.width  = tile.width;
-          tmpCanvas.height = tile.height;
+          let tmpCanvas = this.options.createCanvas(tile.width, tile.height);
 
           let tmpCtx = tmpCanvas.getContext('2d', { alpha: Boolean(opts.alpha) });
           tmpCtx.globalCompositeOperation = 'copy';
@@ -538,9 +539,7 @@ Pica.prototype.resize = function (from, to, options) {
 
       if (!isLastStage) {
         // create temporary canvas
-        tmpCanvas = document.createElement('canvas');
-        tmpCanvas.width  = toWidth;
-        tmpCanvas.height = toHeight;
+        tmpCanvas = this.options.createCanvas(toWidth, toHeight);
       }
 
       return tileAndResize(from, (isLastStage ? to : tmpCanvas), opts).then(() => {
