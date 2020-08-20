@@ -290,6 +290,11 @@ Pica.prototype.resize = function (from, to, options) {
         );
 
         toCtx.putImageData(iData, 0, 0);
+
+        // Safari 12 workaround
+        // https://github.com/nodeca/pica/issues/199
+        tmpCanvas.width = tmpCanvas.height = 0;
+
         iData = tmpCtx = tmpCanvas = toCtx = null;
 
         this.debug('Finished!');
@@ -374,6 +379,11 @@ Pica.prototype.resize = function (from, to, options) {
           this.debug('Get tile pixel data');
 
           srcImageData = tmpCtx.getImageData(0, 0, tile.width, tile.height);
+
+          // Safari 12 workaround
+          // https://github.com/nodeca/pica/issues/199
+          tmpCanvas.width = tmpCanvas.height = 0;
+
           tmpCtx = tmpCanvas = null;
         }
 
@@ -542,13 +552,23 @@ Pica.prototype.resize = function (from, to, options) {
         tmpCanvas = this.options.createCanvas(toWidth, toHeight);
       }
 
-      return tileAndResize(from, (isLastStage ? to : tmpCanvas), opts).then(() => {
-        if (isLastStage) return to;
+      return tileAndResize(from, (isLastStage ? to : tmpCanvas), opts)
+        .then(() => {
+          if (isLastStage) return to;
 
-        opts.width = toWidth;
-        opts.height = toHeight;
-        return processStages(stages, tmpCanvas, to, opts);
-      });
+          opts.width = toWidth;
+          opts.height = toHeight;
+          return processStages(stages, tmpCanvas, to, opts);
+        })
+        .then(res => {
+          if (tmpCanvas) {
+            // Safari 12 workaround
+            // https://github.com/nodeca/pica/issues/199
+            tmpCanvas.width = tmpCanvas.height = 0;
+          }
+
+          return res;
+        });
     };
 
 
