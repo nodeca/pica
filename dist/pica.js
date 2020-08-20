@@ -1929,7 +1929,10 @@ Pica.prototype.resize = function (from, to, options) {
 
         _this2.__mathlib.unsharp_mask(iData.data, opts.toWidth, opts.toHeight, opts.unsharpAmount, opts.unsharpRadius, opts.unsharpThreshold);
 
-        toCtx.putImageData(iData, 0, 0);
+        toCtx.putImageData(iData, 0, 0); // Safari 12 workaround
+        // https://github.com/nodeca/pica/issues/199
+
+        tmpCanvas.width = tmpCanvas.height = 0;
         iData = tmpCtx = tmpCanvas = toCtx = null;
 
         _this2.debug('Finished!');
@@ -2008,7 +2011,10 @@ Pica.prototype.resize = function (from, to, options) {
 
             _this2.debug('Get tile pixel data');
 
-            srcImageData = tmpCtx.getImageData(0, 0, tile.width, tile.height);
+            srcImageData = tmpCtx.getImageData(0, 0, tile.width, tile.height); // Safari 12 workaround
+            // https://github.com/nodeca/pica/issues/199
+
+            tmpCanvas.width = tmpCanvas.height = 0;
             tmpCtx = tmpCanvas = null;
           }
 
@@ -2182,6 +2188,14 @@ Pica.prototype.resize = function (from, to, options) {
         opts.width = toWidth;
         opts.height = toHeight;
         return processStages(stages, tmpCanvas, to, opts);
+      }).then(function (res) {
+        if (tmpCanvas) {
+          // Safari 12 workaround
+          // https://github.com/nodeca/pica/issues/199
+          tmpCanvas.width = tmpCanvas.height = 0;
+        }
+
+        return res;
       });
     };
 
