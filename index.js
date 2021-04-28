@@ -493,6 +493,11 @@ Pica.prototype.resize = function (from, to, options) {
 
         this.debug('Calculate tiles');
 
+        let calculateTilesStart;
+        if (opts.timings) {
+          calculateTilesStart = performance.now();
+        }
+        
         //
         // Here we are with "normalized" source,
         // follow to tiling
@@ -514,6 +519,10 @@ Pica.prototype.resize = function (from, to, options) {
             if (!isImageBitmapReused) srcImageBitmap.close();
             srcImageBitmap = null;
           }
+        }
+        
+        if (opts.timings) {
+          opts.timings.calculateTiles = performance.now() - calculateTilesStart;
         }
 
         this.debug('Process tiles');
