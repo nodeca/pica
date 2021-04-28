@@ -497,7 +497,7 @@ Pica.prototype.resize = function (from, to, options) {
         if (opts.timings) {
           calculateTilesStart = performance.now();
         }
-        
+
         //
         // Here we are with "normalized" source,
         // follow to tiling
@@ -520,7 +520,7 @@ Pica.prototype.resize = function (from, to, options) {
             srcImageBitmap = null;
           }
         }
-        
+
         if (opts.timings) {
           opts.timings.calculateTiles = performance.now() - calculateTilesStart;
         }
