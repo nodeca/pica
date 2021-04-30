@@ -203,6 +203,284 @@ Pica.prototype.init = function () {
 };
 
 
+// Call resizer in webworker or locally, depending on config
+Pica.prototype.__invokeResize = function (tileOpts, opts) {
+  // Share cache between calls:
+  //
+  // - wasm instance
+  // - wasm memory object
+  //
+  opts.__mathCache = opts.__mathCache || {};
+
+  return Promise.resolve().then(() => {
+    if (!this.features.ww) return this.__mathlib.resizeAndUnsharp(tileOpts, opts.__mathCache);
+
+    return new Promise((resolve, reject) => {
+      let w = this.__workersPool.acquire();
+
+      if (opts.cancelToken) opts.cancelToken.catch(err => reject(err));
+
+      w.value.onmessage = ev => {
+        w.release();
+
+        if (ev.data.err) reject(ev.data.err);
+        else resolve(ev.data.result);
+      };
+
+      w.value.postMessage({
+        opts: tileOpts,
+        features: this.__requested_features,
+        preload: {
+          wasm_nodule: this.__mathlib.__
+        }
+      }, [ tileOpts.src.buffer ]);
+    });
+  });
+};
+
+
+Pica.prototype.__extractTileData = function (tile, from, opts, stageEnv, extractTo) {
+  let srcImageData;
+
+  // Extract tile RGBA buffer, depending on input type
+  if (utils.isCanvas(from)) {
+    this.debug('Get tile pixel data');
+
+    // If input is Canvas - extract region data directly
+    srcImageData = stageEnv.srcCtx.getImageData(tile.x, tile.y, tile.width, tile.height);
+  } else {
+    // If input is Image or decoded to ImageBitmap,
+    // draw region to temporary canvas and extract data from it
+    //
+    // Note! Attempt to reuse this canvas causes significant slowdown in chrome
+    //
+    this.debug('Draw tile imageBitmap/image to temporary canvas');
+
+    let tmpCanvas = this.options.createCanvas(tile.width, tile.height);
+
+    let tmpCtx = tmpCanvas.getContext('2d', { alpha: Boolean(opts.alpha) });
+    tmpCtx.globalCompositeOperation = 'copy';
+    tmpCtx.drawImage(stageEnv.srcImageBitmap || from,
+      tile.x, tile.y, tile.width, tile.height,
+      0, 0, tile.width, tile.height);
+
+    this.debug('Get tile pixel data');
+
+    srcImageData = tmpCtx.getImageData(0, 0, tile.width, tile.height);
+
+    // Safari 12 workaround
+    // https://github.com/nodeca/pica/issues/199
+    tmpCanvas.width = tmpCanvas.height = 0;
+
+    tmpCtx = tmpCanvas = null;
+  }
+
+  extractTo.src = srcImageData.data;
+};
+
+
+Pica.prototype.__landTileData = function (tile, resized, stageEnv) {
+  let toImageData;
+
+  this.debug('Convert raw rgba tile result to ImageData');
+
+  if (CAN_NEW_IMAGE_DATA) {
+    // this branch is for modern browsers
+    // If `new ImageData()` & Uint8ClampedArray suported
+    toImageData = new ImageData(new Uint8ClampedArray(resized), tile.toWidth, tile.toHeight);
+  } else {
+    // fallback for `node-canvas` and old browsers
+    // (IE11 has ImageData but does not support `new ImageData()`)
+    toImageData = stageEnv.toCtx.createImageData(tile.toWidth, tile.toHeight);
+
+    if (toImageData.data.set) {
+      toImageData.data.set(resized);
+    } else {
+      // IE9 don't have `.set()`
+      for (let i = toImageData.data.length - 1; i >= 0; i--) {
+        toImageData.data[i] = resized[i];
+      }
+    }
+  }
+
+  this.debug('Draw tile');
+
+  if (NEED_SAFARI_FIX) {
+    // Safari draws thin white stripes between tiles without this fix
+    stageEnv.toCtx.putImageData(toImageData, tile.toX, tile.toY,
+      tile.toInnerX - tile.toX, tile.toInnerY - tile.toY,
+      tile.toInnerWidth + 1e-5, tile.toInnerHeight + 1e-5);
+  } else {
+    stageEnv.toCtx.putImageData(toImageData, tile.toX, tile.toY,
+      tile.toInnerX - tile.toX, tile.toInnerY - tile.toY,
+      tile.toInnerWidth, tile.toInnerHeight);
+  }
+};
+
+
+Pica.prototype.__tileAndResize = function (from, to, opts) {
+  let stageEnv = {
+    srcCtx: null,
+    srcImageBitmap: null,
+    isImageBitmapReused: false,
+    toCtx: null
+  };
+
+  const processTile = (tile => this.__limit(() => {
+    if (opts.canceled) return opts.cancelToken;
+
+    let tileOpts = {
+      width:            tile.width,
+      height:           tile.height,
+      toWidth:          tile.toWidth,
+      toHeight:         tile.toHeight,
+      scaleX:           tile.scaleX,
+      scaleY:           tile.scaleY,
+      offsetX:          tile.offsetX,
+      offsetY:          tile.offsetY,
+      quality:          opts.quality,
+      alpha:            opts.alpha,
+      unsharpAmount:    opts.unsharpAmount,
+      unsharpRadius:    opts.unsharpRadius,
+      unsharpThreshold: opts.unsharpThreshold
+    };
+
+    this.__extractTileData(tile, from, opts, stageEnv, tileOpts);
+
+    this.debug('Invoke resize math');
+
+    return Promise.resolve()
+      .then(() => this.__invokeResize(tileOpts, opts))
+      .then(result => {
+        if (opts.canceled) return opts.cancelToken;
+
+        stageEnv.srcImageData = null;
+
+        this.__landTileData(tile, result, stageEnv);
+
+        return null;
+      });
+  }));
+
+
+  // Need to normalize data source first. It can be canvas or image.
+  // If image - try to decode in background if possible
+  return Promise.resolve().then(() => {
+    stageEnv.toCtx = to.getContext('2d', { alpha: Boolean(opts.alpha) });
+
+    if (utils.isCanvas(from)) {
+      stageEnv.srcCtx = from.getContext('2d', { alpha: Boolean(opts.alpha) });
+      return null;
+    }
+
+    if (utils.isImageBitmap(from)) {
+      stageEnv.srcImageBitmap = from;
+      stageEnv.isImageBitmapReused = true;
+      return null;
+    }
+
+    if (utils.isImage(from)) {
+      // try do decode image in background for faster next operations
+      if (!CAN_CREATE_IMAGE_BITMAP) return null;
+
+      this.debug('Decode image via createImageBitmap');
+
+      return createImageBitmap(from)
+        .then(imageBitmap => {
+          stageEnv.srcImageBitmap = imageBitmap;
+        })
+        // Suppress error to use fallback, if method fails
+        // https://github.com/nodeca/pica/issues/190
+        /* eslint-disable no-unused-vars */
+        .catch(e => null);
+    }
+
+    throw new Error('Pica: ".from" should be Image, Canvas or ImageBitmap');
+  })
+  .then(() => {
+    if (opts.canceled) return opts.cancelToken;
+
+    this.debug('Calculate tiles');
+
+    //
+    // Here we are with "normalized" source,
+    // follow to tiling
+    //
+
+    let regions = createRegions({
+      width:          opts.width,
+      height:         opts.height,
+      srcTileSize:    this.options.tile,
+      toWidth:        opts.toWidth,
+      toHeight:       opts.toHeight,
+      destTileBorder: opts.__destTileBorder
+    });
+
+    let jobs = regions.map(tile => processTile(tile));
+
+    function cleanup(stageEnv) {
+      if (stageEnv.srcImageBitmap) {
+        if (!stageEnv.isImageBitmapReused) stageEnv.srcImageBitmap.close();
+        stageEnv.srcImageBitmap = null;
+      }
+    }
+
+    this.debug('Process tiles');
+
+    return Promise.all(jobs).then(
+      () => {
+        this.debug('Finished!');
+        cleanup(stageEnv); return to;
+      },
+      err => { cleanup(stageEnv); throw err; }
+    );
+  });
+};
+
+
+Pica.prototype.__processStages = function (stages, from, to, opts) {
+  if (opts.canceled) return opts.cancelToken;
+
+  let [ toWidth, toHeight ] = stages.shift();
+
+  let isLastStage = (stages.length === 0);
+
+  opts = assign({}, opts, {
+    toWidth,
+    toHeight,
+    // only use user-defined quality for the last stage,
+    // use simpler (Hamming) filter for the first stages where
+    // scale factor is large enough (more than 2-3)
+    quality: isLastStage ? opts.quality : Math.min(1, opts.quality)
+  });
+
+  let tmpCanvas;
+
+  if (!isLastStage) {
+    // create temporary canvas
+    tmpCanvas = this.options.createCanvas(toWidth, toHeight);
+  }
+
+  return this.__tileAndResize(from, (isLastStage ? to : tmpCanvas), opts)
+    .then(() => {
+      if (isLastStage) return to;
+
+      opts.width = toWidth;
+      opts.height = toHeight;
+      return this.__processStages(stages, tmpCanvas, to, opts);
+    })
+    .then(res => {
+      if (tmpCanvas) {
+        // Safari 12 workaround
+        // https://github.com/nodeca/pica/issues/199
+        tmpCanvas.width = tmpCanvas.height = 0;
+      }
+
+      return res;
+    });
+};
+
+
 Pica.prototype.resize = function (from, to, options) {
   this.debug('Start resize...');
 
@@ -227,22 +505,21 @@ Pica.prototype.resize = function (from, to, options) {
 
   if (opts.unsharpRadius > 2) opts.unsharpRadius = 2;
 
-  let canceled    = false;
-  let cancelToken = null;
+  opts.canceled = false;
 
   if (opts.cancelToken) {
     // Wrap cancelToken to avoid successive resolve & set flag
-    cancelToken = opts.cancelToken.then(
-      data => { canceled = true; throw data; },
-      err  => { canceled = true; throw err; }
+    opts.cancelToken = opts.cancelToken.then(
+      data => { opts.canceled = true; throw data; },
+      err  => { opts.canceled = true; throw err; }
     );
   }
 
   let DEST_TILE_BORDER = 3; // Max possible filter window size
-  let destTileBorder = Math.ceil(Math.max(DEST_TILE_BORDER, 2.5 * opts.unsharpRadius|0));
+  opts.__destTileBorder = Math.ceil(Math.max(DEST_TILE_BORDER, 2.5 * opts.unsharpRadius|0));
 
   return this.init().then(() => {
-    if (canceled) return cancelToken;
+    if (opts.canceled) return opts.cancelToken;
 
     // if createImageBitmap supports resize, just do it and return
     if (this.features.cib) {
@@ -256,7 +533,7 @@ Pica.prototype.resize = function (from, to, options) {
         resizeQuality: utils.cib_quality_name(opts.quality)
       })
       .then(imageBitmap => {
-        if (canceled) return cancelToken;
+        if (opts.canceled) return opts.cancelToken;
 
         // if no unsharp - draw directly to output canvas
         if (!opts.unsharpAmount) {
@@ -307,281 +584,16 @@ Pica.prototype.resize = function (from, to, options) {
     // No easy way, let's resize manually via arrays
     //
 
-    // Share cache between calls:
-    //
-    // - wasm instance
-    // - wasm memory object
-    //
-    let cache = {};
-
-    // Call resizer in webworker or locally, depending on config
-    const invokeResize = opts => {
-      return Promise.resolve().then(() => {
-        if (!this.features.ww) return this.__mathlib.resizeAndUnsharp(opts, cache);
-
-        return new Promise((resolve, reject) => {
-          let w = this.__workersPool.acquire();
-
-          if (cancelToken) cancelToken.catch(err => reject(err));
-
-          w.value.onmessage = ev => {
-            w.release();
-
-            if (ev.data.err) reject(ev.data.err);
-            else resolve(ev.data.result);
-          };
-
-          w.value.postMessage({
-            opts,
-            features: this.__requested_features,
-            preload: {
-              wasm_nodule: this.__mathlib.__
-            }
-          }, [ opts.src.buffer ]);
-        });
-      });
-    };
-
-
-    const tileAndResize = (from, to, opts) => {
-      let srcCtx;
-      let srcImageBitmap;
-      let isImageBitmapReused = false;
-      let toCtx;
-
-      const processTile = (tile => this.__limit(() => {
-        if (canceled) return cancelToken;
-
-        let srcImageData;
-
-        // Extract tile RGBA buffer, depending on input type
-        if (utils.isCanvas(from)) {
-          this.debug('Get tile pixel data');
-
-          // If input is Canvas - extract region data directly
-          srcImageData = srcCtx.getImageData(tile.x, tile.y, tile.width, tile.height);
-        } else {
-          // If input is Image or decoded to ImageBitmap,
-          // draw region to temporary canvas and extract data from it
-          //
-          // Note! Attempt to reuse this canvas causes significant slowdown in chrome
-          //
-          this.debug('Draw tile imageBitmap/image to temporary canvas');
-
-          let tmpCanvas = this.options.createCanvas(tile.width, tile.height);
-
-          let tmpCtx = tmpCanvas.getContext('2d', { alpha: Boolean(opts.alpha) });
-          tmpCtx.globalCompositeOperation = 'copy';
-          tmpCtx.drawImage(srcImageBitmap || from,
-            tile.x, tile.y, tile.width, tile.height,
-            0, 0, tile.width, tile.height);
-
-          this.debug('Get tile pixel data');
-
-          srcImageData = tmpCtx.getImageData(0, 0, tile.width, tile.height);
-
-          // Safari 12 workaround
-          // https://github.com/nodeca/pica/issues/199
-          tmpCanvas.width = tmpCanvas.height = 0;
-
-          tmpCtx = tmpCanvas = null;
-        }
-
-        let o = {
-          src:              srcImageData.data,
-          width:            tile.width,
-          height:           tile.height,
-          toWidth:          tile.toWidth,
-          toHeight:         tile.toHeight,
-          scaleX:           tile.scaleX,
-          scaleY:           tile.scaleY,
-          offsetX:          tile.offsetX,
-          offsetY:          tile.offsetY,
-          quality:          opts.quality,
-          alpha:            opts.alpha,
-          unsharpAmount:    opts.unsharpAmount,
-          unsharpRadius:    opts.unsharpRadius,
-          unsharpThreshold: opts.unsharpThreshold
-        };
-
-        this.debug('Invoke resize math');
-
-        return Promise.resolve()
-          .then(() => invokeResize(o))
-          .then(result => {
-            if (canceled) return cancelToken;
-
-            srcImageData = null;
-
-            let toImageData;
-
-            this.debug('Convert raw rgba tile result to ImageData');
-
-            if (CAN_NEW_IMAGE_DATA) {
-              // this branch is for modern browsers
-              // If `new ImageData()` & Uint8ClampedArray suported
-              toImageData = new ImageData(new Uint8ClampedArray(result), tile.toWidth, tile.toHeight);
-            } else {
-              // fallback for `node-canvas` and old browsers
-              // (IE11 has ImageData but does not support `new ImageData()`)
-              toImageData = toCtx.createImageData(tile.toWidth, tile.toHeight);
-
-              if (toImageData.data.set) {
-                toImageData.data.set(result);
-              } else {
-                // IE9 don't have `.set()`
-                for (let i = toImageData.data.length - 1; i >= 0; i--) {
-                  toImageData.data[i] = result[i];
-                }
-              }
-            }
-
-            this.debug('Draw tile');
-
-            if (NEED_SAFARI_FIX) {
-              // Safari draws thin white stripes between tiles without this fix
-              toCtx.putImageData(toImageData, tile.toX, tile.toY,
-                tile.toInnerX - tile.toX, tile.toInnerY - tile.toY,
-                tile.toInnerWidth + 1e-5, tile.toInnerHeight + 1e-5);
-            } else {
-              toCtx.putImageData(toImageData, tile.toX, tile.toY,
-                tile.toInnerX - tile.toX, tile.toInnerY - tile.toY,
-                tile.toInnerWidth, tile.toInnerHeight);
-            }
-
-            return null;
-          });
-      }));
-
-
-      // Need to normalize data source first. It can be canvas or image.
-      // If image - try to decode in background if possible
-      return Promise.resolve().then(() => {
-        toCtx = to.getContext('2d', { alpha: Boolean(opts.alpha) });
-
-        if (utils.isCanvas(from)) {
-          srcCtx = from.getContext('2d', { alpha: Boolean(opts.alpha) });
-          return null;
-        }
-
-        if (utils.isImageBitmap(from)) {
-          srcImageBitmap = from;
-          isImageBitmapReused = true;
-          return null;
-        }
-
-        if (utils.isImage(from)) {
-          // try do decode image in background for faster next operations
-          if (!CAN_CREATE_IMAGE_BITMAP) return null;
-
-          this.debug('Decode image via createImageBitmap');
-
-          return createImageBitmap(from)
-            .then(imageBitmap => {
-              srcImageBitmap = imageBitmap;
-            })
-            // Suppress error to use fallback, if method fails
-            // https://github.com/nodeca/pica/issues/190
-            /* eslint-disable no-unused-vars */
-            .catch(e => null);
-        }
-
-        throw new Error('Pica: ".from" should be Image, Canvas or ImageBitmap');
-      })
-      .then(() => {
-        if (canceled) return cancelToken;
-
-        this.debug('Calculate tiles');
-
-        //
-        // Here we are with "normalized" source,
-        // follow to tiling
-        //
-
-        let regions = createRegions({
-          width:        opts.width,
-          height:       opts.height,
-          srcTileSize:  this.options.tile,
-          toWidth:      opts.toWidth,
-          toHeight:     opts.toHeight,
-          destTileBorder
-        });
-
-        let jobs = regions.map(tile => processTile(tile));
-
-        function cleanup() {
-          if (srcImageBitmap) {
-            if (!isImageBitmapReused) srcImageBitmap.close();
-            srcImageBitmap = null;
-          }
-        }
-
-        this.debug('Process tiles');
-
-        return Promise.all(jobs).then(
-          () => {
-            this.debug('Finished!');
-            cleanup(); return to;
-          },
-          err => { cleanup(); throw err; }
-        );
-      });
-    };
-
-
-    const processStages = (stages, from, to, opts) => {
-      if (canceled) return cancelToken;
-
-      let [ toWidth, toHeight ] = stages.shift();
-
-      let isLastStage = (stages.length === 0);
-
-      opts = assign({}, opts, {
-        toWidth,
-        toHeight,
-        // only use user-defined quality for the last stage,
-        // use simpler (Hamming) filter for the first stages where
-        // scale factor is large enough (more than 2-3)
-        quality: isLastStage ? opts.quality : Math.min(1, opts.quality)
-      });
-
-      let tmpCanvas;
-
-      if (!isLastStage) {
-        // create temporary canvas
-        tmpCanvas = this.options.createCanvas(toWidth, toHeight);
-      }
-
-      return tileAndResize(from, (isLastStage ? to : tmpCanvas), opts)
-        .then(() => {
-          if (isLastStage) return to;
-
-          opts.width = toWidth;
-          opts.height = toHeight;
-          return processStages(stages, tmpCanvas, to, opts);
-        })
-        .then(res => {
-          if (tmpCanvas) {
-            // Safari 12 workaround
-            // https://github.com/nodeca/pica/issues/199
-            tmpCanvas.width = tmpCanvas.height = 0;
-          }
-
-          return res;
-        });
-    };
-
-
     let stages = createStages(
       opts.width,
       opts.height,
       opts.toWidth,
       opts.toHeight,
       this.options.tile,
-      destTileBorder
+      opts.__destTileBorder
     );
 
-    return processStages(stages, from, to, opts);
+    return this.__processStages(stages, from, to, opts);
   });
 };
 
