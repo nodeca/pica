@@ -239,43 +239,41 @@ Pica.prototype.__invokeResize = function (tileOpts, opts) {
 };
 
 
+// this function can return promise if createImageBitmap is used
 Pica.prototype.__extractTileData = function (tile, from, opts, stageEnv, extractTo) {
-  let srcImageData;
-
   // Extract tile RGBA buffer, depending on input type
   if (utils.isCanvas(from)) {
     this.debug('Get tile pixel data');
 
     // If input is Canvas - extract region data directly
-    srcImageData = stageEnv.srcCtx.getImageData(tile.x, tile.y, tile.width, tile.height);
-  } else {
-    // If input is Image or decoded to ImageBitmap,
-    // draw region to temporary canvas and extract data from it
-    //
-    // Note! Attempt to reuse this canvas causes significant slowdown in chrome
-    //
-    this.debug('Draw tile imageBitmap/image to temporary canvas');
-
-    let tmpCanvas = this.options.createCanvas(tile.width, tile.height);
-
-    let tmpCtx = tmpCanvas.getContext('2d', { alpha: Boolean(opts.alpha) });
-    tmpCtx.globalCompositeOperation = 'copy';
-    tmpCtx.drawImage(stageEnv.srcImageBitmap || from,
-      tile.x, tile.y, tile.width, tile.height,
-      0, 0, tile.width, tile.height);
-
-    this.debug('Get tile pixel data');
-
-    srcImageData = tmpCtx.getImageData(0, 0, tile.width, tile.height);
-
-    // Safari 12 workaround
-    // https://github.com/nodeca/pica/issues/199
-    tmpCanvas.width = tmpCanvas.height = 0;
-
-    tmpCtx = tmpCanvas = null;
+    extractTo.src = stageEnv.srcCtx.getImageData(tile.x, tile.y, tile.width, tile.height).data;
+    return extractTo;
   }
 
-  extractTo.src = srcImageData.data;
+  // If input is Image or decoded to ImageBitmap,
+  // draw region to temporary canvas and extract data from it
+  //
+  // Note! Attempt to reuse this canvas causes significant slowdown in chrome
+  //
+  this.debug('Draw tile imageBitmap/image to temporary canvas');
+
+  let tmpCanvas = this.options.createCanvas(tile.width, tile.height);
+
+  let tmpCtx = tmpCanvas.getContext('2d', { alpha: Boolean(opts.alpha) });
+  tmpCtx.globalCompositeOperation = 'copy';
+  tmpCtx.drawImage(stageEnv.srcImageBitmap || from,
+    tile.x, tile.y, tile.width, tile.height,
+    0, 0, tile.width, tile.height);
+
+  this.debug('Get tile pixel data');
+
+  extractTo.src = tmpCtx.getImageData(0, 0, tile.width, tile.height).data;
+
+  // Safari 12 workaround
+  // https://github.com/nodeca/pica/issues/199
+  tmpCanvas.width = tmpCanvas.height = 0;
+
+  return extractTo;
 };
 
 
@@ -315,6 +313,8 @@ Pica.prototype.__landTileData = function (tile, resized, stageEnv) {
       tile.toInnerX - tile.toX, tile.toInnerY - tile.toY,
       tile.toInnerWidth, tile.toInnerHeight);
   }
+
+  return null;
 };
 
 
@@ -345,20 +345,18 @@ Pica.prototype.__tileAndResize = function (from, to, opts) {
       unsharpThreshold: opts.unsharpThreshold
     };
 
-    this.__extractTileData(tile, from, opts, stageEnv, tileOpts);
-
     this.debug('Invoke resize math');
 
-    return Promise.resolve()
-      .then(() => this.__invokeResize(tileOpts, opts))
+    return Promise.resolve(tileOpts)
+      .then(tileOpts => this.__extractTileData(tile, from, opts, stageEnv, tileOpts))
+      .then(tileOpts => {
+        this.debug('Invoke resize math');
+        return this.__invokeResize(tileOpts, opts);
+      })
       .then(result => {
         if (opts.canceled) return opts.cancelToken;
-
         stageEnv.srcImageData = null;
-
-        this.__landTileData(tile, result, stageEnv);
-
-        return null;
+        return this.__landTileData(tile, result, stageEnv);
       });
   }));
 
@@ -481,6 +479,65 @@ Pica.prototype.__processStages = function (stages, from, to, opts) {
 };
 
 
+Pica.prototype.__resizeViaCreateImageBitmap = function (from, to, opts) {
+  let toCtx = to.getContext('2d', { alpha: Boolean(opts.alpha) });
+
+  this.debug('Resize via createImageBitmap()');
+
+  return createImageBitmap(from, {
+    resizeWidth:   opts.toWidth,
+    resizeHeight:  opts.toHeight,
+    resizeQuality: utils.cib_quality_name(opts.quality)
+  })
+  .then(imageBitmap => {
+    if (opts.canceled) return opts.cancelToken;
+
+    // if no unsharp - draw directly to output canvas
+    if (!opts.unsharpAmount) {
+      toCtx.drawImage(imageBitmap, 0, 0);
+      imageBitmap.close();
+      toCtx = null;
+
+      this.debug('Finished!');
+
+      return to;
+    }
+
+    this.debug('Unsharp result');
+
+    let tmpCanvas = this.options.createCanvas(opts.toWidth, opts.toHeight);
+
+    let tmpCtx = tmpCanvas.getContext('2d', { alpha: Boolean(opts.alpha) });
+
+    tmpCtx.drawImage(imageBitmap, 0, 0);
+    imageBitmap.close();
+
+    let iData = tmpCtx.getImageData(0, 0, opts.toWidth, opts.toHeight);
+
+    this.__mathlib.unsharp_mask(
+      iData.data,
+      opts.toWidth,
+      opts.toHeight,
+      opts.unsharpAmount,
+      opts.unsharpRadius,
+      opts.unsharpThreshold
+    );
+
+    toCtx.putImageData(iData, 0, 0);
+
+    // Safari 12 workaround
+    // https://github.com/nodeca/pica/issues/199
+    tmpCanvas.width = tmpCanvas.height = 0;
+
+    iData = tmpCtx = tmpCanvas = toCtx = null;
+
+    this.debug('Finished!');
+
+    return to;
+  });
+};
+
+
 Pica.prototype.resize = function (from, to, options) {
   this.debug('Start resize...');
 
@@ -523,61 +580,7 @@ Pica.prototype.resize = function (from, to, options) {
 
     // if createImageBitmap supports resize, just do it and return
     if (this.features.cib) {
-      let toCtx = to.getContext('2d', { alpha: Boolean(opts.alpha) });
-
-      this.debug('Resize via createImageBitmap()');
-
-      return createImageBitmap(from, {
-        resizeWidth:   opts.toWidth,
-        resizeHeight:  opts.toHeight,
-        resizeQuality: utils.cib_quality_name(opts.quality)
-      })
-      .then(imageBitmap => {
-        if (opts.canceled) return opts.cancelToken;
-
-        // if no unsharp - draw directly to output canvas
-        if (!opts.unsharpAmount) {
-          toCtx.drawImage(imageBitmap, 0, 0);
-          imageBitmap.close();
-          toCtx = null;
-
-          this.debug('Finished!');
-
-          return to;
-        }
-
-        this.debug('Unsharp result');
-
-        let tmpCanvas = this.options.createCanvas(opts.toWidth, opts.toHeight);
-
-        let tmpCtx = tmpCanvas.getContext('2d', { alpha: Boolean(opts.alpha) });
-
-        tmpCtx.drawImage(imageBitmap, 0, 0);
-        imageBitmap.close();
-
-        let iData = tmpCtx.getImageData(0, 0, opts.toWidth, opts.toHeight);
-
-        this.__mathlib.unsharp_mask(
-          iData.data,
-          opts.toWidth,
-          opts.toHeight,
-          opts.unsharpAmount,
-          opts.unsharpRadius,
-          opts.unsharpThreshold
-        );
-
-        toCtx.putImageData(iData, 0, 0);
-
-        // Safari 12 workaround
-        // https://github.com/nodeca/pica/issues/199
-        tmpCanvas.width = tmpCanvas.height = 0;
-
-        iData = tmpCtx = tmpCanvas = toCtx = null;
-
-        this.debug('Finished!');
-
-        return to;
-      });
+      return this.__resizeViaCreateImageBitmap(from, to, opts);
     }
 
     //
