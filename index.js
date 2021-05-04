@@ -56,6 +56,7 @@ const DEFAULT_RESIZE_OPTS = {
 
 let CAN_NEW_IMAGE_DATA;
 let CAN_CREATE_IMAGE_BITMAP;
+let CAN_USE_OFFSCREEN_CANVAS;
 
 
 function workerFabric() {
@@ -196,8 +197,21 @@ Pica.prototype.init = function () {
     });
   }
 
+  let checkOffscreenCanvas;
+
+  if (CAN_CREATE_IMAGE_BITMAP && CAN_NEW_IMAGE_DATA && features.indexOf('ww') !== -1) {
+    checkOffscreenCanvas = utils.worker_offscreen_canvas_support();
+  } else {
+    checkOffscreenCanvas = Promise.reject();
+  }
+
+  checkOffscreenCanvas = checkOffscreenCanvas.then(
+    () => { CAN_USE_OFFSCREEN_CANVAS = true; },
+    () => { CAN_USE_OFFSCREEN_CANVAS = false; }
+  );
+
   // Init math lib. That's async because can load some
-  this.__initPromise = Promise.all([ initMath, checkCibResize ]).then(() => this);
+  this.__initPromise = Promise.all([ initMath, checkCibResize, checkOffscreenCanvas ]).then(() => this);
 
   return this.__initPromise;
 };
@@ -213,7 +227,10 @@ Pica.prototype.__invokeResize = function (tileOpts, opts) {
   opts.__mathCache = opts.__mathCache || {};
 
   return Promise.resolve().then(() => {
-    if (!this.features.ww) return this.__mathlib.resizeAndUnsharp(tileOpts, opts.__mathCache);
+    if (!this.features.ww) {
+      // not possible to have ImageBitmap here if user disabled WW
+      return { data: this.__mathlib.resizeAndUnsharp(tileOpts, opts.__mathCache) };
+    }
 
     return new Promise((resolve, reject) => {
       let w = this.__workersPool.acquire();
@@ -224,8 +241,13 @@ Pica.prototype.__invokeResize = function (tileOpts, opts) {
         w.release();
 
         if (ev.data.err) reject(ev.data.err);
-        else resolve(ev.data.result);
+        else resolve(ev.data);
       };
+
+      let transfer = [];
+
+      if (tileOpts.src) transfer.push(tileOpts.src.buffer);
+      if (tileOpts.srcBitmap) transfer.push(tileOpts.srcBitmap);
 
       w.value.postMessage({
         opts: tileOpts,
@@ -233,7 +255,7 @@ Pica.prototype.__invokeResize = function (tileOpts, opts) {
         preload: {
           wasm_nodule: this.__mathlib.__
         }
-      }, [ tileOpts.src.buffer ]);
+      }, transfer);
     });
   });
 };
@@ -241,11 +263,20 @@ Pica.prototype.__invokeResize = function (tileOpts, opts) {
 
 // this function can return promise if createImageBitmap is used
 Pica.prototype.__extractTileData = function (tile, from, opts, stageEnv, extractTo) {
+  if (this.features.ww && CAN_USE_OFFSCREEN_CANVAS) {
+    this.debug('Create tile for OffscreenCanvas');
+
+    return createImageBitmap(stageEnv.srcImageBitmap || from, tile.x, tile.y, tile.width, tile.height)
+      .then(bitmap => {
+        extractTo.srcBitmap = bitmap;
+        return extractTo;
+      });
+  }
+
   // Extract tile RGBA buffer, depending on input type
   if (utils.isCanvas(from)) {
-    this.debug('Get tile pixel data');
-
     // If input is Canvas - extract region data directly
+    this.debug('Get tile pixel data');
     extractTo.src = stageEnv.srcCtx.getImageData(tile.x, tile.y, tile.width, tile.height).data;
     return extractTo;
   }
@@ -277,26 +308,31 @@ Pica.prototype.__extractTileData = function (tile, from, opts, stageEnv, extract
 };
 
 
-Pica.prototype.__landTileData = function (tile, resized, stageEnv) {
+Pica.prototype.__landTileData = function (tile, result, stageEnv) {
   let toImageData;
 
   this.debug('Convert raw rgba tile result to ImageData');
 
+  if (result.bitmap) {
+    stageEnv.toCtx.drawImage(result.bitmap, tile.toX, tile.toY);
+    return null;
+  }
+
   if (CAN_NEW_IMAGE_DATA) {
     // this branch is for modern browsers
     // If `new ImageData()` & Uint8ClampedArray suported
-    toImageData = new ImageData(new Uint8ClampedArray(resized), tile.toWidth, tile.toHeight);
+    toImageData = new ImageData(new Uint8ClampedArray(result.data), tile.toWidth, tile.toHeight);
   } else {
     // fallback for `node-canvas` and old browsers
     // (IE11 has ImageData but does not support `new ImageData()`)
     toImageData = stageEnv.toCtx.createImageData(tile.toWidth, tile.toHeight);
 
     if (toImageData.data.set) {
-      toImageData.data.set(resized);
+      toImageData.data.set(result.data);
     } else {
       // IE9 don't have `.set()`
       for (let i = toImageData.data.length - 1; i >= 0; i--) {
-        toImageData.data[i] = resized[i];
+        toImageData.data[i] = result.data[i];
       }
     }
   }
@@ -378,7 +414,8 @@ Pica.prototype.__tileAndResize = function (from, to, opts) {
     }
 
     if (utils.isImage(from)) {
-      // try do decode image in background for faster next operations
+      // try do decode image in background for faster next operations;
+      // if we're using offscreen canvas, cib is called per tile, so not needed here
       if (!CAN_CREATE_IMAGE_BITMAP) return null;
 
       this.debug('Decode image via createImageBitmap');
