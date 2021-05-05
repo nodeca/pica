@@ -275,6 +275,8 @@ Pica.prototype.__extractTileData = function (tile, from, opts, stageEnv, extract
 
   // Extract tile RGBA buffer, depending on input type
   if (utils.isCanvas(from)) {
+    if (!stageEnv.srcCtx) stageEnv.srcCtx = from.getContext('2d', { alpha: Boolean(opts.alpha) });
+
     // If input is Canvas - extract region data directly
     this.debug('Get tile pixel data');
     extractTo.src = stageEnv.srcCtx.getImageData(tile.x, tile.y, tile.width, tile.height).data;
@@ -402,10 +404,7 @@ Pica.prototype.__tileAndResize = function (from, to, opts) {
   return Promise.resolve().then(() => {
     stageEnv.toCtx = to.getContext('2d', { alpha: Boolean(opts.alpha) });
 
-    if (utils.isCanvas(from)) {
-      stageEnv.srcCtx = from.getContext('2d', { alpha: Boolean(opts.alpha) });
-      return null;
-    }
+    if (utils.isCanvas(from)) return null;
 
     if (utils.isImageBitmap(from)) {
       stageEnv.srcImageBitmap = from;
