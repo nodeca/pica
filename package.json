@@ -29,6 +29,7 @@
     "index.js"
   ],
   "dependencies": {
+    "glur": "^1.1.2",
     "inherits": "^2.0.3",
     "multimath": "^2.0.0",
     "object-assign": "^4.1.1",
