@@ -9,18 +9,6 @@ REMOTE_REPO ?= $(shell git config --get remote.${REMOTE_NAME}.url)
 CURR_HEAD   := $(firstword $(shell git show-ref --hash HEAD | cut -b -6) master)
 GITHUB_PROJ := nodeca/${NPM_PACKAGE}
 
-wasm:
-	@# install: multimath => ./support/llvm_install.sh
-	@# https://github.com/nodeca/multimath
-	~/llvmwasm/bin/clang -emit-llvm --target=wasm32 -O3 -c -o ./lib/mm_resize/convolve.bc ./lib/mm_resize/convolve.c
-	~/llvmwasm/bin/llc -asm-verbose=false -o ./lib/mm_resize/convolve.s ./lib/mm_resize/convolve.bc
-	~/llvmwasm/bin/s2wasm --import-memory ./lib/mm_resize/convolve.s > ./lib/mm_resize/convolve.wast
-	~/llvmwasm/bin/wasm-opt ./lib/mm_resize/convolve.wast -O3 -o ./lib/mm_resize/convolve.wasm
-	rm ./lib/mm_resize/convolve.bc
-	rm ./lib/mm_resize/convolve.s
-	node ./node_modules/multimath/support/wasm_wrap.js ./lib/mm_resize/convolve.wasm ./lib/mm_resize/convolve_wasm_base64.js
-	make browserify
-
 publish:
 	@if test 0 -ne `git status --porcelain | wc -l` ; then \
 		echo "Unclean working tree. Commit or stash changes first." >&2 ; \

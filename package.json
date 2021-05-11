@@ -19,6 +19,7 @@
     "gh-pages": "gh-pages -d . -s {demo,dist}/* -f",
     "browserify": "browserify -r ./index.js -s pica -t [ babelify --presets [ @babel/preset-env ] ] -p [ browserify-header --file support/header.js ] | derequire > dist/pica.js",
     "minify": "terser dist/pica.js -c -m > dist/pica.min.js",
+    "wasm": "docker run --rm -v $(pwd):/src -u $(id -u):$(id -g) emscripten/emsdk:2.0.20 ./support/compile-emsdk.sh",
     "build": "npm run browserify && npm run minify",
     "prepublishOnly": "npm run gh-pages"
   },
