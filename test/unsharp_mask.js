@@ -13,19 +13,19 @@ function fill(target, arr) {
 
 describe('unsharp_mask', function () {
 
-  describe('hsl_l16', function () {
+  describe('hsv_v16', function () {
 
     it('js', function () {
-      const hsl_l16 = require('../lib/mm_unsharp_mask/hsl_l16');
+      const hsv_v16 = require('../lib/mm_unsharp_mask/hsv_v16');
 
       let sample = new Uint8Array(100 * 100 * 4);
 
-      fill(sample, [ 255, 180, 55, 0 ]);   // r, g, b, a
+      fill(sample, [ 200, 180, 55, 0 ]);   // r, g, b, a
 
-      let result = hsl_l16(sample, 100, 100);
+      let result = hsv_v16(sample, 100, 100);
 
       for (let i = 0; i < result.length; i++) {
-        assert.equal(result[i], 39835);
+        assert.equal(result[i], 51400);
       }
     });
 
@@ -36,9 +36,9 @@ describe('unsharp_mask', function () {
       let width = 100, height = 100;
       let sample = new Uint8Array(width * height * 4);
 
-      fill(sample, [ 255, 180, 55, 0 ]);   // r, g, b, a
+      fill(sample, [ 200, 180, 55, 0 ]);   // r, g, b, a
 
-      let result_js   = require('../lib/mm_unsharp_mask/hsl_l16')(sample, width, height);
+      let result_js   = require('../lib/mm_unsharp_mask/hsv_v16')(sample, width, height);
 
       // Invoke wasm implementation manually
       let pixels     = width * height;
@@ -53,7 +53,7 @@ describe('unsharp_mask', function () {
       let mem = new Uint8Array(mlib_wasm.__memory.buffer);
       mem.set(sample);
 
-      let fn = instance.exports.hsl_l16 || instance.exports._hsl_l16;
+      let fn = instance.exports.hsv_v16 || instance.exports._hsv_v16;
 
       fn(0, res_offset, width, height);
 

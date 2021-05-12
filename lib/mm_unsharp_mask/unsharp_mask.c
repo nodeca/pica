@@ -142,11 +142,9 @@ void blurMono16(uint32_t offset_src, uint32_t offset_out, uint32_t offset_tmp_ou
 #define R(x) ((uint8_t)(x))
 #define G(x) ((uint8_t)((x) >> 8))
 #define B(x) ((uint8_t)((x) >> 16))
-#define MinPlusMax(r, g, b) (uint16_t)((( \
-            ((r >= g && r >= b) ? r : (g >= b && g >= r) ? g : b) + \
-                ((r <= g && r <= b) ? r : (g <= b && g <= r) ? g : b)) * 257) >> 1);
+#define Max(r, g, b) (uint16_t)(((r >= g && r >= b) ? r : (g >= b && g >= r) ? g : b) * 257);
 
-void hsl_l16(uint32_t offset_src, uint32_t offset_dst, uint32_t width, uint32_t height) {
+void hsv_v16(uint32_t offset_src, uint32_t offset_dst, uint32_t width, uint32_t height) {
     uint8_t* memory = 0;
     uint32_t size = width * height;
     uint32_t limit = size - 3;
@@ -157,23 +155,23 @@ void hsl_l16(uint32_t offset_src, uint32_t offset_dst, uint32_t width, uint32_t 
 
     while (size--) {
         rgba = *src++;
-        *dst++ = MinPlusMax(R(rgba), G(rgba), B(rgba));
+        *dst++ = Max(R(rgba), G(rgba), B(rgba));
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void unsharp(uint32_t img_offset, uint32_t dst_offset, uint32_t lightness_offset, uint32_t blur_offset,
+void unsharp(uint32_t img_offset, uint32_t dst_offset, uint32_t brightness_offset, uint32_t blur_offset,
              uint32_t width, uint32_t height, uint32_t amount, uint32_t threshold) {
     uint8_t* memory = 0;
     uint8_t r, g, b;
     uint16_t h = 0;
     uint16_t s = 0;
-    int32_t l = 0;
+    int32_t v = 0;
     uint8_t min, max;
-    uint16_t hShifted = 0;
-    uint32_t m1 = 0;
-    uint32_t m2 = 0;
+    uint16_t c = 0;
+    uint16_t x = 0;
+    uint16_t m = 0;
     int32_t diff = 0;
     uint32_t diffabs = 0;
     uint32_t iTimes4 = 0;
@@ -183,11 +181,11 @@ void unsharp(uint32_t img_offset, uint32_t dst_offset, uint32_t lightness_offset
     uint32_t i = 0;
     uint8_t* img = memory + img_offset;
     uint8_t* dst = memory + dst_offset;
-    uint16_t* lightness = (uint16_t*)(memory + lightness_offset);
+    uint16_t* brightness = (uint16_t*)(memory + brightness_offset);
     uint16_t* blured = (uint16_t*)(memory + blur_offset);
 
     for (; i < size; ++i) {
-        diff = 2 * (lightness[i] - blured[i]);
+        diff = 2 * (brightness[i] - blured[i]);
         diffabs = diff < 0 ? -diff : diff;
 
         if (diffabs >= thresholdFp) {
@@ -196,64 +194,68 @@ void unsharp(uint32_t img_offset, uint32_t dst_offset, uint32_t lightness_offset
             b = *img++;
             ++img;
 
-            // convert RGB to HSL
+            // convert RGB to HSV
             // take RGB, 8-bit unsigned integer per each channel
-            // save HSL, H and L are 16-bit unsigned integers, S is 12-bit unsigned integer
+            // save HSV, H and V are 16-bit unsigned integers, S is 12-bit unsigned integer
             // math is taken from here: http://www.easyrgb.com/index.php?X=MATH&H=18
             // and adopted to be integer (fixed point in fact) for sake of performance
             max = (r >= g && r >= b) ? r : (g >= r && g >= b) ? g : b; // min and max are in [0..0xff]
             min = (r <= g && r <= b) ? r : (g <= r && g <= b) ? g : b;
-            l = (max + min) * 257 >> 1; // l is in [0..0xffff] that is caused by multiplication by 257
+            v = max * 257; // v is in [0..0xffff] that is caused by multiplication by 257
 
             if (min == max) {
                 h = s = 0;
             } else {
-                s = (l <= 0x7fff) ?
-                    (((max - min) * 0xfff) / (max + min)) :
-                    (((max - min) * 0xfff) / (2 * 0xff - max - min)); // s is in [0..0xfff]
+                s = (max - min) * 0xfff / max;
                 // h could be less 0, it will be fixed in backward conversion to RGB, |h| <= 0xffff / 6
                 h = (r == max) ? (((g - b) * 0xffff) / (6 * (max - min)))
                     : (g == max) ? 0x5555 + ((((b - r) * 0xffff) / (6 * (max - min)))) // 0x5555 == 0xffff / 3
                     : 0xaaaa + ((((r - g) * 0xffff) / (6 * (max - min)))); // 0xaaaa == 0xffff * 2 / 3
+                if (h < 0) { h += 0x10000; }
             }
 
-            // add unsharp mask mask to the lightness channel
-            l = l + ((amountFp * diff + 0x800) >> 12);
-            if (l > 0xffff) {
-                l = 0xffff;
+            // add unsharp mask mask to the brightness channel
+            v = v + ((amountFp * diff + 0x800) >> 12);
+            if (v > 0xffff) {
+                v = 0xffff;
             }
-            else if (l < 0) {
-                l = 0;
+            else if (v < 0) {
+                v = 0;
             }
 
             // convert HSL back to RGB
             // for information about math look above
             if (s == 0) {
-                r = g = b = l >> 8;
+                r = g = b = v >> 8;
             } else {
-                m2 = (l <= 0x7fff) ? ((uint32_t)l * (0x1000 + (uint32_t)s) + 0x800) >> 12 :
-                    l  + (((0xffff - l) * s + 0x800) >> 12);
-                m1 = ((2 * l) - m2) >> 8;
-                m2 >>= 8;
-                // save result to RGB channels
-                // R channel
-                hShifted = (h + 0x5555) & 0xffff; // 0x5555 == 0xffff / 3
-                r = (hShifted >= 0xaaaa) ? m1 // 0xaaaa == 0xffff * 2 / 3
-                    : (hShifted >= 0x7fff) ?  m1 + (((m2 - m1) * 6 * (0xaaaa - hShifted) + 0x8000) >> 16)
-                    : (hShifted >= 0x2aaa) ? m2 // 0x2aaa == 0xffff / 6
-                    : m1 + (((m2 - m1) * 6 * hShifted + 0x8000) >> 16);
-                // G channel
-                hShifted = h & 0xffff;
-                g = (hShifted >= 0xaaaa) ? m1 // 0xaaaa == 0xffff * 2 / 3
-                    : (hShifted >= 0x7fff) ?  m1 + (((m2 - m1) * 6 * (0xaaaa - hShifted) + 0x8000) >> 16)
-                    : (hShifted >= 0x2aaa) ? m2 // 0x2aaa == 0xffff / 6
-                    : m1 + (((m2 - m1) * 6 * hShifted + 0x8000) >> 16);
-                // B channel
-                hShifted = (h - 0x5555) & 0xffff;
-                b = (hShifted >= 0xaaaa) ? m1 // 0xaaaa == 0xffff * 2 / 3
-                    : (hShifted >= 0x7fff) ?  m1 + (((m2 - m1) * 6 * (0xaaaa - hShifted) + 0x8000) >> 16)
-                    : (hShifted >= 0x2aaa) ? m2 // 0x2aaa == 0xffff / 6
-                    : m1 + (((m2 - m1) * 6 * hShifted + 0x8000) >> 16);
+                // formulae below are from https://en.wikipedia.org/wiki/HSL_and_HSV#HSV_to_RGB,
+                // adapted to use integer math for performance reasons
+                c = (uint32_t)v * s / 0xfff;
+                m = v - c;
+
+                if (h <= 0x7fff) {
+                    if (h <= 0x2aaa) {
+                        x = (uint32_t)c * h / 0x2aaa;
+                        r = (c + m) >> 8; g = (x + m) >> 8; b = m >> 8;
+                    } else if (h <= 0x5555) {
+                        x = (uint32_t)c * (0x5555 - h) / 0x2aaa;
+                        r = (x + m) >> 8; g = (c + m) >> 8; b = m >> 8;
+                    } else {
+                        x = (uint32_t)c * (h - 0x5555) / 0x2aaa;
+                        r = m >> 8; g = (c + m) >> 8; b = (x + m) >> 8;
+                    }
+                } else {
+                    if (h <= 0xaaaa) {
+                        x = (uint32_t)c * (0xaaaa - h) / 0x2aaa;
+                        r = m >> 8; g = (x + m) >> 8; b = (c + m) >> 8;
+                    } else if (h <= 0xd555) {
+                        x = (uint32_t)c * (h - 0xaaaa) / 0x2aaa;
+                        r = (x + m) >> 8; g = m >> 8; b = (c + m) >> 8;
+                    } else {
+                        x = (uint32_t)c * (0xffff - h) / 0x2aaa;
+                        r = (c + m) >> 8; g = m >> 8; b = (x + m) >> 8;
+                    }
+                }
             }
 
             *dst++ = r;
