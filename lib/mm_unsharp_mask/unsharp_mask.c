@@ -165,13 +165,9 @@ void unsharp(uint32_t img_offset, uint32_t dst_offset, uint32_t brightness_offse
              uint32_t width, uint32_t height, uint32_t amount, uint32_t threshold) {
     uint8_t* memory = 0;
     uint8_t r, g, b;
-    uint16_t h = 0;
-    uint16_t s = 0;
-    int32_t v = 0;
-    uint8_t min, max;
-    uint16_t c = 0;
-    uint16_t x = 0;
-    uint16_t m = 0;
+    int32_t v1 = 0;
+    int32_t v2 = 0;
+    uint8_t max;
     int32_t diff = 0;
     uint32_t diffabs = 0;
     uint32_t iTimes4 = 0;
@@ -200,67 +196,23 @@ void unsharp(uint32_t img_offset, uint32_t dst_offset, uint32_t brightness_offse
             // math is taken from here: http://www.easyrgb.com/index.php?X=MATH&H=18
             // and adopted to be integer (fixed point in fact) for sake of performance
             max = (r >= g && r >= b) ? r : (g >= r && g >= b) ? g : b; // min and max are in [0..0xff]
-            min = (r <= g && r <= b) ? r : (g <= r && g <= b) ? g : b;
-            v = max * 257; // v is in [0..0xffff] that is caused by multiplication by 257
-
-            if (min == max) {
-                h = s = 0;
-            } else {
-                s = (max - min) * 0xfff / max;
-                // h could be less 0, it will be fixed in backward conversion to RGB, |h| <= 0xffff / 6
-                h = (r == max) ? (((g - b) * 0xffff) / (6 * (max - min)))
-                    : (g == max) ? 0x5555 + ((((b - r) * 0xffff) / (6 * (max - min)))) // 0x5555 == 0xffff / 3
-                    : 0xaaaa + ((((r - g) * 0xffff) / (6 * (max - min)))); // 0xaaaa == 0xffff * 2 / 3
-                if (h < 0) { h += 0x10000; }
-            }
+            v1 = max * 257; // v is in [0..0xffff] that is caused by multiplication by 257
 
             // add unsharp mask mask to the brightness channel
-            v = v + ((amountFp * diff + 0x800) >> 12);
-            if (v > 0xffff) {
-                v = 0xffff;
+            v2 = v1 + ((amountFp * diff + 0x800) >> 12);
+            if (v2 > 0xffff) {
+                v2 = 0xffff;
             }
-            else if (v < 0) {
-                v = 0;
-            }
-
-            // convert HSL back to RGB
-            // for information about math look above
-            if (s == 0) {
-                r = g = b = v >> 8;
-            } else {
-                // formulae below are from https://en.wikipedia.org/wiki/HSL_and_HSV#HSV_to_RGB,
-                // adapted to use integer math for performance reasons
-                c = (uint32_t)v * s / 0xfff;
-                m = v - c;
-
-                if (h <= 0x7fff) {
-                    if (h <= 0x2aaa) {
-                        x = (uint32_t)c * h / 0x2aaa;
-                        r = (c + m) >> 8; g = (x + m) >> 8; b = m >> 8;
-                    } else if (h <= 0x5555) {
-                        x = (uint32_t)c * (0x5555 - h) / 0x2aaa;
-                        r = (x + m) >> 8; g = (c + m) >> 8; b = m >> 8;
-                    } else {
-                        x = (uint32_t)c * (h - 0x5555) / 0x2aaa;
-                        r = m >> 8; g = (c + m) >> 8; b = (x + m) >> 8;
-                    }
-                } else {
-                    if (h <= 0xaaaa) {
-                        x = (uint32_t)c * (0xaaaa - h) / 0x2aaa;
-                        r = m >> 8; g = (x + m) >> 8; b = (c + m) >> 8;
-                    } else if (h <= 0xd555) {
-                        x = (uint32_t)c * (h - 0xaaaa) / 0x2aaa;
-                        r = (x + m) >> 8; g = m >> 8; b = (c + m) >> 8;
-                    } else {
-                        x = (uint32_t)c * (0xffff - h) / 0x2aaa;
-                        r = (c + m) >> 8; g = m >> 8; b = (x + m) >> 8;
-                    }
-                }
+            else if (v2 < 0) {
+                v2 = 0;
             }
 
-            *dst++ = r;
-            *dst++ = g;
-            *dst++ = b;
+            // Multiplying V in HSV model by a constant is equivalent to multiplying each component
+            // in RGB by the same constant (same for HSL), see also:
+            // https://beesbuzz.biz/code/16-hsv-color-transforms
+            *dst++ = (uint32_t)r * v2 / v1;
+            *dst++ = (uint32_t)g * v2 / v1;
+            *dst++ = (uint32_t)b * v2 / v1;
             ++dst;
         }
         else {
