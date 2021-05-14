@@ -142,7 +142,7 @@ void blurMono16(uint32_t offset_src, uint32_t offset_out, uint32_t offset_tmp_ou
 #define R(x) ((uint8_t)(x))
 #define G(x) ((uint8_t)((x) >> 8))
 #define B(x) ((uint8_t)((x) >> 16))
-#define Max(r, g, b) (uint16_t)(((r >= g && r >= b) ? r : (g >= b && g >= r) ? g : b) * 257);
+#define Max(r, g, b) (uint16_t)(((r >= g && r >= b) ? r : (g >= b && g >= r) ? g : b) << 8);
 
 void hsv_v16(uint32_t offset_src, uint32_t offset_dst, uint32_t width, uint32_t height) {
     uint8_t* memory = 0;
@@ -164,15 +164,14 @@ void hsv_v16(uint32_t offset_src, uint32_t offset_dst, uint32_t width, uint32_t 
 void unsharp(uint32_t img_offset, uint32_t dst_offset, uint32_t brightness_offset, uint32_t blur_offset,
              uint32_t width, uint32_t height, uint32_t amount, uint32_t threshold) {
     uint8_t* memory = 0;
-    uint8_t r, g, b;
+    int iTimes4;
     int32_t v1 = 0;
     int32_t v2 = 0;
-    uint8_t max;
+    uint32_t vmul = 0;
     int32_t diff = 0;
     uint32_t diffabs = 0;
-    uint32_t iTimes4 = 0;
     int32_t amountFp = ((float)amount * 0x1000 / 100 + 0.5);
-    uint32_t thresholdFp = (threshold * 257);
+    uint32_t thresholdFp = threshold << 8;
     uint32_t size = width * height;
     uint32_t i = 0;
     uint8_t* img = memory + img_offset;
@@ -181,43 +180,39 @@ void unsharp(uint32_t img_offset, uint32_t dst_offset, uint32_t brightness_offse
     uint16_t* blured = (uint16_t*)(memory + blur_offset);
 
     for (; i < size; ++i) {
-        diff = 2 * (brightness[i] - blured[i]);
+        v1 = brightness[i];
+        diff = 2 * (v1 - blured[i]);
         diffabs = diff < 0 ? -diff : diff;
 
         if (diffabs >= thresholdFp) {
-            r = *img++;
-            g = *img++;
-            b = *img++;
-            ++img;
-
-            // convert RGB to HSV
-            // take RGB, 8-bit unsigned integer per each channel
-            // save HSV, H and V are 16-bit unsigned integers, S is 12-bit unsigned integer
-            // math is taken from here: http://www.easyrgb.com/index.php?X=MATH&H=18
-            // and adopted to be integer (fixed point in fact) for sake of performance
-            max = (r >= g && r >= b) ? r : (g >= r && g >= b) ? g : b; // min and max are in [0..0xff]
-            v1 = max * 257; // v is in [0..0xffff] that is caused by multiplication by 257
-
-            // add unsharp mask mask to the brightness channel
+            // add unsharp mask to the brightness channel
             v2 = v1 + ((amountFp * diff + 0x800) >> 12);
-            if (v2 > 0xffff) {
-                v2 = 0xffff;
-            }
-            else if (v2 < 0) {
-                v2 = 0;
-            }
+
+            // Both v1 and v2 are within [0.0 .. 255.0] (0000-FF00) range, never going into
+            // [255.003 .. 255.996] (FF01-FFFF). This allows to round this value as (x+.5)|0
+            // later without overflowing.
+            v2 = v2 > 0xff00 ? 0xff00 : v2;
+            v2 = v2 < 0x0000 ? 0x0000 : v2;
+
+            // Avoid division by 0. V=0 means rgb(0,0,0), unsharp with unsharpAmount>0 cannot
+            // change this value (because diff between colors gets inflated), so no need to verify correctness.
+            v1 = v1 != 0 ? v1 : 1;
 
             // Multiplying V in HSV model by a constant is equivalent to multiplying each component
             // in RGB by the same constant (same for HSL), see also:
             // https://beesbuzz.biz/code/16-hsv-color-transforms
-            *dst++ = (uint32_t)r * v2 / v1;
-            *dst++ = (uint32_t)g * v2 / v1;
-            *dst++ = (uint32_t)b * v2 / v1;
-            ++dst;
-        }
-        else {
-            img += 4;
-            dst += 4;
+            vmul = ((v2 << 12) / v1)|0;
+
+            // Result will be in [0..255] range because:
+            //  - all numbers are positive
+            //  - r,g,b <= (v1/256)
+            //  - r,g,b,(v1/256),(v2/256) <= 255
+            // So highest this number can get is X*255/X+0.5=255.5 which is < 256 and rounds down.
+
+            iTimes4 = i * 4;
+            img[iTimes4]     = (img[iTimes4]     * vmul + 0x800) >> 12; // R
+            img[iTimes4 + 1] = (img[iTimes4 + 1] * vmul + 0x800) >> 12; // G
+            img[iTimes4 + 2] = (img[iTimes4 + 2] * vmul + 0x800) >> 12; // B
         }
     }
 }
