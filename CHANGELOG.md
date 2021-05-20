@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [7.0.0] - WIP
+### Changed
+- [BREAKING] Rewrite unsharp mask, use `V` channel of HSV instead of `L` channel
+  of HSL, to reduce color shift (#209).
+- [BREAKING] Unsharp mask options are now more close to Photoshop (`unsharpAmount`
+  & `unsharpThreshold` should be increased twice, if you switch from v6.x).
+- Splitted big `Pica` methods to smaller ones.
+- Use docker to build webassembly modules.
+
+### Added
+- Use `OffscreenCanvas` when possible (extract image bitmap in webworker).
+
+
 ## [6.1.1] - 2020-08-20
 ### Fixed
 - Aded Safari canvas GC workaround, #199.
@@ -28,7 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [5.3.0] - 2020-06-09
 ### Changed
-- Use `derequire` to allow nested `browserify` for `/dist/pica.js`. 
+- Use `derequire` to allow nested `browserify` for `/dist/pica.js`.
 
 
 ## [5.2.0] - 2020-05-25
@@ -275,6 +288,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - First release.
 
 
+[7.0.0]: https://github.com/nodeca/pica/compare/6.1.1...7.0.0
 [6.1.1]: https://github.com/nodeca/pica/compare/6.1.0...6.1.1
 [6.1.0]: https://github.com/nodeca/pica/compare/6.0.0...6.1.0
 [6.0.0]: https://github.com/nodeca/pica/compare/5.3.0...6.0.0
