@@ -1,7 +1,7 @@
 pica - high quality image resize in browser
 ===========================================
 
-[![Build Status](https://travis-ci.org/nodeca/pica.svg?branch=master)](https://travis-ci.org/nodeca/pica)
+[![CI](https://github.com/nodeca/pica/actions/workflows/ci.yml/badge.svg)](https://github.com/nodeca/pica/actions/workflows/ci.yml)
 [![NPM version](https://img.shields.io/npm/v/pica.svg)](https://www.npmjs.org/package/pica)
 
 > Resize images in browser without pixelation and reasonably fast.
@@ -20,7 +20,7 @@ With pica you can:
 
 **Note. If you need File/Blob resize (from form's file input), consider use
 [image-blob-reduce](https://github.com/nodeca/image-blob-reduce).** It has
-additional machinery to process orientation, keep EXIF metadata and so on. 
+additional machinery to process orientation, keep EXIF metadata and so on.
 
 
 Migration from pica v6 to pica v7
@@ -41,7 +41,7 @@ Here is a short list of problems you can face:
   - Due to JS security restrictions, you can process images
     from the same domain or local files only. If you load images from
     remote domain use proper `Access-Control-Allow-Origin` header.
-  - iOS has a memory limits for canvas elements, that may cause 
+  - iOS has a memory limits for canvas elements, that may cause
     problems in some cases, [more details](https://github.com/nodeca/pica/wiki/iOS-Memory-Limit).
   - If your source data is jpeg image, it can be rotated. Consider use
     [image-blob-reduce](https://github.com/nodeca/image-blob-reduce).
@@ -110,8 +110,8 @@ Create resizer instance with given config (optional):
    Default returns a [\<canvas\> element](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API),
    but this function could return an [OffscreenCanvas](https://developer.mozilla.org/en-US/docs/Web/API/OffscreenCanvas)
    instead (to run pica in a Service Worker). Function signature: createCanvas(width: number, height: number): Canvas
-     
-   
+
+
 __Important!__ Latest browsers may support resize via [createImageBitmap](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/createImageBitmap).
 This feature is supported (`cib`) but disabled by default and not recommended
 for use. So:
