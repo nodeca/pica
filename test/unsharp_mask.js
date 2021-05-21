@@ -26,7 +26,7 @@ describe('unsharp_mask', function () {
 
       glur_js(sample, 100, 100, 2);
 
-      assert.deepEqual(sample, orig);
+      assert.deepStrictEqual(sample, orig);
     });
 
 
@@ -79,7 +79,7 @@ describe('unsharp_mask', function () {
 
       let sample_wasm = glur16_wasm_invoke(mlib_wasm, sample, 100, 100, 2);
 
-      assert.deepEqual(sample_js, sample_wasm);
+      assert.deepStrictEqual(sample_js, sample_wasm);
     });
   });
 
@@ -113,7 +113,7 @@ describe('unsharp_mask', function () {
       mlib_js.unsharp_mask(sample_js, 100, 100, 80, 2, 2);
       mlib_wasm.unsharp_mask(sample_wasm, 100, 100, 80, 2, 2);
 
-      assert.deepEqual(sample_js, sample_wasm);
+      assert.deepStrictEqual(sample_js, sample_wasm);
     });
   });
 });

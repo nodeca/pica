@@ -10,7 +10,7 @@ const TILE_BORDER = 3;
 
 describe('createStages', function () {
   it('1024x1024 -> 300x300 (1 stage)', function () {
-    assert.deepEqual(createStages(
+    assert.deepStrictEqual(createStages(
       1024,
       1024,
       300,
@@ -21,7 +21,7 @@ describe('createStages', function () {
   });
 
   it('1024x1024 -> 2x2 (2 stages)', function () {
-    assert.deepEqual(createStages(
+    assert.deepStrictEqual(createStages(
       1024,
       1024,
       2,
@@ -32,7 +32,7 @@ describe('createStages', function () {
   });
 
   it('102400x100 -> 1x1 (3 stages)', function () {
-    assert.deepEqual(createStages(
+    assert.deepStrictEqual(createStages(
       102400,
       100,
       1,
@@ -43,7 +43,7 @@ describe('createStages', function () {
   });
 
   it('20000x1 -> 1x20000 (magnifying along another axis)', function () {
-    assert.deepEqual(createStages(
+    assert.deepStrictEqual(createStages(
       20000,
       1,
       1,
@@ -54,7 +54,7 @@ describe('createStages', function () {
   });
 
   it('1x1 -> 20000x20000 (magnifying should always be single stage)', function () {
-    assert.deepEqual(createStages(
+    assert.deepStrictEqual(createStages(
       1,
       1,
       20000,

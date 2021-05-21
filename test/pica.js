@@ -48,7 +48,7 @@ describe('API', function () {
     return _pica().resize(src, to)
     .then(() => { throw new Error('Resize should fail'); })
     .catch(err => {
-      assert.equal(err.message, 'Invalid output size: 0x0');
+      assert.strictEqual(err.message, 'Invalid output size: 0x0');
     });
   });
 
