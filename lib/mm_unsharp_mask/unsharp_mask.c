@@ -181,7 +181,7 @@ void unsharp(uint32_t img_offset, uint32_t dst_offset, uint32_t brightness_offse
 
     for (; i < size; ++i) {
         v1 = brightness[i];
-        diff = 2 * (v1 - blured[i]);
+        diff = v1 - blured[i];
         diffabs = diff < 0 ? -diff : diff;
 
         if (diffabs >= thresholdFp) {

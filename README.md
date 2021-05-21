@@ -23,6 +23,15 @@ With pica you can:
 additional machinery to process orientation, keep EXIF metadata and so on. 
 
 
+Migration from pica v6 to pica v7
+---------------------------------
+
+Multiply `unsharpAmount` by 2, divide `unsharpThreshold` by 2, example:
+
+ - `pica@6`: `pica.resize(a, b, { unsharpAmount: 80, unsharpThreshold: 2 })`
+ - `pica@7`: `pica.resize(a, b, { unsharpAmount: 160, unsharpThreshold: 1 })`
+
+
 Prior to use
 ------------
 
@@ -198,8 +207,8 @@ a bit. Pica has built-in "unsharp mask" filter (off by default).
 Set `unsharpAmount` to positive number to activate the filter.
 
 Filter's parameters are similar to ones from Photoshop.
-We recommend to start with `unsharpAmount = 80`,
-`unsharpRadius = 0.6` and `unsharpThreshold = 2`.
+We recommend to start with `unsharpAmount = 160`,
+`unsharpRadius = 0.6` and `unsharpThreshold = 1`.
 There is [a correspondence between UnsharpMask parameters
 in popular graphics software](https://github.com/nodeca/pica/wiki#editing-unsharp-mask-params-relations-in-pupular-softare).
 

@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [BREAKING] Rewrite unsharp mask, use `V` channel of HSV instead of `L` channel
   of HSL, to reduce color shift (#209).
 - [BREAKING] Unsharp mask options are now more close to Photoshop (`unsharpAmount`
-  & `unsharpThreshold` should be increased twice, if you switch from v6.x).
+  should be multiplied by 2 and `unsharpThreshold` should be divided by 2
+  if you switch from v6.x).
 - Splitted big `Pica` methods to smaller ones.
 - Use docker to build webassembly modules.
 
