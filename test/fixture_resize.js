@@ -15,25 +15,16 @@ const OUTPUT_DIRECTORY   = path.join(__dirname, '..');
 
 describe('Fixture resize', function () {
 
-  it('.resizeCanvas() should be correct for the given fixture', function () {
-    const { createCanvas, Image } = require('canvas');
-    //
-    // Shim browser method
-    //
-    global.document = global.document || {};
-    global.document.createElement = global.document.createElement || function (name) {
-      if (name === 'canvas') return createCanvas();
-      throw new Error('createElement(' + name + ') not shimmed');
-    };
-
-
+  it('.resizeCanvas() should be correct for the given fixture', async function () {
     this.timeout(3000);
 
     let srcImage = new Image();
+    let srcBuf = fs.readFileSync(path.join(FIXTURES_DIRECTORY, 'original.jpg'));
 
-    srcImage.src = fs.readFileSync(path.join(FIXTURES_DIRECTORY, 'original.jpg'));
+    srcImage.src = 'data:image/jpeg;base64,' + srcBuf.toString('base64');
+    await new Promise(resolve => { srcImage.onload = resolve; });
 
-    let srcCanvas = createCanvas();
+    let srcCanvas = document.createElement('canvas');
 
     srcCanvas.width = srcImage.width;
     srcCanvas.height = srcImage.height;
@@ -43,10 +34,12 @@ describe('Fixture resize', function () {
     srcCtx.drawImage(srcImage, 0, 0);
 
     let fixtureImage = new Image();
+    let fixtureBuf = fs.readFileSync(path.join(FIXTURES_DIRECTORY, 'resized.png'));
 
-    fixtureImage.src = fs.readFileSync(path.join(FIXTURES_DIRECTORY, 'resized.png'));
+    fixtureImage.src = 'data:image/png;base64,' + fixtureBuf.toString('base64');
+    await new Promise(resolve => { fixtureImage.onload = resolve; });
 
-    let fixtureCanvas = createCanvas();
+    let fixtureCanvas = document.createElement('canvas');
 
     fixtureCanvas.width = fixtureImage.width;
     fixtureCanvas.height = fixtureImage.height;
@@ -56,13 +49,13 @@ describe('Fixture resize', function () {
     fixtureCtx.drawImage(fixtureImage, 0, 0);
 
     let fixtureImageData = fixtureCtx.getImageData(0, 0, fixtureCanvas.width, fixtureCanvas.height);
-    let destCanvas = createCanvas();
+    let destCanvas = document.createElement('canvas');
 
     destCanvas.width = fixtureImage.width;
     destCanvas.height = fixtureImage.height;
 
     let destCtx = destCanvas.getContext('2d');
-    let diffCanvas = createCanvas();
+    let diffCanvas = document.createElement('canvas');
 
     diffCanvas.width = fixtureImage.width;
     diffCanvas.height = fixtureImage.height;
