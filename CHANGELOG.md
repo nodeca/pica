@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [7.0.0] - WIP
+## [7.0.0] - 2021-05-23
 ### Changed
 - [BREAKING] Rewrite unsharp mask, use `V` channel of HSV instead of `L` channel
   of HSL, to reduce color shift (#209).
