@@ -76,9 +76,9 @@ const pica = require('pica')();
 
 // Resize from Canvas/Image to another Canvas
 pica.resize(from, to, {
-  unsharpAmount: 80,
+  unsharpAmount: 160,
   unsharpRadius: 0.6,
-  unsharpThreshold: 2
+  unsharpThreshold: 1
 })
 .then(result => console.log('resize done!'));
 
@@ -134,7 +134,7 @@ taken from source and destination objects.
   - __quality__ - 0..3. Default = `3` (lanczos, win=3).
   - __alpha__ - use alpha channel. Default = `false`.
   - __unsharpAmount__ - >=0, in percents. Default = `0` (off). Usually
-    between 50 to 100 is good.
+    between 100 to 200 is good.
   - __unsharpRadius__ - 0.5..2.0. By default it's not set. Radius of Gaussian
     blur. If it is less than 0.5, Unsharp Mask is off. Big values are clamped
     to 2.0.
@@ -210,7 +210,7 @@ Filter's parameters are similar to ones from Photoshop.
 We recommend to start with `unsharpAmount = 160`,
 `unsharpRadius = 0.6` and `unsharpThreshold = 1`.
 There is [a correspondence between UnsharpMask parameters
-in popular graphics software](https://github.com/nodeca/pica/wiki#editing-unsharp-mask-params-relations-in-pupular-softare).
+in popular graphics software](https://github.com/nodeca/pica/wiki/Unsharp-mask-params-in-popular-softare).
 
 
 Browser support
