@@ -56,7 +56,7 @@ const DEFAULT_RESIZE_OPTS = {
 
 let CAN_NEW_IMAGE_DATA;
 let CAN_CREATE_IMAGE_BITMAP;
-let CAN_USE_OFFSCREEN_CANVAS;
+let CAN_USE_OFFSCREEN_CANVAS      = false;
 
 
 function workerFabric() {
@@ -202,12 +202,11 @@ Pica.prototype.init = function () {
   if (CAN_CREATE_IMAGE_BITMAP && CAN_NEW_IMAGE_DATA && features.indexOf('ww') !== -1) {
     checkOffscreenCanvas = utils.worker_offscreen_canvas_support();
   } else {
-    checkOffscreenCanvas = Promise.reject();
+    checkOffscreenCanvas = Promise.resolve(false);
   }
 
   checkOffscreenCanvas = checkOffscreenCanvas.then(
-    () => { CAN_USE_OFFSCREEN_CANVAS = true; },
-    () => { CAN_USE_OFFSCREEN_CANVAS = false; }
+    result => { CAN_USE_OFFSCREEN_CANVAS = result; }
   );
 
   // Init math lib. That's async because can load some
