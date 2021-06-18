@@ -56,6 +56,7 @@ const DEFAULT_RESIZE_OPTS = {
 
 let CAN_NEW_IMAGE_DATA;
 let CAN_CREATE_IMAGE_BITMAP;
+let CAN_USE_CANVAS_GET_IMAGE_DATA = false;
 let CAN_USE_OFFSCREEN_CANVAS      = false;
 
 
@@ -196,6 +197,8 @@ Pica.prototype.init = function () {
       if (features.indexOf('cib') >= 0) this.features.cib = status;
     });
   }
+
+  CAN_USE_CANVAS_GET_IMAGE_DATA = utils.can_use_canvas(this.options.createCanvas);
 
   let checkOffscreenCanvas;
 
@@ -616,6 +619,13 @@ Pica.prototype.resize = function (from, to, options) {
     // if createImageBitmap supports resize, just do it and return
     if (this.features.cib) {
       return this.__resizeViaCreateImageBitmap(from, to, opts);
+    }
+
+    if (!CAN_USE_CANVAS_GET_IMAGE_DATA) {
+      let err = new Error('Pica: cannot use getImageData on canvas, ' +
+                          "make sure fingerprinting protection isn't enabled");
+      err.code = 'ERR_GET_IMAGE_DATA';
+      throw err;
     }
 
     //
