@@ -58,6 +58,7 @@ let CAN_NEW_IMAGE_DATA            = false;
 let CAN_CREATE_IMAGE_BITMAP       = false;
 let CAN_USE_CANVAS_GET_IMAGE_DATA = false;
 let CAN_USE_OFFSCREEN_CANVAS      = false;
+let CAN_USE_CIB_REGION_FOR_IMAGE  = false;
 
 
 function workerFabric() {
@@ -206,8 +207,17 @@ Pica.prototype.init = function () {
     result => { CAN_USE_OFFSCREEN_CANVAS = result; }
   );
 
+  // we use createImageBitmap to crop image data and pass it to workers,
+  // so need to check whether function works correctly;
+  // https://bugs.chromium.org/p/chromium/issues/detail?id=1220671
+  let checkCibRegion = utils.cib_can_use_region().then(
+    result => { CAN_USE_CIB_REGION_FOR_IMAGE = result; }
+  );
+
   // Init math lib. That's async because can load some
-  this.__initPromise = Promise.all([ initMath, checkCibResize, checkOffscreenCanvas ]).then(() => this);
+  this.__initPromise = Promise.all([
+    initMath, checkCibResize, checkOffscreenCanvas, checkCibRegion
+  ]).then(() => this);
 
   return this.__initPromise;
 };
@@ -259,7 +269,11 @@ Pica.prototype.__invokeResize = function (tileOpts, opts) {
 
 // this function can return promise if createImageBitmap is used
 Pica.prototype.__extractTileData = function (tile, from, opts, stageEnv, extractTo) {
-  if (this.features.ww && CAN_USE_OFFSCREEN_CANVAS) {
+  if (this.features.ww && CAN_USE_OFFSCREEN_CANVAS &&
+      // createImageBitmap doesn't work for images (Image, ImageBitmap) with Exif orientation in Chrome,
+      // can use canvas because canvas doesn't have orientation;
+      // see https://bugs.chromium.org/p/chromium/issues/detail?id=1220671
+      (utils.isCanvas(from) || CAN_USE_CIB_REGION_FOR_IMAGE)) {
     this.debug('Create tile for OffscreenCanvas');
 
     return createImageBitmap(stageEnv.srcImageBitmap || from, tile.x, tile.y, tile.width, tile.height)

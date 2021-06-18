@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - In FireFox experimental resist fingerprinting mode `pica.resize()` now returns an error
   instead of returning random data, nodeca/image-blob-reduce#28.
 
+### Fixed
+- Images with Exif orientation are now resized correctly in Chromium-based browsers
+  (it was previously broken in pica 7.0.0), #211.
+
 
 ## [7.0.0] - 2021-05-23
 ### Changed
@@ -295,6 +299,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - First release.
 
 
+[7.1.0]: https://github.com/nodeca/pica/compare/7.0.0...7.1.0
 [7.0.0]: https://github.com/nodeca/pica/compare/6.1.1...7.0.0
 [6.1.1]: https://github.com/nodeca/pica/compare/6.1.0...6.1.1
 [6.1.0]: https://github.com/nodeca/pica/compare/6.0.0...6.1.0
