@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Pica - high quality image resize in browser</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/2.4.1/lodash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.2.0/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lie/3.1.1/lie.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.2.0/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+
+    <link rel="stylesheet" href="./index.css">
+    <script src="../dist/pica.js"></script>
+    <script src="./image-encoded.js"></script>
+  </head>
+
+  <body>
+    <div class="container">
+      <h1>
+        Pica demo
+        <a href="https://github.com/nodeca/pica"
+          class="fa fa-github pull-right"
+          target="_blank"
+          style="color:inherit;text-decoration:none;"></a>
+      </h1>
+      <p>High quality image resize in browser.
+         Click on resized images to reload, or click on original to upload new image</p>
+      <hr>
+      <div class="row">
+
+        <div class="col-sm-4">
+          <h3>pica resize</h3>
+          <div class="canvas-containter">
+            <div id="dst-info" class="canvas-info"></div>
+            <canvas id="dst-pica" class="img-responsive"></canvas>
+            <div id="dst-features" class="pica-features"></div>
+            <div class="canvas-tip">click to reload</div>
+          </div>
+          <div class="pica-options">
+            <span>Resize quality (filter/window):</span>
+            <input id="pica-quality" type="range" value=3 name="points" min="0" max="3">
+          </div>
+          <div class="pica-options">
+            <span>Unsharp amount (0..200):</span>
+            <input id="pica-unsharp-amount" type="range" value="80" name="points" min="0" max="200">
+          </div>
+          <div class="pica-options">
+            <span>Unsharp radius (0.5..2):</span>
+            <input id="pica-unsharp-radius" type="range" value="0.6" name="points" min="0.5" max="2" step="0.1">
+          </div>
+          <div class="pica-options">
+            <span>Unsharp threshold (0..255):</span>
+            <input id="pica-unsharp-threshold" type="range" value="2" name="points" min="0" max="255">
+          </div>
+          <div class="pica-options">
+            <label>
+              <input id="pica-use-alpha" type="checkbox" checked> Use alpha channel
+            </label>
+          </div>
+
+          <hr>
+
+          <div class="pica-options">
+            <label>
+              <input id="pica-use-ww" type="checkbox" checked> Use WebWorker if possible
+            </label>
+          </div>
+          <div class="pica-options">
+            <label>
+              <input id="pica-use-cib" type="checkbox"> Use createImageBitmap if possible
+            </label>
+          </div>
+          <div class="pica-options">
+            <label>
+              <input id="pica-use-wasm" type="checkbox" checked> Use WebAssembly if possible
+            </label>
+          </div>
+
+          <hr>
+
+          <h3>canvas resize</h3>
+          <div class="canvas-containter">
+            <div id="dst-cvs-info" class="canvas-info"></div>
+            <canvas id="dst-cvs" class="img-responsive"></canvas>
+            <div class="canvas-tip">click to reload</div>
+          </div>
+       </div>
+
+        <div class="col-sm-8">
+          <h3>original <button id='upload-btn' class="btn btn-default btn-xs">Upload</button></h3>
+          <div class="canvas-containter">
+            <div id="src-info" class="canvas-info"></div>
+            <canvas id="src" class="img-responsive"></canvas>
+            <div class="canvas-tip">click to upload new image</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <input id="upload" type="file" style="position: absolute; left: -2000px">
+
+    <script src="./index.js"></script>
+  </body>
+</html>
