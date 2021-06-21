@@ -54,8 +54,8 @@ const DEFAULT_RESIZE_OPTS = {
   unsharpThreshold: 0
 };
 
-let CAN_NEW_IMAGE_DATA;
-let CAN_CREATE_IMAGE_BITMAP;
+let CAN_NEW_IMAGE_DATA            = false;
+let CAN_CREATE_IMAGE_BITMAP       = false;
 let CAN_USE_CANVAS_GET_IMAGE_DATA = false;
 let CAN_USE_OFFSCREEN_CANVAS      = false;
 
@@ -114,15 +114,12 @@ Pica.prototype.init = function () {
   if (this.__initPromise) return this.__initPromise;
 
   // Test if we can create ImageData without canvas and memory copy
-  if (CAN_NEW_IMAGE_DATA !== false && CAN_NEW_IMAGE_DATA !== true) {
-    CAN_NEW_IMAGE_DATA = false;
-    if (typeof ImageData !== 'undefined' && typeof Uint8ClampedArray !== 'undefined') {
-      try {
-        /* eslint-disable no-new */
-        new ImageData(new Uint8ClampedArray(400), 10, 10);
-        CAN_NEW_IMAGE_DATA = true;
-      } catch (__) {}
-    }
+  if (typeof ImageData !== 'undefined' && typeof Uint8ClampedArray !== 'undefined') {
+    try {
+      /* eslint-disable no-new */
+      new ImageData(new Uint8ClampedArray(400), 10, 10);
+      CAN_NEW_IMAGE_DATA = true;
+    } catch (__) {}
   }
 
   // ImageBitmap can be effective in 2 places:
@@ -133,14 +130,11 @@ Pica.prototype.init = function () {
   // For basic use we also need ImageBitmap wo support .close() method,
   // see https://developer.mozilla.org/ru/docs/Web/API/ImageBitmap
 
-  if (CAN_CREATE_IMAGE_BITMAP !== false && CAN_CREATE_IMAGE_BITMAP !== true) {
-    CAN_CREATE_IMAGE_BITMAP = false;
-    if (typeof ImageBitmap !== 'undefined') {
-      if (ImageBitmap.prototype && ImageBitmap.prototype.close) {
-        CAN_CREATE_IMAGE_BITMAP = true;
-      } else {
-        this.debug('ImageBitmap does not support .close(), disabled');
-      }
+  if (typeof ImageBitmap !== 'undefined') {
+    if (ImageBitmap.prototype && ImageBitmap.prototype.close) {
+      CAN_CREATE_IMAGE_BITMAP = true;
+    } else {
+      this.debug('ImageBitmap does not support .close(), disabled');
     }
   }
 
