@@ -986,7 +986,18 @@ module.exports.cib_support = function cib_support(createCanvas) {
 
 module.exports.worker_offscreen_canvas_support = function worker_offscreen_canvas_support() {
   return new Promise(function (resolve, reject) {
+    if (typeof OffscreenCanvas === 'undefined') {
+      // if OffscreenCanvas is present, we assume browser supports Worker and built-in Promise as well
+      resolve(false);
+      return;
+    }
+
     function workerPayload(self) {
+      if (typeof createImageBitmap === 'undefined') {
+        self.postMessage(false);
+        return;
+      }
+
       Promise.resolve().then(function () {
         var canvas = new OffscreenCanvas(10, 10); // test that 2d context can be used in worker
 
@@ -1005,10 +1016,75 @@ module.exports.worker_offscreen_canvas_support = function worker_offscreen_canva
     var w = new Worker("data:text/javascript;base64,".concat(code));
 
     w.onmessage = function (ev) {
-      return ev.data ? resolve() : reject();
+      return resolve(ev.data);
     };
 
     w.onerror = reject;
+  }).then(function (result) {
+    return result;
+  }, function () {
+    return false;
+  });
+}; // Check if canvas.getContext('2d').getImageData can be used,
+// FireFox randomizes the output of that function in `privacy.resistFingerprinting` mode
+
+
+module.exports.can_use_canvas = function can_use_canvas(createCanvas) {
+  var usable = false;
+
+  try {
+    var canvas = createCanvas(2, 1);
+    var ctx = canvas.getContext('2d');
+    var d = ctx.createImageData(2, 1);
+    d.data[0] = 12;
+    d.data[1] = 23;
+    d.data[2] = 34;
+    d.data[3] = 255;
+    d.data[4] = 45;
+    d.data[5] = 56;
+    d.data[6] = 67;
+    d.data[7] = 255;
+    ctx.putImageData(d, 0, 0);
+    d = null;
+    d = ctx.getImageData(0, 0, 2, 1);
+
+    if (d.data[0] === 12 && d.data[1] === 23 && d.data[2] === 34 && d.data[3] === 255 && d.data[4] === 45 && d.data[5] === 56 && d.data[6] === 67 && d.data[7] === 255) {
+      usable = true;
+    }
+  } catch (err) {}
+
+  return usable;
+}; // Check if createImageBitmap(img, sx, sy, sw, sh) signature works correctly
+// with JPEG images oriented with Exif;
+// https://bugs.chromium.org/p/chromium/issues/detail?id=1220671
+// TODO: remove after it's fixed in chrome for at least 2 releases
+
+
+module.exports.cib_can_use_region = function cib_can_use_region() {
+  return new Promise(function (resolve) {
+    if (typeof createImageBitmap === 'undefined') {
+      resolve(false);
+      return;
+    }
+
+    var image = new Image();
+    image.src = 'data:image/jpeg;base64,' + '/9j/4QBiRXhpZgAATU0AKgAAAAgABQESAAMAAAABAAYAAAEaAAUAAAABAAAASgEbAAUAA' + 'AABAAAAUgEoAAMAAAABAAIAAAITAAMAAAABAAEAAAAAAAAAAABIAAAAAQAAAEgAAAAB/9' + 'sAQwAEAwMEAwMEBAMEBQQEBQYKBwYGBgYNCQoICg8NEBAPDQ8OERMYFBESFxIODxUcFRc' + 'ZGRsbGxAUHR8dGh8YGhsa/9sAQwEEBQUGBQYMBwcMGhEPERoaGhoaGhoaGhoaGhoaGhoa' + 'GhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoaGhoa/8IAEQgAAQACAwERAAIRAQMRA' + 'f/EABQAAQAAAAAAAAAAAAAAAAAAAAf/xAAUAQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAA' + 'IQAxAAAAF/P//EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAQUCf//EABQRAQAAAAA' + 'AAAAAAAAAAAAAAAD/2gAIAQMBAT8Bf//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQIB' + 'AT8Bf//EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEABj8Cf//EABQQAQAAAAAAAAAAA' + 'AAAAAAAAAD/2gAIAQEAAT8hf//aAAwDAQACAAMAAAAQH//EABQRAQAAAAAAAAAAAAAAAA' + 'AAAAD/2gAIAQMBAT8Qf//EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQIBAT8Qf//EABQ' + 'QAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAT8Qf//Z';
+
+    image.onload = function () {
+      createImageBitmap(image, 0, 0, image.width, image.height).then(function (bitmap) {
+        if (bitmap.width === image.width && bitmap.height === image.height) {
+          resolve(true);
+        } else {
+          resolve(false);
+        }
+      }, function () {
+        return resolve(false);
+      });
+    };
+
+    image.onerror = function () {
+      return resolve(false);
+    };
   });
 };
 
@@ -1650,7 +1726,7 @@ function _unsupportedIterableToArray(o, minLen) { if (!o) return; if (typeof o =
 
 function _arrayLikeToArray(arr, len) { if (len == null || len > arr.length) len = arr.length; for (var i = 0, arr2 = new Array(len); i < len; i++) { arr2[i] = arr[i]; } return arr2; }
 
-function _iterableToArrayLimit(arr, i) { var _i = arr && (typeof Symbol !== "undefined" && arr[Symbol.iterator] || arr["@@iterator"]); if (_i == null) return; var _arr = []; var _n = true; var _d = false; var _s, _e; try { for (_i = _i.call(arr); !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
+function _iterableToArrayLimit(arr, i) { var _i = arr == null ? null : typeof Symbol !== "undefined" && arr[Symbol.iterator] || arr["@@iterator"]; if (_i == null) return; var _arr = []; var _n = true; var _d = false; var _s, _e; try { for (_i = _i.call(arr); !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"] != null) _i["return"](); } finally { if (_d) throw _e; } } return _arr; }
 
 function _arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
 
@@ -1706,9 +1782,11 @@ var DEFAULT_RESIZE_OPTS = {
   unsharpRadius: 0.0,
   unsharpThreshold: 0
 };
-var CAN_NEW_IMAGE_DATA;
-var CAN_CREATE_IMAGE_BITMAP;
-var CAN_USE_OFFSCREEN_CANVAS;
+var CAN_NEW_IMAGE_DATA = false;
+var CAN_CREATE_IMAGE_BITMAP = false;
+var CAN_USE_CANVAS_GET_IMAGE_DATA = false;
+var CAN_USE_OFFSCREEN_CANVAS = false;
+var CAN_USE_CIB_REGION_FOR_IMAGE = false;
 
 function workerFabric() {
   return {
@@ -1759,16 +1837,12 @@ Pica.prototype.init = function () {
 
   if (this.__initPromise) return this.__initPromise; // Test if we can create ImageData without canvas and memory copy
 
-  if (CAN_NEW_IMAGE_DATA !== false && CAN_NEW_IMAGE_DATA !== true) {
-    CAN_NEW_IMAGE_DATA = false;
-
-    if (typeof ImageData !== 'undefined' && typeof Uint8ClampedArray !== 'undefined') {
-      try {
-        /* eslint-disable no-new */
-        new ImageData(new Uint8ClampedArray(400), 10, 10);
-        CAN_NEW_IMAGE_DATA = true;
-      } catch (__) {}
-    }
+  if (typeof ImageData !== 'undefined' && typeof Uint8ClampedArray !== 'undefined') {
+    try {
+      /* eslint-disable no-new */
+      new ImageData(new Uint8ClampedArray(400), 10, 10);
+      CAN_NEW_IMAGE_DATA = true;
+    } catch (__) {}
   } // ImageBitmap can be effective in 2 places:
   //
   // 1. Threaded jpeg unpack (basic)
@@ -1778,15 +1852,11 @@ Pica.prototype.init = function () {
   // see https://developer.mozilla.org/ru/docs/Web/API/ImageBitmap
 
 
-  if (CAN_CREATE_IMAGE_BITMAP !== false && CAN_CREATE_IMAGE_BITMAP !== true) {
-    CAN_CREATE_IMAGE_BITMAP = false;
-
-    if (typeof ImageBitmap !== 'undefined') {
-      if (ImageBitmap.prototype && ImageBitmap.prototype.close) {
-        CAN_CREATE_IMAGE_BITMAP = true;
-      } else {
-        this.debug('ImageBitmap does not support .close(), disabled');
-      }
+  if (typeof ImageBitmap !== 'undefined') {
+    if (ImageBitmap.prototype && ImageBitmap.prototype.close) {
+      CAN_CREATE_IMAGE_BITMAP = true;
+    } else {
+      this.debug('ImageBitmap does not support .close(), disabled');
     }
   }
 
@@ -1842,21 +1912,26 @@ Pica.prototype.init = function () {
     });
   }
 
+  CAN_USE_CANVAS_GET_IMAGE_DATA = utils.can_use_canvas(this.options.createCanvas);
   var checkOffscreenCanvas;
 
   if (CAN_CREATE_IMAGE_BITMAP && CAN_NEW_IMAGE_DATA && features.indexOf('ww') !== -1) {
     checkOffscreenCanvas = utils.worker_offscreen_canvas_support();
   } else {
-    checkOffscreenCanvas = Promise.reject();
+    checkOffscreenCanvas = Promise.resolve(false);
   }
 
-  checkOffscreenCanvas = checkOffscreenCanvas.then(function () {
-    CAN_USE_OFFSCREEN_CANVAS = true;
-  }, function () {
-    CAN_USE_OFFSCREEN_CANVAS = false;
+  checkOffscreenCanvas = checkOffscreenCanvas.then(function (result) {
+    CAN_USE_OFFSCREEN_CANVAS = result;
+  }); // we use createImageBitmap to crop image data and pass it to workers,
+  // so need to check whether function works correctly;
+  // https://bugs.chromium.org/p/chromium/issues/detail?id=1220671
+
+  var checkCibRegion = utils.cib_can_use_region().then(function (result) {
+    CAN_USE_CIB_REGION_FOR_IMAGE = result;
   }); // Init math lib. That's async because can load some
 
-  this.__initPromise = Promise.all([initMath, checkCibResize, checkOffscreenCanvas]).then(function () {
+  this.__initPromise = Promise.all([initMath, checkCibResize, checkOffscreenCanvas, checkCibRegion]).then(function () {
     return _this;
   });
   return this.__initPromise;
@@ -1908,7 +1983,10 @@ Pica.prototype.__invokeResize = function (tileOpts, opts) {
 
 
 Pica.prototype.__extractTileData = function (tile, from, opts, stageEnv, extractTo) {
-  if (this.features.ww && CAN_USE_OFFSCREEN_CANVAS) {
+  if (this.features.ww && CAN_USE_OFFSCREEN_CANVAS && ( // createImageBitmap doesn't work for images (Image, ImageBitmap) with Exif orientation in Chrome,
+  // can use canvas because canvas doesn't have orientation;
+  // see https://bugs.chromium.org/p/chromium/issues/detail?id=1220671
+  utils.isCanvas(from) || CAN_USE_CIB_REGION_FOR_IMAGE)) {
     this.debug('Create tile for OffscreenCanvas');
     return createImageBitmap(stageEnv.srcImageBitmap || from, tile.x, tile.y, tile.width, tile.height).then(function (bitmap) {
       extractTo.srcBitmap = bitmap;
@@ -2243,6 +2321,12 @@ Pica.prototype.resize = function (from, to, options) {
 
     if (_this6.features.cib) {
       return _this6.__resizeViaCreateImageBitmap(from, to, opts);
+    }
+
+    if (!CAN_USE_CANVAS_GET_IMAGE_DATA) {
+      var err = new Error('Pica: cannot use getImageData on canvas, ' + "make sure fingerprinting protection isn't enabled");
+      err.code = 'ERR_GET_IMAGE_DATA';
+      throw err;
     } //
     // No easy way, let's resize manually via arrays
     //
