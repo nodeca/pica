@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [7.1.0] - WIP
+## [7.1.0] - 2021-06-21
 ### Changed
 - In FireFox experimental resist fingerprinting mode `pica.resize()` now returns an error
   instead of returning random data, nodeca/image-blob-reduce#28.
