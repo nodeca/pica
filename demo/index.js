@@ -22,11 +22,18 @@ window.performance.now = function() { return +(new Date()); };
 window.pica.prototype.debug = console.log.bind(console);
 
 
-var qualityInfo = [
-  'Box (win 0.5px)',
-  'Hamming (win 1px)',
-  'Lanczos (win 2px)',
-  'Lanczos (win 3px)',
+var filterInfo = {
+  box: 'Box (win 0.5px)',
+  hamming: 'Hamming (win 1px)',
+  lanczos2: 'Lanczos (win 2px)',
+  lanczos3: 'Lanczos (win 3px)',
+};
+
+var filter_name = [
+  'box',
+  'hamming',
+  'lanczos2',
+  'lanczos3'
 ];
 
 
@@ -106,7 +113,7 @@ var updateResized = _.debounce(function () {
 
   /*createImageBitmap($('#src')[0]).then(image_bitmap => {
     return resizer.resize(image_bitmap, offScreenCanvas, {
-      quality: quality,
+      filter: filter,
       alpha: alpha,
       unsharpAmount: unsharpAmount,
       unsharpRadius: unsharpRadius,
@@ -115,7 +122,7 @@ var updateResized = _.debounce(function () {
     });
   })*/
   resizer.resize($('#src')[0], offScreenCanvas, {
-    quality: quality,
+    filter: filter,
     alpha: alpha,
     unsharpAmount: unsharpAmount,
     unsharpRadius: unsharpRadius,
@@ -147,7 +154,7 @@ var updateResized = _.debounce(function () {
     if (unsharpAmount) {
       $('#dst-info').text(_.template('<%= time %>ms, <%= info %>, Unsharp [<%= amount %>, <%= radius %>, <%= threshold %>]', {
         time: time,
-        info: qualityInfo[quality],
+        info: filterInfo[filter],
         amount: unsharpAmount,
         radius: unsharpRadius,
         threshold: unsharpThreshold
@@ -155,7 +162,7 @@ var updateResized = _.debounce(function () {
     } else {
       $('#dst-info').text(_.template('<%= time %>ms, <%= info %>, Unsharp off', {
         time: time,
-        info: qualityInfo[quality]
+        info: filterInfo[filter]
       }));
     }
   })
@@ -170,7 +177,7 @@ var updateResized = _.debounce(function () {
 //
 var img = new Image();
 
-var quality           = Number($('#pica-quality').val());
+var filter            = filter_name[Number($('#pica-filter').val())];
 var unsharpAmount     = Number($('#pica-unsharp-amount').val());
 var unsharpRadius     = Number($('#pica-unsharp-radius').val());
 var unsharpThreshold  = Number($('#pica-unsharp-threshold').val());
@@ -194,8 +201,8 @@ $('#dst-pica').on('click', updateResized);
 $('#dst-cvs').on('click', updateResized);
 
 
-$('#pica-quality').on('change', function () {
-  quality = Number($('#pica-quality').val());
+$('#pica-filter').on('change', function () {
+  filter = filter_name[Number($('#pica-filter').val())];
   updateResized();
 });
 $('#pica-unsharp-amount').on('change', function () {

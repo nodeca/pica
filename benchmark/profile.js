@@ -23,7 +23,7 @@ for (var i = 0; i < 10; i++) {
     height: sample.height,
     toWidth: 300,
     toHeight: 225,
-    quality: 3
+    filter:   'lanczos3'
   })
   .then(noop);
 }

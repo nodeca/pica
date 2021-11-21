@@ -11,6 +11,7 @@ const utils         = require('./lib/utils');
 const worker        = require('./lib/worker');
 const createStages  = require('./lib/stepper');
 const createRegions = require('./lib/tiler');
+const filter_info   = require('./lib/mm_resize/resize_filter_info');
 
 
 // Deduplicate pools & limiters with the same configs
@@ -47,7 +48,7 @@ const DEFAULT_PICA_OPTS = {
 
 
 const DEFAULT_RESIZE_OPTS = {
-  quality:          3,
+  filter:           'lanczos3',
   alpha:            false,
   unsharpAmount:    0,
   unsharpRadius:    0.0,
@@ -386,7 +387,7 @@ Pica.prototype.__tileAndResize = function (from, to, opts) {
       scaleY:           tile.scaleY,
       offsetX:          tile.offsetX,
       offsetY:          tile.offsetY,
-      quality:          opts.quality,
+      filter:           opts.filter,
       alpha:            opts.alpha,
       unsharpAmount:    opts.unsharpAmount,
       unsharpRadius:    opts.unsharpRadius,
@@ -489,13 +490,19 @@ Pica.prototype.__processStages = function (stages, from, to, opts) {
 
   let isLastStage = (stages.length === 0);
 
+  // only use user-defined quality for the last stage,
+  // use simpler (Hamming) filter for the first stages where
+  // scale factor is large enough (more than 2-3)
+  let filter;
+
+  if (isLastStage) filter = opts.filter;
+  else if (opts.filter === 'box') filter = 'box';
+  else filter = 'hamming';
+
   opts = assign({}, opts, {
     toWidth,
     toHeight,
-    // only use user-defined quality for the last stage,
-    // use simpler (Hamming) filter for the first stages where
-    // scale factor is large enough (more than 2-3)
-    quality: isLastStage ? opts.quality : Math.min(1, opts.quality)
+    filter
   });
 
   let tmpCanvas;
@@ -533,7 +540,7 @@ Pica.prototype.__resizeViaCreateImageBitmap = function (from, to, opts) {
   return createImageBitmap(from, {
     resizeWidth:   opts.toWidth,
     resizeHeight:  opts.toHeight,
-    resizeQuality: utils.cib_quality_name(opts.quality)
+    resizeQuality: utils.cib_quality_name(filter_info.f2q[opts.filter])
   })
   .then(imageBitmap => {
     if (opts.canceled) return opts.cancelToken;
@@ -601,6 +608,14 @@ Pica.prototype.resize = function (from, to, options) {
   opts.width    = from.naturalWidth || from.width;
   opts.height   = from.naturalHeight || from.height;
 
+  // Legacy `.quality` option
+  if (Object.prototype.hasOwnProperty.call(opts, 'quality')) {
+    if (opts.quality < 0 || opts.quality > 3) {
+      throw new Error(`Pica: .quality should be [0..3], got ${opts.quality}`);
+    }
+    opts.filter = filter_info.q2f[opts.quality];
+  }
+
   // Prevent stepper from infinite loop
   if (to.width === 0 || to.height === 0) {
     return Promise.reject(new Error(`Invalid output size: ${to.width}x${to.height}`));
@@ -626,7 +641,11 @@ Pica.prototype.resize = function (from, to, options) {
 
     // if createImageBitmap supports resize, just do it and return
     if (this.features.cib) {
-      return this.__resizeViaCreateImageBitmap(from, to, opts);
+      if (filter_info.q2f.indexOf(opts.filter) >= 0) {
+        return this.__resizeViaCreateImageBitmap(from, to, opts);
+      }
+
+      this.debug('cib is enabled, but not supports provided filter, fallback to manual math');
     }
 
     if (!CAN_USE_CANVAS_GET_IMAGE_DATA) {
@@ -657,6 +676,14 @@ Pica.prototype.resize = function (from, to, options) {
 //
 Pica.prototype.resizeBuffer = function (options) {
   const opts = assign({}, DEFAULT_RESIZE_OPTS, options);
+
+  // Legacy `.quality` option
+  if (Object.prototype.hasOwnProperty.call(opts, 'quality')) {
+    if (opts.quality < 0 || opts.quality > 3) {
+      throw new Error(`Pica: .quality should be [0..3], got ${opts.quality}`);
+    }
+    opts.filter = filter_info.q2f[opts.quality];
+  }
 
   return this.init()
     .then(() => this.__mathlib.resizeAndUnsharp(opts));

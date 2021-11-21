@@ -22,7 +22,7 @@ $(function () {
         height:   sample.height,
         toWidth:  (sample.width * 0.15)|0,
         toHeight: (sample.height * 0.15)|0,
-        quality:  3
+        filter:   'lanczos3'
       })
       .then(() => defer.resolve());
     }
