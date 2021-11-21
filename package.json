@@ -40,15 +40,15 @@
     "@babel/preset-env": "^7.1.0",
     "babelify": "^10.0.0",
     "benchmark": "^2.1.0",
-    "browserify": "^16.2.3",
+    "browserify": "^17.0.0",
     "browserify-header": "^1.0.1",
     "derequire": "^2.1.0",
     "electron": "^12.0.9",
     "electron-mocha": "^10.0.0",
-    "eslint": "^7.0.0",
+    "eslint": "^8.3.0",
     "gh-pages": "^3.1.0",
-    "mocha": "^8.0.1",
+    "mocha": "^9.1.3",
     "pixelmatch": "^5.0.2",
-    "terser": "^4.8.0"
+    "terser": "^5.10.0"
   }
 }
