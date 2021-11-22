@@ -27,13 +27,15 @@ var filterInfo = {
   hamming: 'Hamming (win 1px)',
   lanczos2: 'Lanczos (win 2px)',
   lanczos3: 'Lanczos (win 3px)',
+  mks2013: 'MKS 2013 (win 2.5px)'
 };
 
 var filter_name = [
   'box',
   'hamming',
   'lanczos2',
-  'lanczos3'
+  'lanczos3',
+  'mks2013'
 ];
 
 

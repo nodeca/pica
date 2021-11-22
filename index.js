@@ -48,7 +48,7 @@ const DEFAULT_PICA_OPTS = {
 
 
 const DEFAULT_RESIZE_OPTS = {
-  filter:           'lanczos3',
+  filter:           'mks2013',
   alpha:            false,
   unsharpAmount:    0,
   unsharpRadius:    0.0,
@@ -490,12 +490,16 @@ Pica.prototype.__processStages = function (stages, from, to, opts) {
 
   let isLastStage = (stages.length === 0);
 
+  // Optimization for legacy filters -
   // only use user-defined quality for the last stage,
   // use simpler (Hamming) filter for the first stages where
   // scale factor is large enough (more than 2-3)
+  //
+  // For advanced filters (mks2013 and custom) - skip optimization,
+  // because need to apply sharpening every time
   let filter;
 
-  if (isLastStage) filter = opts.filter;
+  if (isLastStage || filter_info.q2f.indexOf(opts.filter) < 0) filter = opts.filter;
   else if (opts.filter === 'box') filter = 'box';
   else filter = 'hamming';
 

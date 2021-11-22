@@ -75,12 +75,8 @@ Use
 const pica = require('pica')();
 
 // Resize from Canvas/Image to another Canvas
-pica.resize(from, to, {
-  unsharpAmount: 160,
-  unsharpRadius: 0.6,
-  unsharpThreshold: 1
-})
-.then(result => console.log('resize done!'));
+pica.resize(from, to)
+  .then(result => console.log('resize done!'));
 
 // Resize & convert to blob
 pica.resize(from, to)
@@ -100,7 +96,8 @@ Create resizer instance with given config (optional):
   to restrict peak memory use. Default 1024.
 - __features__ - list of features to use. Default is
   `[ 'js', 'wasm', 'ww' ]`. Can be `[ 'js', 'wasm', 'cib', 'ww' ]`
-  or `[ 'all' ]`.
+  or `[ 'all' ]`. Note, `cib` is buggy in Chrome and not supports default
+  `mks2013` filter.
 - __idle__ - cache timeout, ms. Webworkers create is not fast.
   This option allow reuse webworkers effectively. Default 2000.
 - __concurrency__ - max webworkers pool size. Default is autodetected
@@ -131,10 +128,12 @@ taken from source and destination objects.
 - __from__ - source, can be `Canvas`, `Image` or `ImageBitmap`.
 - __to__ - destination canvas, its size is supposed to be non-zero.
 - __options__ - quality (number) or object:
-  - __quality__ - 0..3. Default = `3` (lanczos, win=3).
+  - __quality__ (deprecated, use `.filter` instead) - 0..3.
+  - __filter__ - filter name (Default - `mks2013`). See [resize_filter_info.js](https://github.com/nodeca/pica/blob/master/lib/mm_resize/resize_filter_info.js) for details. `mks2013` does both resize and sharpening, it's optimal and not recommended to change.
   - __alpha__ - use alpha channel. Default = `false`.
-  - __unsharpAmount__ - >=0, in percents. Default = `0` (off). Usually
-    between 100 to 200 is good.
+  - __unsharpAmount__ - >=0. Default = `0` (off). Usually
+    value between 100 to 200 is good. Note, `mks2013` filter already does
+    optimal sharpening.
   - __unsharpRadius__ - 0.5..2.0. By default it's not set. Radius of Gaussian
     blur. If it is less than 0.5, Unsharp Mask is off. Big values are clamped
     to 2.0.
@@ -170,10 +169,12 @@ binary data (for example, if you decode jpeg files "manually").
   - __height__ - src image height.
   - __toWidth__ - output width, >=0, in pixels.
   - __toHeight__ - output height, >=0, in pixels.
-  - __quality__ - 0..3. Default = `3` (lanczos, win=3).
+  - __quality__ (deprecated, use `.filter` instead) - 0..3.
+  - __filter__ - filter name (Default - `mks2013`). See [resize_filter_info.js](https://github.com/nodeca/pica/blob/master/lib/mm_resize/resize_filter_info.js) for details. `mks2013` does both resize and sharpening, it's optimal and not recommended to change.
   - __alpha__ - use alpha channel. Default = `false`.
-  - __unsharpAmount__ - >=0, in percents. Default = `0` (off).
-    Usually between 50 to 100 is good.
+  - __unsharpAmount__ - >=0. Default = `0` (off). Usually
+    value between 100 to 200 is good. Note, `mks2013` filter already does
+    optimal sharpening.
   - __unsharpRadius__ - 0.5..2.0. Radius of Gaussian blur.
     If it is less than 0.5, Unsharp Mask is off. Big values are
     clamped to 2.0.

@@ -6,9 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [8.0.0] - 2021-11-22
+### Changed
+- Replaced `.quality` with `.filter`.
+- Added `mks2013` filter and use it by default.
+
+
 ## [7.1.1] - 2021-11-22
 ### Fixed
-- Force webworker always return typed array, to avoid artefacts in Chrome, #223.
+- Force webworker always return typed array, to avoid artifacts in Chrome, #223.
 
 
 ## [7.1.0] - 2021-06-21
@@ -304,6 +310,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - First release.
 
 
+[8.0.0]: https://github.com/nodeca/pica/compare/7.1.1...8.0.0
 [7.1.1]: https://github.com/nodeca/pica/compare/7.1.0...7.1.1
 [7.1.0]: https://github.com/nodeca/pica/compare/7.0.0...7.1.0
 [7.0.0]: https://github.com/nodeca/pica/compare/6.1.1...7.0.0

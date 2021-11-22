@@ -64,7 +64,7 @@ describe('Fixture resize', function () {
     let diffImageData = diffCtx.createImageData(diffCanvas.width, diffCanvas.height);
 
     return pica({ features: [ 'js' ] })
-      .resize(srcCanvas, destCanvas, { quality: 3, unsharpAmount: 0 })
+      .resize(srcCanvas, destCanvas, { filter: 'lanczos3', unsharpAmount: 0 })
       .then(() => {
         let destImageData = destCtx.getImageData(0, 0, destCanvas.width, destCanvas.height);
 
@@ -109,7 +109,8 @@ describe('Fixture resize', function () {
         height:   src.height,
         dest:     dest,
         toWidth:  fixture.width,
-        toHeight: fixture.height
+        toHeight: fixture.height,
+        filter:   'lanczos3'
       })
       .then(() => {
         let numDiffPixels = pixelmatch(
