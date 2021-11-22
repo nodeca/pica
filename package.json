@@ -1,7 +1,7 @@
 {
   "name": "pica",
   "description": "High quality image resize in browser.",
-  "version": "7.1.1",
+  "version": "8.0.0",
   "keywords": [
     "resize",
     "scale",
