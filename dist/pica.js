@@ -1112,8 +1112,9 @@ module.exports = function () {
       canvas.width = canvas.height = 0;
       canvas = null;
       tileOpts.srcBitmap.close();
-      tileOpts.srcBitmap = null;
-      returnBitmap = true;
+      tileOpts.srcBitmap = null; // Temporary force out data to typed array, because Chrome have artefacts
+      // https://github.com/nodeca/pica/issues/223
+      // returnBitmap = true;
     }
 
     if (!mathLib) mathLib = new MathLib(ev.data.features); // Use multimath's sync auto-init. Avoid Promise use in old browsers,
