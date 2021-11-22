@@ -236,10 +236,10 @@ module.exports = function resize(options) {
   var offsetX = options.offsetX || 0;
   var offsetY = options.offsetY || 0;
   var dest = options.dest || new Uint8Array(destW * destH * 4);
-  var quality = typeof options.quality === 'undefined' ? 3 : options.quality;
   var alpha = options.alpha || false;
-  var filtersX = createFilters(quality, srcW, destW, scaleX, offsetX),
-      filtersY = createFilters(quality, srcH, destH, scaleY, offsetY);
+  var filter = typeof options.filter === 'undefined' ? 'mks2013' : options.filter;
+  var filtersX = createFilters(filter, srcW, destW, scaleX, offsetX),
+      filtersY = createFilters(filter, srcH, destH, scaleY, offsetY);
   var tmp = new Uint8Array(destW * srcH * 4); // To use single function we need src & tmp of the same type.
   // But src can be CanvasPixelArray, and tmp - Uint8Array. So, keep
   // vertical and horizontal passes separately to avoid deoptimization.
@@ -274,13 +274,13 @@ function toFixedPoint(num) {
   return Math.round(num * ((1 << FIXED_FRAC_BITS) - 1));
 }
 
-module.exports = function resizeFilterGen(quality, srcSize, destSize, scale, offset) {
-  var filterFunction = FILTER_INFO[quality].filter;
+module.exports = function resizeFilterGen(filter, srcSize, destSize, scale, offset) {
+  var filterFunction = FILTER_INFO.filter[filter].fn;
   var scaleInverted = 1.0 / scale;
   var scaleClamped = Math.min(1.0, scale); // For upscale
   // Filter window (averaging interval), scaled to src image
 
-  var srcWindow = FILTER_INFO[quality].win / scaleClamped;
+  var srcWindow = FILTER_INFO.filter[filter].win / scaleClamped;
   var destPixel, srcPixel, srcFirst, srcLast, filterElementSize, floatFilter, fxpFilter, total, pxl, idx, floatVal, filterTotal, filterVal;
   var leftNotEmpty, rightNotEmpty, filterShift, filterSize;
   var maxFilterElementSize = Math.floor((srcWindow + 1) * 2);
@@ -370,58 +370,103 @@ module.exports = function resizeFilterGen(quality, srcSize, destSize, scale, off
 //
 'use strict';
 
-module.exports = [{
-  // Nearest neibor (Box)
-  win: 0.5,
-  filter: function filter(x) {
-    return x >= -0.5 && x < 0.5 ? 1.0 : 0.0;
-  }
-}, {
-  // Hamming
-  win: 1.0,
-  filter: function filter(x) {
-    if (x <= -1.0 || x >= 1.0) {
-      return 0.0;
+var filter = {
+  // Nearest neibor
+  box: {
+    win: 0.5,
+    fn: function fn(x) {
+      if (x < 0) x = -x;
+      return x < 0.5 ? 1.0 : 0.0;
     }
+  },
+  // // Hamming
+  hamming: {
+    win: 1.0,
+    fn: function fn(x) {
+      if (x < 0) x = -x;
 
-    if (x > -1.19209290E-07 && x < 1.19209290E-07) {
-      return 1.0;
+      if (x >= 1.0) {
+        return 0.0;
+      }
+
+      if (x < 1.19209290E-07) {
+        return 1.0;
+      }
+
+      var xpi = x * Math.PI;
+      return Math.sin(xpi) / xpi * (0.54 + 0.46 * Math.cos(xpi / 1.0));
     }
-
-    var xpi = x * Math.PI;
-    return Math.sin(xpi) / xpi * (0.54 + 0.46 * Math.cos(xpi / 1.0));
-  }
-}, {
+  },
   // Lanczos, win = 2
-  win: 2.0,
-  filter: function filter(x) {
-    if (x <= -2.0 || x >= 2.0) {
-      return 0.0;
-    }
+  lanczos2: {
+    win: 2.0,
+    fn: function fn(x) {
+      if (x < 0) x = -x;
 
-    if (x > -1.19209290E-07 && x < 1.19209290E-07) {
-      return 1.0;
-    }
+      if (x >= 2.0) {
+        return 0.0;
+      }
 
-    var xpi = x * Math.PI;
-    return Math.sin(xpi) / xpi * Math.sin(xpi / 2.0) / (xpi / 2.0);
-  }
-}, {
+      if (x < 1.19209290E-07) {
+        return 1.0;
+      }
+
+      var xpi = x * Math.PI;
+      return Math.sin(xpi) / xpi * Math.sin(xpi / 2.0) / (xpi / 2.0);
+    }
+  },
   // Lanczos, win = 3
-  win: 3.0,
-  filter: function filter(x) {
-    if (x <= -3.0 || x >= 3.0) {
-      return 0.0;
-    }
+  lanczos3: {
+    win: 3.0,
+    fn: function fn(x) {
+      if (x < 0) x = -x;
 
-    if (x > -1.19209290E-07 && x < 1.19209290E-07) {
-      return 1.0;
-    }
+      if (x >= 3.0) {
+        return 0.0;
+      }
 
-    var xpi = x * Math.PI;
-    return Math.sin(xpi) / xpi * Math.sin(xpi / 3.0) / (xpi / 3.0);
+      if (x < 1.19209290E-07) {
+        return 1.0;
+      }
+
+      var xpi = x * Math.PI;
+      return Math.sin(xpi) / xpi * Math.sin(xpi / 3.0) / (xpi / 3.0);
+    }
+  },
+  // Magic Kernel Sharp 2013, win = 2.5
+  // http://johncostella.com/magic/
+  mks2013: {
+    win: 2.5,
+    fn: function fn(x) {
+      if (x < 0) x = -x;
+
+      if (x >= 2.5) {
+        return 0.0;
+      }
+
+      if (x >= 1.5) {
+        return -0.125 * (x - 2.5) * (x - 2.5);
+      }
+
+      if (x >= 0.5) {
+        return 0.25 * (4 * x * x - 11 * x + 7);
+      }
+
+      return 1.0625 - 1.75 * x * x;
+    }
   }
-}];
+};
+module.exports = {
+  filter: filter,
+  // Legacy mapping
+  f2q: {
+    box: 0,
+    hamming: 1,
+    lanczos2: 2,
+    lanczos3: 3
+  },
+  q2f: ['box', 'hamming', 'lanczos2', 'lanczos3']
+};
 
 },{}],8:[function(_dereq_,module,exports){
 'use strict';
@@ -472,10 +517,10 @@ module.exports = function resize_wasm(options) {
   var offsetX = options.offsetX || 0.0;
   var offsetY = options.offsetY || 0.0;
   var dest = options.dest || new Uint8Array(destW * destH * 4);
-  var quality = typeof options.quality === 'undefined' ? 3 : options.quality;
   var alpha = options.alpha || false;
-  var filtersX = createFilters(quality, srcW, destW, scaleX, offsetX),
-      filtersY = createFilters(quality, srcH, destH, scaleY, offsetY); // destination is 0 too.
+  var filter = typeof options.filter === 'undefined' ? 'mks2013' : options.filter;
+  var filtersX = createFilters(filter, srcW, destW, scaleX, offsetX),
+      filtersY = createFilters(filter, srcH, destH, scaleY, offsetY); // destination is 0 too.
 
   var src_offset = 0; // buffer between convolve passes
 
@@ -1745,7 +1790,9 @@ var worker = _dereq_('./lib/worker');
 
 var createStages = _dereq_('./lib/stepper');
 
-var createRegions = _dereq_('./lib/tiler'); // Deduplicate pools & limiters with the same configs
+var createRegions = _dereq_('./lib/tiler');
+
+var filter_info = _dereq_('./lib/mm_resize/resize_filter_info'); // Deduplicate pools & limiters with the same configs
 // when user creates multiple pica instances.
 
 
@@ -1777,7 +1824,7 @@ var DEFAULT_PICA_OPTS = {
   }
 };
 var DEFAULT_RESIZE_OPTS = {
-  quality: 3,
+  filter: 'mks2013',
   alpha: false,
   unsharpAmount: 0,
   unsharpRadius: 0.0,
@@ -2088,7 +2135,7 @@ Pica.prototype.__tileAndResize = function (from, to, opts) {
         scaleY: tile.scaleY,
         offsetX: tile.offsetX,
         offsetY: tile.offsetY,
-        quality: opts.quality,
+        filter: opts.filter,
         alpha: opts.alpha,
         unsharpAmount: opts.unsharpAmount,
         unsharpRadius: opts.unsharpRadius,
@@ -2196,14 +2243,20 @@ Pica.prototype.__processStages = function (stages, from, to, opts) {
       toWidth = _stages$shift2[0],
       toHeight = _stages$shift2[1];
 
-  var isLastStage = stages.length === 0;
+  var isLastStage = stages.length === 0; // Optimization for legacy filters -
+  // only use user-defined quality for the last stage,
+  // use simpler (Hamming) filter for the first stages where
+  // scale factor is large enough (more than 2-3)
+  //
+  // For advanced filters (mks2013 and custom) - skip optimization,
+  // because need to apply sharpening every time
+
+  var filter;
+  if (isLastStage || filter_info.q2f.indexOf(opts.filter) < 0) filter = opts.filter;else if (opts.filter === 'box') filter = 'box';else filter = 'hamming';
   opts = assign({}, opts, {
     toWidth: toWidth,
     toHeight: toHeight,
-    // only use user-defined quality for the last stage,
-    // use simpler (Hamming) filter for the first stages where
-    // scale factor is large enough (more than 2-3)
-    quality: isLastStage ? opts.quality : Math.min(1, opts.quality)
+    filter: filter
   });
   var tmpCanvas;
 
@@ -2238,7 +2291,7 @@ Pica.prototype.__resizeViaCreateImageBitmap = function (from, to, opts) {
   return createImageBitmap(from, {
     resizeWidth: opts.toWidth,
     resizeHeight: opts.toHeight,
-    resizeQuality: utils.cib_quality_name(opts.quality)
+    resizeQuality: utils.cib_quality_name(filter_info.f2q[opts.filter])
   }).then(function (imageBitmap) {
     if (opts.canceled) return opts.cancelToken; // if no unsharp - draw directly to output canvas
 
@@ -2294,7 +2347,16 @@ Pica.prototype.resize = function (from, to, options) {
   opts.toWidth = to.width;
   opts.toHeight = to.height;
   opts.width = from.naturalWidth || from.width;
-  opts.height = from.naturalHeight || from.height; // Prevent stepper from infinite loop
+  opts.height = from.naturalHeight || from.height; // Legacy `.quality` option
+
+  if (Object.prototype.hasOwnProperty.call(opts, 'quality')) {
+    if (opts.quality < 0 || opts.quality > 3) {
+      throw new Error("Pica: .quality should be [0..3], got ".concat(opts.quality));
+    }
+
+    opts.filter = filter_info.q2f[opts.quality];
+  } // Prevent stepper from infinite loop
+
 
   if (to.width === 0 || to.height === 0) {
     return Promise.reject(new Error("Invalid output size: ".concat(to.width, "x").concat(to.height)));
@@ -2321,7 +2383,11 @@ Pica.prototype.resize = function (from, to, options) {
     if (opts.canceled) return opts.cancelToken; // if createImageBitmap supports resize, just do it and return
 
     if (_this6.features.cib) {
-      return _this6.__resizeViaCreateImageBitmap(from, to, opts);
+      if (filter_info.q2f.indexOf(opts.filter) >= 0) {
+        return _this6.__resizeViaCreateImageBitmap(from, to, opts);
+      }
+
+      _this6.debug('cib is enabled, but not supports provided filter, fallback to manual math');
     }
 
     if (!CAN_USE_CANVAS_GET_IMAGE_DATA) {
@@ -2343,7 +2409,16 @@ Pica.prototype.resize = function (from, to, options) {
 Pica.prototype.resizeBuffer = function (options) {
   var _this7 = this;
 
-  var opts = assign({}, DEFAULT_RESIZE_OPTS, options);
+  var opts = assign({}, DEFAULT_RESIZE_OPTS, options); // Legacy `.quality` option
+
+  if (Object.prototype.hasOwnProperty.call(opts, 'quality')) {
+    if (opts.quality < 0 || opts.quality > 3) {
+      throw new Error("Pica: .quality should be [0..3], got ".concat(opts.quality));
+    }
+
+    opts.filter = filter_info.q2f[opts.quality];
+  }
+
   return this.init().then(function () {
     return _this7.__mathlib.resizeAndUnsharp(opts);
   });
@@ -2386,5 +2461,5 @@ Pica.prototype.debug = function () {};
 
 module.exports = Pica;
 
-},{"./lib/mathlib":1,"./lib/pool":13,"./lib/stepper":14,"./lib/tiler":15,"./lib/utils":16,"./lib/worker":17,"object-assign":23,"webworkify":24}]},{},[])("/index.js")
+},{"./lib/mathlib":1,"./lib/mm_resize/resize_filter_info":7,"./lib/pool":13,"./lib/stepper":14,"./lib/tiler":15,"./lib/utils":16,"./lib/worker":17,"object-assign":23,"webworkify":24}]},{},[])("/index.js")
 });
