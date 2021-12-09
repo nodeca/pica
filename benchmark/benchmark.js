@@ -6,72 +6,100 @@
 
 
 const Benchmark   = require('benchmark');
-const pica        = require('../')();
 const filter_gen  = require('../lib/mm_resize/resize_filter_gen');
 const resize_raw  = require('../lib/mm_resize/resize');
 
+const pica_js     = require('../')([ 'js' ]);
+const pica_wasm   = require('../')([ 'wasm' ]);
 
-const sample = {
-  width:  1024,
-  height: 1024
-};
-sample.buffer    = new Uint8Array(sample.width * sample.height * 4);
+const SRC_WIDTH = 1024;
+const SRC_HEIGHT = 1024;
+const SCALE = 0.15;
+const DST_WIDTH = (SRC_WIDTH * SCALE)|0;
+const DST_HEIGHT = (SRC_HEIGHT * SCALE)|0;
+
+
+const sample = new Uint8Array(SRC_WIDTH * SRC_HEIGHT * 4);
+sample.fill(255);
 
 
 /* eslint-disable new-cap */
 Benchmark.Suite()
 
-.add(`Resize of ${sample.width}x${sample.height}`, {
+.add(`[js] resize ${SRC_WIDTH}x${SRC_HEIGHT} => ${DST_WIDTH}x${DST_HEIGHT}`, {
   defer: true,
   fn: function (defer) {
-    pica.resizeBuffer({
-      src:      sample.buffer,
-      width:    sample.width,
-      height:   sample.height,
-      toWidth:  (sample.width * 0.15)|0,
-      toHeight: (sample.height * 0.15)|0,
+    pica_js.resizeBuffer({
+      src:      sample,
+      width:    SRC_WIDTH,
+      height:   SRC_HEIGHT,
+      toWidth:  DST_WIDTH,
+      toHeight: DST_HEIGHT,
       filter:   'lanczos3'
     })
     .then(() => defer.resolve());
   }
 })
 
-.add(`Resize RAW of ${sample.width}x${sample.height}`, {
+.add(`[wasm] resize ${SRC_WIDTH}x${SRC_HEIGHT} => ${DST_WIDTH}x${DST_HEIGHT}`, {
+  defer: true,
+  fn: function (defer) {
+    pica_wasm.resizeBuffer({
+      src:      sample,
+      width:    SRC_WIDTH,
+      height:   SRC_HEIGHT,
+      toWidth:  DST_WIDTH,
+      toHeight: DST_HEIGHT,
+      filter:   'lanczos3'
+    })
+    .then(() => defer.resolve());
+  }
+})
+
+.add(`mm js resize ${SRC_WIDTH}x${SRC_HEIGHT} => ${DST_WIDTH}x${DST_HEIGHT}`, {
   fn: function () {
     resize_raw({
-      src:      sample.buffer,
-      width:    sample.width,
-      height:   sample.height,
-      toWidth:  (sample.width * 0.15)|0,
-      toHeight: (sample.height * 0.15)|0
+      src:      sample,
+      width:    SRC_WIDTH,
+      height:   SRC_HEIGHT,
+      toWidth:  DST_WIDTH,
+      toHeight: DST_HEIGHT
     });
   }
 })
 
-.add(`Unsharp of ${sample.width}x${sample.height}`, {
+.add(`[js] unsharp ${SRC_WIDTH}x${SRC_HEIGHT}`, {
   fn: function () {
-    pica.__mathlib.unsharp_mask(
-      sample.buffer, sample.width, sample.height,
+    pica_js.__mathlib.unsharp_mask(
+      sample, SRC_WIDTH, SRC_HEIGHT,
       80, 0.5, 4
     );
   }
 })
 
+.add(`[wasm] unsharp ${SRC_WIDTH}x${SRC_HEIGHT}`, {
+  fn: function () {
+    pica_wasm.__mathlib.unsharp_mask(
+      sample, SRC_WIDTH, SRC_HEIGHT,
+      80, 0.5, 4
+    );
+  }
+})
 
-.add(`Build filters for ${sample.width}x${sample.height}`, {
+.add(`Build filters for ${SRC_WIDTH}x${SRC_HEIGHT}`, {
   fn: function () {
     filter_gen(
-      3,
-      sample.width,
-      (sample.width * 0.15)|0,
-      sample.width / ((sample.width * 0.15)|0),
+      'lanczos3',
+      SRC_WIDTH,
+      DST_WIDTH,
+      SCALE,
       0.0
     );
     filter_gen(
-      3,
-      sample.height,
-      (sample.height * 0.15)|0,
-      sample.height / ((sample.height * 0.15)|0),
+      'lanczos3',
+      SRC_HEIGHT,
+      DST_HEIGHT,
+      SCALE,
       0.0
     );
   }
