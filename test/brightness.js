@@ -34,8 +34,7 @@ function createTest(color) {
       width:    SRC_W,
       height:   SRC_H,
       toWidth:  DEST_W,
-      toHeight: DEST_H,
-      alpha:    true
+      toHeight: DEST_H
     })
     .then(result => assert.deepStrictEqual(result, correct));
   });

@@ -49,7 +49,6 @@ const DEFAULT_PICA_OPTS = {
 
 const DEFAULT_RESIZE_OPTS = {
   filter:           'mks2013',
-  alpha:            false,
   unsharpAmount:    0,
   unsharpRadius:    0.0,
   unsharpThreshold: 0
@@ -286,7 +285,7 @@ Pica.prototype.__extractTileData = function (tile, from, opts, stageEnv, extract
 
   // Extract tile RGBA buffer, depending on input type
   if (utils.isCanvas(from)) {
-    if (!stageEnv.srcCtx) stageEnv.srcCtx = from.getContext('2d', { alpha: Boolean(opts.alpha) });
+    if (!stageEnv.srcCtx) stageEnv.srcCtx = from.getContext('2d');
 
     // If input is Canvas - extract region data directly
     this.debug('Get tile pixel data');
@@ -303,7 +302,7 @@ Pica.prototype.__extractTileData = function (tile, from, opts, stageEnv, extract
 
   let tmpCanvas = this.options.createCanvas(tile.width, tile.height);
 
-  let tmpCtx = tmpCanvas.getContext('2d', { alpha: Boolean(opts.alpha) });
+  let tmpCtx = tmpCanvas.getContext('2d');
   tmpCtx.globalCompositeOperation = 'copy';
   tmpCtx.drawImage(stageEnv.srcImageBitmap || from,
     tile.x, tile.y, tile.width, tile.height,
@@ -388,7 +387,6 @@ Pica.prototype.__tileAndResize = function (from, to, opts) {
       offsetX:          tile.offsetX,
       offsetY:          tile.offsetY,
       filter:           opts.filter,
-      alpha:            opts.alpha,
       unsharpAmount:    opts.unsharpAmount,
       unsharpRadius:    opts.unsharpRadius,
       unsharpThreshold: opts.unsharpThreshold
@@ -413,7 +411,7 @@ Pica.prototype.__tileAndResize = function (from, to, opts) {
   // Need to normalize data source first. It can be canvas or image.
   // If image - try to decode in background if possible
   return Promise.resolve().then(() => {
-    stageEnv.toCtx = to.getContext('2d', { alpha: Boolean(opts.alpha) });
+    stageEnv.toCtx = to.getContext('2d');
 
     if (utils.isCanvas(from)) return null;
 
@@ -537,7 +535,7 @@ Pica.prototype.__processStages = function (stages, from, to, opts) {
 
 
 Pica.prototype.__resizeViaCreateImageBitmap = function (from, to, opts) {
-  let toCtx = to.getContext('2d', { alpha: Boolean(opts.alpha) });
+  let toCtx = to.getContext('2d');
 
   this.debug('Resize via createImageBitmap()');
 
@@ -564,7 +562,7 @@ Pica.prototype.__resizeViaCreateImageBitmap = function (from, to, opts) {
 
     let tmpCanvas = this.options.createCanvas(opts.toWidth, opts.toHeight);
 
-    let tmpCtx = tmpCanvas.getContext('2d', { alpha: Boolean(opts.alpha) });
+    let tmpCtx = tmpCanvas.getContext('2d');
 
     tmpCtx.drawImage(imageBitmap, 0, 0);
     imageBitmap.close();

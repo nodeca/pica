@@ -116,7 +116,6 @@ var updateResized = _.debounce(function () {
   /*createImageBitmap($('#src')[0]).then(image_bitmap => {
     return resizer.resize(image_bitmap, offScreenCanvas, {
       filter: filter,
-      alpha: alpha,
       unsharpAmount: unsharpAmount,
       unsharpRadius: unsharpRadius,
       unsharpThreshold: unsharpThreshold,
@@ -125,7 +124,6 @@ var updateResized = _.debounce(function () {
   })*/
   resizer.resize($('#src')[0], offScreenCanvas, {
     filter: filter,
-    alpha: alpha,
     unsharpAmount: unsharpAmount,
     unsharpRadius: unsharpRadius,
     unsharpThreshold: unsharpThreshold,
@@ -135,7 +133,7 @@ var updateResized = _.debounce(function () {
     time = (performance.now() - start).toFixed(2);
 
     // Copy buffer to visible element
-    dst.getContext('2d', { alpha: Boolean(alpha) }).drawImage(offScreenCanvas, 0, 0);
+    dst.getContext('2d').drawImage(offScreenCanvas, 0, 0);
 
     var features;
 
@@ -183,7 +181,6 @@ var filter            = filter_name[Number($('#pica-filter').val())];
 var unsharpAmount     = Number($('#pica-unsharp-amount').val());
 var unsharpRadius     = Number($('#pica-unsharp-radius').val());
 var unsharpThreshold  = Number($('#pica-unsharp-threshold').val());
-var alpha             = $('#pica-use-alpha').is(":checked");
 
 resizer_mode.ww   = $('#pica-use-ww').is(":checked");
 resizer_mode.cib  = $('#pica-use-cib').is(":checked");
@@ -217,10 +214,6 @@ $('#pica-unsharp-radius').on('change', function () {
 });
 $('#pica-unsharp-threshold').on('change', function () {
   unsharpThreshold = Number($('#pica-unsharp-threshold').val());
-  updateResized();
-});
-$('#pica-use-alpha').on('change', function () {
-  alpha = $(this).is(":checked");
   updateResized();
 });
 

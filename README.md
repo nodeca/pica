@@ -130,7 +130,6 @@ taken from source and destination objects.
 - __options__ - quality (number) or object:
   - __quality__ (deprecated, use `.filter` instead) - 0..3.
   - __filter__ - filter name (Default - `mks2013`). See [resize_filter_info.js](https://github.com/nodeca/pica/blob/master/lib/mm_resize/resize_filter_info.js) for details. `mks2013` does both resize and sharpening, it's optimal and not recommended to change.
-  - __alpha__ - use alpha channel. Default = `false`.
   - __unsharpAmount__ - >=0. Default = `0` (off). Usually
     value between 100 to 200 is good. Note, `mks2013` filter already does
     optimal sharpening.
@@ -171,7 +170,6 @@ binary data (for example, if you decode jpeg files "manually").
   - __toHeight__ - output height, >=0, in pixels.
   - __quality__ (deprecated, use `.filter` instead) - 0..3.
   - __filter__ - filter name (Default - `mks2013`). See [resize_filter_info.js](https://github.com/nodeca/pica/blob/master/lib/mm_resize/resize_filter_info.js) for details. `mks2013` does both resize and sharpening, it's optimal and not recommended to change.
-  - __alpha__ - use alpha channel. Default = `false`.
   - __unsharpAmount__ - >=0. Default = `0` (off). Usually
     value between 100 to 200 is good. Note, `mks2013` filter already does
     optimal sharpening.
