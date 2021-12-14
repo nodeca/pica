@@ -1237,7 +1237,8 @@ module.exports.can_use_canvas = function can_use_canvas(createCanvas) {
 
 module.exports.cib_can_use_region = function cib_can_use_region() {
   return new Promise(function (resolve) {
-    if (typeof createImageBitmap === 'undefined') {
+    // `Image` check required for use in `ServiceWorker`
+    if (typeof Image === 'undefined' || typeof createImageBitmap === 'undefined') {
       resolve(false);
       return;
     }
