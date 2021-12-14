@@ -1,0 +1,44 @@
+.canvas-containter {
+  position: relative;
+  cursor: pointer;
+}
+.pica-options { margin-top: 10px; }
+.pica-options label { font-weight: normal; }
+
+.canvas-info, .canvas-tip, .pica-features {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 1px 5px;
+  background-color: #444;
+  color: #fff;
+  opacity: 0.7;
+  font-size: 12px;
+  font-weight: bold;
+}
+.canvas-tip {
+  top: auto;
+  bottom: 0;
+  right: 0;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.5s ease-in-out;
+}
+.canvas-containter:hover .canvas-tip {
+  opacity: .7;
+}
+
+.pica-features {
+  top: auto;
+  bottom: 0;
+  left: 0;
+  transition: opacity 0.5s ease-in-out;
+}
+.canvas-containter:hover .pica-features {
+  opacity: 0;
+}
+
+body {
+  overflow-x: hidden;
+  margin-bottom: 40px;
+}
