@@ -143,4 +143,73 @@ describe('Fixture resize', () => {
     }
   });
 
+
+  it.skip('.resizeCanvas() should be correct for the given fixture', async () => {
+    let srcImage = new Image();
+    let srcBuf = fs.readFileSync(path.join(FIXTURES_DIRECTORY, 'original.jpg'));
+
+    srcImage.src = 'data:image/jpeg;base64,' + srcBuf.toString('base64');
+    await new Promise(resolve => { srcImage.onload = resolve; });
+
+    let srcCanvas = document.createElement('canvas');
+
+    srcCanvas.width = srcImage.width;
+    srcCanvas.height = srcImage.height;
+
+    const srcCtx = srcCanvas.getContext('2d');
+
+    srcCtx.drawImage(srcImage, 0, 0);
+
+    const outCanvas1 = document.createElement('canvas');
+    const outCanvas2 = document.createElement('canvas');
+
+    const out_width = 200;
+    const out_height = 200;
+
+    outCanvas1.width = outCanvas2.width = out_width;
+    outCanvas1.height = outCanvas2.height = out_height;
+
+    await pica({ features: [ 'js' ] })
+      .resize(srcCanvas, outCanvas1, {
+        filter: 'lanczos3'
+      });
+
+    await pica({ features: [ 'js' ] })
+      .resize(srcCanvas, outCanvas2, {
+        filter: require('../lib/mm_resize/resize_filter_info').filter.lanczos3
+      });
+
+    const outCanvas1_ctx = outCanvas1.getContext('2d');
+    const outCanvas2_ctx = outCanvas2.getContext('2d');
+    const outImageData1 = outCanvas1_ctx.getImageData(0, 0, out_width, out_height);
+    const outImageData2 = outCanvas2_ctx.getImageData(0, 0, out_width, out_height);
+
+    const diff = new Uint8Array(outImageData1.data.length);
+
+    let numDiffPixels = pixelmatch(
+      outImageData1.data,
+      outImageData2.data,
+      diff,
+      out_width,
+      out_height,
+      { threshold: 0, includeAA: true }
+    );
+
+    if (numDiffPixels > 0) {
+      fs.writeFileSync(
+        path.join(OUTPUT_DIRECTORY, 'custom-diff.ppm'),
+        Buffer.from(ppm.encode(diff, out_width, out_height))
+      );
+      fs.writeFileSync(
+        path.join(OUTPUT_DIRECTORY, 'custom-filter-string.ppm'),
+        Buffer.from(ppm.encode(outImageData1.data, out_width, out_height))
+      );
+      fs.writeFileSync(
+        path.join(OUTPUT_DIRECTORY, 'custom-filer-object.ppm'),
+        Buffer.from(ppm.encode(outImageData2.data, out_width, out_height))
+      );
+      throw new Error(`Images mismatch in ${numDiffPixels} pixels`);
+    }
+  });
+
 });

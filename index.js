@@ -12,7 +12,7 @@ const worker        = require('./lib/worker');
 const createStages  = require('./lib/stepper');
 const createRegions = require('./lib/tiler');
 const filter_info   = require('./lib/mm_resize/resize_filter_info');
-
+const pack_custom_filter = require('./lib/mm_resize/resize_filter_info_custom').pack;
 
 // Deduplicate pools & limiters with the same configs
 // when user creates multiple pica instances.
@@ -618,6 +618,10 @@ Pica.prototype.resize = function (from, to, options) {
     opts.filter = filter_info.q2f[opts.quality];
   }
 
+  // If custom filter passed - transform to serializable format
+  // "named" filters (strings) stays intact
+  opts.filter = pack_custom_filter(opts.filter);
+
   // Prevent stepper from infinite loop
   if (to.width === 0 || to.height === 0) {
     return Promise.reject(new Error(`Invalid output size: ${to.width}x${to.height}`));
@@ -686,6 +690,10 @@ Pica.prototype.resizeBuffer = function (options) {
     }
     opts.filter = filter_info.q2f[opts.quality];
   }
+
+  // If custom filter passed - transform to serializable format
+  // "named" filters (strings) stays intact
+  opts.filter = pack_custom_filter(opts.filter);
 
   return this.init()
     .then(() => this.__mathlib.resizeAndUnsharp(opts));
