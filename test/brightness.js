@@ -28,20 +28,21 @@ function createTest(color) {
 
   let test_name = `test ${SRC_W}x${SRC_H} -> ${DEST_W}x${DEST_H} with color #${hexColor}${hexColor}${hexColor}`;
 
-  it(test_name, function () {
-    return pica.resizeBuffer({
+  it(test_name, async () => {
+    const result = await pica.resizeBuffer({
       src:      src,
       width:    SRC_W,
       height:   SRC_H,
       toWidth:  DEST_W,
       toHeight: DEST_H
-    })
-    .then(result => assert.deepStrictEqual(result, correct));
+    });
+
+    assert.deepStrictEqual(result, correct);
   });
 }
 
 
-describe('Brightness should not change', function () {
+describe('Brightness should not change', () => {
   createTest(255);
   createTest(127);
 });

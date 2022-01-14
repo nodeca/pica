@@ -13,7 +13,7 @@ const FIXTURES_DIRECTORY = path.join(__dirname, 'fixtures');
 const OUTPUT_DIRECTORY   = path.join(__dirname, '..');
 
 
-describe('Fixture resize', function () {
+describe('Fixture resize', () => {
 
   it.skip('.resizeCanvas() should be correct for the given fixture', async () => {
     this.timeout(3000);

@@ -11,11 +11,11 @@ function fill(target, arr) {
 }
 
 
-describe('unsharp_mask', function () {
+describe('unsharp_mask', () => {
 
-  describe('glur_mono16', function () {
+  describe('glur_mono16', () => {
 
-    it('js', function () {
+    it('js', () => {
       const glur_js = require('glur/mono16');
 
       let sample = new Uint16Array(100 * 100);
@@ -30,7 +30,7 @@ describe('unsharp_mask', function () {
     });
 
 
-    it('wasm', function () {
+    it('wasm', () => {
       const glur_js   = require('glur/mono16');
       const mlib_wasm = mathlib_raw({ js: false }).use(require('../lib/mm_unsharp_mask'));
 
@@ -84,7 +84,7 @@ describe('unsharp_mask', function () {
   });
 
 
-  describe('unsharp_mask', function () {
+  describe('unsharp_mask', () => {
 
     function createSample(width, height) {
       const result = new Uint8Array(width * height * 4);
@@ -95,7 +95,7 @@ describe('unsharp_mask', function () {
     }
 
 
-    it('js should not throw without wasm', function () {
+    it('js should not throw without wasm', () => {
       const mlib = mathlib_raw({ wasm: false }).use(require('../lib/mm_unsharp_mask'));
 
       let sample = createSample(100, 100);
@@ -103,7 +103,7 @@ describe('unsharp_mask', function () {
     });
 
 
-    it('wasm', function () {
+    it('wasm', () => {
       const mlib_js = mathlib_raw({ wasm: false }).use(require('../lib/mm_unsharp_mask'));
       const mlib_wasm = mathlib_raw({ js: false }).use(require('../lib/mm_unsharp_mask'));
 
