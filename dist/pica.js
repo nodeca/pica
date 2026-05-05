@@ -405,8 +405,8 @@ module.exports = function resizeFilterGen(filter, srcSize, destSize, scale, offs
   for (destPixel = 0; destPixel < destSize; destPixel++) {
     // Scaling should be done relative to central pixel point
     srcPixel = (destPixel + 0.5) * scaleInverted + offset;
-    srcFirst = Math.max(0, Math.floor(srcPixel - srcWindow));
-    srcLast = Math.min(srcSize - 1, Math.ceil(srcPixel + srcWindow));
+    srcFirst = Math.max(0, Math.floor(srcPixel - srcWindow + 0.5));
+    srcLast = Math.min(srcSize - 1, Math.floor(srcPixel + srcWindow + 0.5) - 1);
     filterElementSize = srcLast - srcFirst + 1;
     floatFilter = new Float32Array(filterElementSize);
     fxpFilter = new Int16Array(filterElementSize);
@@ -489,8 +489,8 @@ var filter = {
   box: {
     win: 0.5,
     fn: function fn(x) {
-      if (x < 0) x = -x;
-      return x < 0.5 ? 1.0 : 0.0;
+      if (x > -0.5 && x <= 0.5) return 1.0;
+      return 0.0;
     }
   },
   // // Hamming
