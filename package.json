@@ -45,7 +45,7 @@
     "electron": "^41.5.0",
     "electron-mocha": "^13.1.0",
     "eslint": "^8.3.0",
-    "gh-pages": "^3.1.0",
+    "gh-pages": "^6.3.0",
     "mocha": "^11.7.5",
     "pixelmatch": "^7.2.0",
     "terser": "^5.10.0"
