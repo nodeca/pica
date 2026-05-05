@@ -6,6 +6,9 @@ on:
   schedule:
     - cron: '0 0 * * 3'
 
+permissions:
+  contents: read
+
 jobs:
   test:
 
@@ -16,14 +19,15 @@ jobs:
         node-version: [ '14' ]
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v6
 
     - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v2
+      uses: actions/setup-node@v6
       with:
         node-version: ${{ matrix.node-version }}
 
-    - run: npm install
+    - name: Install dependencies
+      run: npm install
 
     - name: Fix Electron sandbox permissions for ubuntu 24
       run: |
@@ -31,6 +35,4 @@ jobs:
         sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
 
     - name: Run headless test
-      uses: GabrielBB/xvfb-action@v1
-      with:
-        run: npm test
+      run: xvfb-run --auto-servernum npm test
