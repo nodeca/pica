@@ -137,16 +137,16 @@ var updateResized = _.debounce(function () {
 
     var features;
 
-    if (resizer.features.cib) {
+    if (resizer.resize_features.cib) {
       features = 'method: CIB';
-    } else if (resizer.features.wasm) {
+    } else if (resizer.resize_features.wasm) {
       features = 'method: WASM';
     } else {
       features = 'method: JS';
     }
 
-    if (!resizer.features.cib) {
-      if (resizer.features.ww) features += ', use WebWorker';
+    if (!resizer.resize_features.cib) {
+      if (resizer.resize_features.ww) features += ', use WebWorker';
     }
 
     $('#dst-features').text(features);

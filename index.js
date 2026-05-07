@@ -11,21 +11,13 @@ const utils         = require('./lib/utils');
 const worker        = require('./lib/worker');
 const createStages  = require('./lib/stepper');
 const createRegions = require('./lib/tiler');
-const filter_info   = require('./lib/mm_resize/resize_filter_info');
+const filter_info        = require('./lib/mm_resize/resize_filter_info');
+const supported_features = require('./lib/supported_features');
 
 
 // Deduplicate pools & limiters with the same configs
 // when user creates multiple pica instances.
 const singletones = {};
-
-
-let NEED_SAFARI_FIX = false;
-try {
-  if (typeof navigator !== 'undefined' && navigator.userAgent) {
-    NEED_SAFARI_FIX = (navigator.userAgent.indexOf('Safari') >= 0) &&
-      (navigator.userAgent.indexOf('Chrome') < 0);
-  }
-} catch (e) {}
 
 
 let concurrency = 1;
@@ -54,13 +46,6 @@ const DEFAULT_RESIZE_OPTS = {
   unsharpRadius:    0.0,
   unsharpThreshold: 0
 };
-
-let CAN_NEW_IMAGE_DATA            = false;
-let CAN_CREATE_IMAGE_BITMAP       = false;
-let CAN_USE_CANVAS_GET_IMAGE_DATA = false;
-let CAN_USE_OFFSCREEN_CANVAS      = false;
-let CAN_USE_CIB_REGION_FOR_IMAGE  = false;
-
 
 function workerFabric() {
   return {
@@ -95,8 +80,8 @@ function Pica(options) {
 
   if (!singletones[limiter_key]) singletones[limiter_key] = this.__limit;
 
-  // List of supported features, according to options & browser/node.js
-  this.features = {
+  // List of enabled resize methods, according to options & browser/node.js
+  this.resize_features = {
     js:   false, // pure JS implementation, can be disabled for testing
     wasm: false, // webassembly implementation for heavy functions
     cib:  false, // resize via createImageBitmap (only FF at this moment)
@@ -104,6 +89,20 @@ function Pica(options) {
   };
 
   this.__workersPool = null;
+  this.capabilities = {
+    worker: false,
+    ww_offscreen_canvas: false,
+    canvas: false,
+    offscreen_canvas: false,
+    image_data: false,
+    image_bitmap: false,
+    may_be_worker: false,
+    create_image_bitmap: false,
+    safari_put_image_data_fix: false,
+    bug_canvas_orientation_region: true,
+    bug_image_bitmap_orientation_region: true,
+    cib_resize: false
+  };
 
   // Store requested features for webworkers
   this.__requested_features = [];
@@ -115,32 +114,6 @@ function Pica(options) {
 Pica.prototype.init = function () {
   if (this.__initPromise) return this.__initPromise;
 
-  // Test if we can create ImageData without canvas and memory copy
-  if (typeof ImageData !== 'undefined' && typeof Uint8ClampedArray !== 'undefined') {
-    try {
-      /* eslint-disable no-new */
-      new ImageData(new Uint8ClampedArray(400), 10, 10);
-      CAN_NEW_IMAGE_DATA = true;
-    } catch (__) {}
-  }
-
-  // ImageBitmap can be effective in 2 places:
-  //
-  // 1. Threaded jpeg unpack (basic)
-  // 2. Built-in resize (blocked due problem in chrome, see issue #89)
-  //
-  // For basic use we also need ImageBitmap wo support .close() method,
-  // see https://developer.mozilla.org/ru/docs/Web/API/ImageBitmap
-
-  if (typeof ImageBitmap !== 'undefined') {
-    if (ImageBitmap.prototype && ImageBitmap.prototype.close) {
-      CAN_CREATE_IMAGE_BITMAP = true;
-    } else {
-      this.debug('ImageBitmap does not support .close(), disabled');
-    }
-  }
-
-
   let features = this.options.features.slice();
 
   if (features.indexOf('all') >= 0) {
@@ -151,73 +124,46 @@ Pica.prototype.init = function () {
 
   this.__mathlib = new MathLib(features);
 
-  // Check WebWorker support if requested
-  if (features.indexOf('ww') >= 0) {
-    if ((typeof window !== 'undefined') && ('Worker' in window)) {
-      // IE <= 11 don't allow to create webworkers from string. We should check it.
-      // https://connect.microsoft.com/IE/feedback/details/801810/web-workers-from-blob-urls-in-ie-10-and-11
-      try {
-        let wkr = require('webworkify')(function () {});
-        wkr.terminate();
-        this.features.ww   = true;
+  let checkCapabilities = supported_features.get_supported_features().then(result => {
+    assign(this.capabilities, result);
 
-        // pool uniqueness depends on pool config + webworker config
-        let wpool_key = `wp_${JSON.stringify(this.options)}`;
-
-        if (singletones[wpool_key]) {
-          this.__workersPool = singletones[wpool_key];
-        } else {
-          this.__workersPool = new Pool(workerFabric, this.options.idle);
-          singletones[wpool_key] = this.__workersPool;
-        }
-      } catch (__) {}
+    if (this.capabilities.cib_resize && features.indexOf('cib') >= 0) {
+      this.resize_features.cib = true;
     }
-  }
 
-  let initMath = this.__mathlib.init().then(mathlib => {
-    // Copy detected features
-    assign(this.features, mathlib.features);
+    // Check WebWorker support if requested
+    if (this.capabilities.may_be_worker && features.indexOf('ww') >= 0) {
+      // pool uniqueness depends on pool config + webworker config
+      let wpool_key = `wp_${JSON.stringify(this.options)}`;
+
+      if (singletones[wpool_key]) {
+        this.__workersPool = singletones[wpool_key];
+      } else {
+        this.__workersPool = new Pool(workerFabric, this.options.idle);
+        singletones[wpool_key] = this.__workersPool;
+      }
+    }
+
+    if (!this.__workersPool) return null;
+
+    return this.__invokeWorker('get_supported_features').then(result => {
+      if (!result || !result.data) return;
+
+      this.capabilities.worker = true;
+      this.resize_features.ww = true;
+      this.capabilities.ww_offscreen_canvas = !!result.data.offscreen_canvas;
+    }, () => {});
   });
 
-  let checkCibResize;
 
-  if (!CAN_CREATE_IMAGE_BITMAP) {
-    checkCibResize = Promise.resolve(false);
-  } else {
-    checkCibResize = utils.cib_support(this.options.createCanvas).then(status => {
-      if (this.features.cib && features.indexOf('cib') < 0) {
-        this.debug('createImageBitmap() resize supported, but disabled by config');
-        return;
-      }
-
-      if (features.indexOf('cib') >= 0) this.features.cib = status;
-    });
-  }
-
-  CAN_USE_CANVAS_GET_IMAGE_DATA = utils.can_use_canvas(this.options.createCanvas);
-
-  let checkOffscreenCanvas;
-
-  if (CAN_CREATE_IMAGE_BITMAP && CAN_NEW_IMAGE_DATA && features.indexOf('ww') !== -1) {
-    checkOffscreenCanvas = utils.worker_offscreen_canvas_support();
-  } else {
-    checkOffscreenCanvas = Promise.resolve(false);
-  }
-
-  checkOffscreenCanvas = checkOffscreenCanvas.then(
-    result => { CAN_USE_OFFSCREEN_CANVAS = result; }
-  );
-
-  // we use createImageBitmap to crop image data and pass it to workers,
-  // so need to check whether function works correctly;
-  // https://bugs.chromium.org/p/chromium/issues/detail?id=1220671
-  let checkCibRegion = utils.cib_can_use_region().then(
-    result => { CAN_USE_CIB_REGION_FOR_IMAGE = result; }
-  );
+  let initMath = this.__mathlib.init().then(mathlib => {
+    // Copy detected resize methods
+    assign(this.resize_features, mathlib.features);
+  });
 
   // Init math lib. That's async because can load some
   this.__initPromise = Promise.all([
-    initMath, checkCibResize, checkOffscreenCanvas, checkCibRegion
+    initMath, checkCapabilities
   ]).then(() => this);
 
   return this.__initPromise;
@@ -225,6 +171,24 @@ Pica.prototype.init = function () {
 
 
 // Call resizer in webworker or locally, depending on config
+Pica.prototype.__invokeWorker = function (method, payload, transfer, opts) {
+  return new Promise((resolve, reject) => {
+    let w = this.__workersPool.acquire();
+
+    if (opts && opts.cancelToken) opts.cancelToken.catch(err => reject(err));
+
+    w.value.onmessage = ev => {
+      w.release();
+
+      if (ev.data.err) reject(ev.data.err);
+      else resolve(ev.data);
+    };
+
+    w.value.postMessage(assign({ method: method }, payload || {}), transfer || []);
+  });
+};
+
+
 Pica.prototype.__invokeResize = function (tileOpts, opts) {
   // Share cache between calls:
   //
@@ -234,7 +198,7 @@ Pica.prototype.__invokeResize = function (tileOpts, opts) {
   opts.__mathCache = opts.__mathCache || {};
 
   return Promise.resolve().then(() => {
-    if (!this.features.ww) {
+    if (!this.resize_features.ww) {
       // not possible to have ImageBitmap here if user disabled WW
       return { data: this.__mathlib.resizeAndUnsharp(tileOpts, opts.__mathCache) };
     }
@@ -257,6 +221,7 @@ Pica.prototype.__invokeResize = function (tileOpts, opts) {
       if (tileOpts.srcBitmap) transfer.push(tileOpts.srcBitmap);
 
       w.value.postMessage({
+        method: 'resize',
         opts: tileOpts,
         features: this.__requested_features,
         preload: {
@@ -270,11 +235,11 @@ Pica.prototype.__invokeResize = function (tileOpts, opts) {
 
 // this function can return promise if createImageBitmap is used
 Pica.prototype.__extractTileData = function (tile, from, opts, stageEnv, extractTo) {
-  if (this.features.ww && CAN_USE_OFFSCREEN_CANVAS &&
+  if (this.resize_features.ww && this.capabilities.ww_offscreen_canvas &&
       // createImageBitmap doesn't work for images (Image, ImageBitmap) with Exif orientation in Chrome,
       // can use canvas because canvas doesn't have orientation;
       // see https://bugs.chromium.org/p/chromium/issues/detail?id=1220671
-      (utils.isCanvas(from) || CAN_USE_CIB_REGION_FOR_IMAGE)) {
+      (utils.isCanvas(from) || !this.capabilities.bug_image_bitmap_orientation_region)) {
     this.debug('Create tile for OffscreenCanvas');
 
     return createImageBitmap(stageEnv.srcImageBitmap || from, tile.x, tile.y, tile.width, tile.height)
@@ -331,7 +296,7 @@ Pica.prototype.__landTileData = function (tile, result, stageEnv) {
     return null;
   }
 
-  if (CAN_NEW_IMAGE_DATA) {
+  if (this.capabilities.image_data) {
     // this branch is for modern browsers
     // If `new ImageData()` & Uint8ClampedArray suported
     toImageData = new ImageData(new Uint8ClampedArray(result.data), tile.toWidth, tile.toHeight);
@@ -352,7 +317,7 @@ Pica.prototype.__landTileData = function (tile, result, stageEnv) {
 
   this.debug('Draw tile');
 
-  if (NEED_SAFARI_FIX) {
+  if (this.capabilities.safari_put_image_data_fix) {
     // Safari draws thin white stripes between tiles without this fix
     stageEnv.toCtx.putImageData(toImageData, tile.toX, tile.toY,
       tile.toInnerX - tile.toX, tile.toInnerY - tile.toY,
@@ -425,7 +390,7 @@ Pica.prototype.__tileAndResize = function (from, to, opts) {
     if (utils.isImage(from)) {
       // try do decode image in background for faster next operations;
       // if we're using offscreen canvas, cib is called per tile, so not needed here
-      if (!CAN_CREATE_IMAGE_BITMAP) return null;
+      if (!this.capabilities.image_bitmap) return null;
 
       this.debug('Decode image via createImageBitmap');
 
@@ -643,7 +608,7 @@ Pica.prototype.resize = function (from, to, options) {
     if (opts.canceled) return opts.cancelToken;
 
     // if createImageBitmap supports resize, just do it and return
-    if (this.features.cib) {
+    if (this.resize_features.cib) {
       if (filter_info.q2f.indexOf(opts.filter) >= 0) {
         return this.__resizeViaCreateImageBitmap(from, to, opts);
       }
@@ -651,7 +616,7 @@ Pica.prototype.resize = function (from, to, options) {
       this.debug('cib is enabled, but not supports provided filter, fallback to manual math');
     }
 
-    if (!CAN_USE_CANVAS_GET_IMAGE_DATA) {
+    if (!this.capabilities.canvas) {
       let err = new Error('Pica: cannot use getImageData on canvas, ' +
                           "make sure fingerprinting protection isn't enabled");
       err.code = 'ERR_GET_IMAGE_DATA';
