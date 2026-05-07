@@ -22,7 +22,8 @@ const singletones = {};
 let NEED_SAFARI_FIX = false;
 try {
   if (typeof navigator !== 'undefined' && navigator.userAgent) {
-    NEED_SAFARI_FIX = navigator.userAgent.indexOf('Safari') >= 0;
+    NEED_SAFARI_FIX = (navigator.userAgent.indexOf('Safari') >= 0) &&
+      (navigator.userAgent.indexOf('Chrome') < 0);
   }
 } catch (e) {}
 
