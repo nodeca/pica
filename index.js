@@ -2,17 +2,20 @@
 
 
 const assign        = require('object-assign');
-const webworkify    = require('webworkify');
 
 
 const MathLib       = require('./lib/mathlib');
 const Pool          = require('./lib/pool');
 const utils         = require('./lib/utils');
-const worker        = require('./lib/worker');
 const createStages  = require('./lib/stepper');
 const createRegions = require('./lib/tiler');
 const filter_info        = require('./lib/mm_resize/resize_filter_info');
 const supported_features = require('./lib/supported_features');
+
+
+/* global __PICA_WORKER_SRC__ */
+
+const WORKER_SRC = typeof __PICA_WORKER_SRC__ !== 'undefined' ? __PICA_WORKER_SRC__ : '';
 
 
 // Deduplicate pools & limiters with the same configs
@@ -31,6 +34,7 @@ const DEFAULT_PICA_OPTS = {
   concurrency,
   features: [ 'js', 'wasm', 'ww' ],
   idle: 2000,
+  workerURL: null,
   createCanvas:  function (width, height) {
     let tmpCanvas = document.createElement('canvas');
     tmpCanvas.width  = width;
@@ -47,19 +51,21 @@ const DEFAULT_RESIZE_OPTS = {
   unsharpThreshold: 0
 };
 
-function workerFabric() {
-  return {
-    value: webworkify(worker),
-    destroy: function () {
-      this.value.terminate();
+function createWorkerFabric(createWorker) {
+  return function workerFabric() {
+    return {
+      value: createWorker(),
+      destroy: function () {
+        this.value.terminate();
 
-      if (typeof window !== 'undefined') {
-        let url = window.URL || window.webkitURL || window.mozURL || window.msURL;
-        if (url && url.revokeObjectURL && this.value.objectURL) {
-          url.revokeObjectURL(this.value.objectURL);
+        if (typeof window !== 'undefined') {
+          let url = window.URL || window.webkitURL || window.mozURL || window.msURL;
+          if (url && url.revokeObjectURL && this.value.objectURL) {
+            url.revokeObjectURL(this.value.objectURL);
+          }
         }
       }
-    }
+    };
   };
 }
 
@@ -71,6 +77,12 @@ function Pica(options) {
   if (!(this instanceof Pica)) return new Pica(options);
 
   this.options = assign({}, DEFAULT_PICA_OPTS, options || {});
+
+  let workerRequested = this.options.features.indexOf('ww') >= 0 || this.options.features.indexOf('all') >= 0;
+
+  if (workerRequested && !this.options.workerURL && !WORKER_SRC && !Pica.__workerFactory) {
+    throw new Error('Pica: cannot use WebWorker without workerURL');
+  }
 
   let limiter_key = `lk_${this.options.concurrency}`;
 
@@ -111,6 +123,32 @@ function Pica(options) {
 }
 
 
+Pica.__workerFactory = null;
+
+
+function workerFactory(options) {
+  if (Pica.__workerFactory) return Pica.__workerFactory;
+
+  if (WORKER_SRC) {
+    return function () {
+      let url = window.URL || window.webkitURL || window.mozURL || window.msURL;
+      let objectURL = url.createObjectURL(new Blob([ WORKER_SRC ], { type: 'text/javascript' }));
+      let worker = new Worker(objectURL);
+
+      worker.objectURL = objectURL;
+
+      return worker;
+    };
+  }
+
+  if (!options.workerURL) return null;
+
+  return function () {
+    return new Worker(String(options.workerURL));
+  };
+}
+
+
 Pica.prototype.init = function () {
   if (this.__initPromise) return this.__initPromise;
 
@@ -132,14 +170,16 @@ Pica.prototype.init = function () {
     }
 
     // Check WebWorker support if requested
-    if (this.capabilities.may_be_worker && features.indexOf('ww') >= 0) {
+    let createWorker = workerFactory(this.options);
+
+    if (this.capabilities.may_be_worker && features.indexOf('ww') >= 0 && createWorker) {
       // pool uniqueness depends on pool config + webworker config
       let wpool_key = `wp_${JSON.stringify(this.options)}`;
 
       if (singletones[wpool_key]) {
         this.__workersPool = singletones[wpool_key];
       } else {
-        this.__workersPool = new Pool(workerFabric, this.options.idle);
+        this.__workersPool = new Pool(createWorkerFabric(createWorker), this.options.idle);
         singletones[wpool_key] = this.__workersPool;
       }
     }

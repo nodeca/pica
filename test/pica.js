@@ -23,7 +23,7 @@ describe('API', () => {
   });
 
   it('Should return result in promise', async () => {
-    const p = _pica();
+    const p = _pica({ features: [ 'js', 'wasm' ] });
     await p.init();
 
     let src = p.__createCanvas(1000, 1000);
@@ -34,7 +34,7 @@ describe('API', () => {
   });
 
   it('Resize with bad output size should fail', async () => {
-    const p = _pica();
+    const p = _pica({ features: [ 'js', 'wasm' ] });
     await p.init();
 
     let src = p.__createCanvas(1000, 1000);

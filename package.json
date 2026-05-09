@@ -10,6 +10,23 @@
     "canvas"
   ],
   "main": "dist/pica.js",
+  "module": "dist/pica.mjs",
+  "exports": {
+    ".": {
+      "import": "./dist/pica.mjs",
+      "require": "./dist/pica.js"
+    },
+    "./pica_main": {
+      "import": "./dist/pica_main.mjs",
+      "require": "./dist/pica_main.js"
+    },
+    "./pica_worker": {
+      "import": "./dist/pica_worker.mjs",
+      "default": "./dist/pica_worker.js"
+    },
+    "./dist/*": "./dist/*",
+    "./package.json": "./package.json"
+  },
   "homepage": "https://github.com/nodeca/pica",
   "license": "MIT",
   "repository": "nodeca/pica",
@@ -17,10 +34,8 @@
     "test": "npm run lint && electron-mocha --renderer ./test",
     "lint": "eslint .",
     "gh-pages": "gh-pages -d . -s {demo,dist}/* -f",
-    "browserify": "browserify -r ./index.js -s pica -t [ babelify --presets [ @babel/preset-env ] ] -p [ browserify-header --file support/header.js ] | derequire > dist/pica.js",
-    "minify": "terser dist/pica.js -c -m > dist/pica.min.js",
+    "build": "node support/build/build.mjs",
     "wasm": "docker run --rm -v $(pwd):/src -u $(id -u):$(id -g) emscripten/emsdk:2.0.20 ./support/compile-emsdk.sh",
-    "build": "npm run browserify && npm run minify",
     "prepublishOnly": "npm run gh-pages"
   },
   "files": [
@@ -31,23 +46,17 @@
   "dependencies": {
     "glur": "^1.1.2",
     "multimath": "^2.0.0",
-    "object-assign": "^4.1.1",
-    "webworkify": "^1.5.0"
+    "object-assign": "^4.1.1"
   },
   "devDependencies": {
-    "@babel/core": "^7.1.2",
-    "@babel/preset-env": "^7.1.0",
-    "babelify": "^10.0.0",
     "benchmark": "^2.1.0",
-    "browserify": "^17.0.0",
-    "browserify-header": "^1.0.1",
-    "derequire": "^2.1.0",
     "electron": "^41.5.0",
     "electron-mocha": "^13.1.0",
     "eslint": "^8.3.0",
     "gh-pages": "^6.3.0",
     "mocha": "^11.7.5",
     "pixelmatch": "^7.2.0",
-    "terser": "^5.10.0"
+    "terser": "^5.10.0",
+    "vite": "^8.0.11"
   }
 }

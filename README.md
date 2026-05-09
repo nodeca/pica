@@ -84,6 +84,17 @@ pica.resize(from, to)
   .then(blob => console.log('resized to canvas & created blob!'));
 ```
 
+By default, the distributed build includes the webworker code. If you use
+the split build with `ww` enabled, `workerURL` is required:
+
+```js
+import createPica from 'pica/pica_main';
+
+const pica = createPica({
+  workerURL: new URL('pica/pica_worker', import.meta.url)
+});
+```
+
 
 API
 ---
@@ -100,6 +111,9 @@ Create resizer instance with given config (optional):
   `mks2013` filter.
 - __idle__ - cache timeout, ms. Webworkers create is not fast.
   This option allow reuse webworkers effectively. Default 2000.
+- __workerURL__ - URL for `pica_worker.js` when using split builds
+  (`pica_main.js` / `pica_main.mjs`) with `ww` enabled. Full builds
+  (`pica.js` / `pica.mjs`) include worker code and do not need this option.
 - __concurrency__ - max webworkers pool size. Default is autodetected
   CPU count, but not more than 4.
 - __createCanvas__ - function which returns a new canvas, used internally

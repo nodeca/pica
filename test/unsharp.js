@@ -1,6 +1,6 @@
 'use strict';
 
-const pica   = require('../index.js')();
+const pica   = require('../index.js')({ features: [ 'js', 'wasm' ] });
 const assert = require('assert');
 
 describe('Unsharp mask', () => {

@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [Unpublished]
+### Fixed
+- Workagounded bug in Chrome ImageBitmap crops for images with Exif orientation.
+
+### Added
+- Added splited builds and `workerURL` option.
+- Added ESM builds.
+
+### Changed
+- Removed ancient browsers support (IE < Edge and so on).
+- Simplified pipeline.
+- Moved bundling to Vite.
+
+
 ## [9.0.1] - 2021-12-14
 ### Fixed
 - Fixed feature test in `ServiceWorker`, #255.

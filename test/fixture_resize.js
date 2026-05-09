@@ -70,17 +70,17 @@ describe('Fixture resize', () => {
 
       fs.writeFileSync(
         path.join(OUTPUT_DIRECTORY, 'fixture-test-diff.png'),
-        Buffer.from(await pica().toBlob(diffCanvas).then(b => b.arrayBuffer()))
+        Buffer.from(await pica({ features: [ 'js' ] }).toBlob(diffCanvas).then(b => b.arrayBuffer()))
       );
 
       fs.writeFileSync(
         path.join(OUTPUT_DIRECTORY, 'fixture-test-output.png'),
-        Buffer.from(await pica().toBlob(destCanvas).then(b => b.arrayBuffer()))
+        Buffer.from(await pica({ features: [ 'js' ] }).toBlob(destCanvas).then(b => b.arrayBuffer()))
       );
 
       fs.writeFileSync(
         path.join(OUTPUT_DIRECTORY, 'fixture-test-expected.png'),
-        Buffer.from(await pica().toBlob(fixtureCanvas).then(b => b.arrayBuffer()))
+        Buffer.from(await pica({ features: [ 'js' ] }).toBlob(fixtureCanvas).then(b => b.arrayBuffer()))
       );
 
       throw new Error(`Images mismatch in ${numDiffPixels} pixels`);
