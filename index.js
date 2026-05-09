@@ -241,7 +241,7 @@ Pica.prototype.__invokeResize = function (tileOpts, opts) {
       if (tileOpts.srcBitmap) transfer.push(tileOpts.srcBitmap);
 
       w.value.postMessage({
-        method: 'resize',
+        method: tileOpts.srcBitmap ? 'resize_bitmap' : 'resize',
         opts: tileOpts,
         features: this.__requested_features,
         preload: {
@@ -256,13 +256,26 @@ Pica.prototype.__invokeResize = function (tileOpts, opts) {
 // this function can return promise if createImageBitmap is used
 Pica.prototype.__extractTileData = function (tile, from, opts, stageEnv, extractTo) {
   if (this.resize_features.ww && this.capabilities.ww_offscreen_canvas) {
-    this.debug('Create tile for OffscreenCanvas');
+    this.debug('Create tile imageBitmap');
 
-    return createImageBitmap(stageEnv.srcImageBitmap || from, tile.x, tile.y, tile.width, tile.height)
-      .then(bitmap => {
-        extractTo.srcBitmap = bitmap;
-        return extractTo;
-      });
+    let tileCanvas = this.__createCanvas(tile.width, tile.height, { preferOffscreen: true });
+    let tileCtx = tileCanvas.getContext('2d');
+
+    tileCtx.drawImage(stageEnv.srcImageBitmap || from,
+      tile.x, tile.y, tile.width, tile.height,
+      0, 0, tile.width, tile.height);
+
+    extractTo.srcBitmap = tileCanvas.transferToImageBitmap();
+    return extractTo;
+
+    // Direct region extraction, intentionally disabled. This can be faster,
+    // but has known EXIF orientation bugs in some browsers.
+    //
+    // return createImageBitmap(stageEnv.srcImageBitmap || from, tile.x, tile.y, tile.width, tile.height)
+    //   .then(bitmap => {
+    //     extractTo.srcBitmap = bitmap;
+    //     return extractTo;
+    //   });
   }
 
   // Extract tile RGBA buffer, depending on input type
@@ -282,7 +295,7 @@ Pica.prototype.__extractTileData = function (tile, from, opts, stageEnv, extract
   //
   this.debug('Draw tile imageBitmap/image to temporary canvas');
 
-  let tmpCanvas = this.options.createCanvas(tile.width, tile.height);
+  let tmpCanvas = this.__createCanvas(tile.width, tile.height, { preferOffscreen: true });
 
   let tmpCtx = tmpCanvas.getContext('2d');
   tmpCtx.globalCompositeOperation = 'copy';
@@ -305,33 +318,16 @@ Pica.prototype.__extractTileData = function (tile, from, opts, stageEnv, extract
 Pica.prototype.__landTileData = function (tile, result, stageEnv) {
   let toImageData;
 
-  this.debug('Convert raw rgba tile result to ImageData');
-
   if (result.bitmap) {
     stageEnv.toCtx.drawImage(result.bitmap, tile.toX, tile.toY);
+    result.bitmap.close();
     return null;
   }
 
-  if (this.capabilities.image_data) {
-    // this branch is for modern browsers
-    // If `new ImageData()` & Uint8ClampedArray suported
-    toImageData = new ImageData(new Uint8ClampedArray(result.data), tile.toWidth, tile.toHeight);
-  } else {
-    // fallback for `node-canvas` and old browsers
-    // (IE11 has ImageData but does not support `new ImageData()`)
-    toImageData = stageEnv.toCtx.createImageData(tile.toWidth, tile.toHeight);
-
-    if (toImageData.data.set) {
-      toImageData.data.set(result.data);
-    } else {
-      // IE9 don't have `.set()`
-      for (let i = toImageData.data.length - 1; i >= 0; i--) {
-        toImageData.data[i] = result.data[i];
-      }
-    }
-  }
-
   this.debug('Draw tile');
+
+  toImageData = stageEnv.toCtx.createImageData(tile.toWidth, tile.toHeight);
+  toImageData.data.set(result.data);
 
   if (this.capabilities.safari_put_image_data_fix) {
     // Safari draws thin white stripes between tiles without this fix
