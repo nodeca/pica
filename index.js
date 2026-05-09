@@ -170,6 +170,26 @@ Pica.prototype.init = function () {
 };
 
 
+Pica.prototype.__createCanvas = function (width, height, preferOffscreen) {
+  if (preferOffscreen && this.capabilities.offscreen_canvas) {
+    return new OffscreenCanvas(width, height);
+  }
+
+  if (this.capabilities.canvas) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    return canvas;
+  }
+
+  if (this.capabilities.ww_offscreen_canvas) {
+    return new OffscreenCanvas(width, height);
+  }
+
+  return null;
+};
+
+
 // Call resizer in webworker or locally, depending on config
 Pica.prototype.__invokeWorker = function (method, payload, transfer, opts) {
   return new Promise((resolve, reject) => {
@@ -235,11 +255,7 @@ Pica.prototype.__invokeResize = function (tileOpts, opts) {
 
 // this function can return promise if createImageBitmap is used
 Pica.prototype.__extractTileData = function (tile, from, opts, stageEnv, extractTo) {
-  if (this.resize_features.ww && this.capabilities.ww_offscreen_canvas &&
-      // createImageBitmap doesn't work for images (Image, ImageBitmap) with Exif orientation in Chrome,
-      // can use canvas because canvas doesn't have orientation;
-      // see https://bugs.chromium.org/p/chromium/issues/detail?id=1220671
-      (utils.isCanvas(from) || !this.capabilities.bug_image_bitmap_orientation_region)) {
+  if (this.resize_features.ww && this.capabilities.ww_offscreen_canvas) {
     this.debug('Create tile for OffscreenCanvas');
 
     return createImageBitmap(stageEnv.srcImageBitmap || from, tile.x, tile.y, tile.width, tile.height)
@@ -477,7 +493,7 @@ Pica.prototype.__processStages = function (stages, from, to, opts) {
 
   if (!isLastStage) {
     // create temporary canvas
-    tmpCanvas = this.options.createCanvas(toWidth, toHeight);
+    tmpCanvas = this.__createCanvas(toWidth, toHeight, { preferOffscreen: true });
   }
 
   return this.__tileAndResize(from, (isLastStage ? to : tmpCanvas), opts)
@@ -606,6 +622,17 @@ Pica.prototype.resize = function (from, to, options) {
 
   return this.init().then(() => {
     if (opts.canceled) return opts.cancelToken;
+
+    // createImageBitmap doesn't work for images (Image, ImageBitmap) with
+    // Exif orientation in Chrome. Enforce canvas use for such inputs.
+    // see https://bugs.chromium.org/p/chromium/issues/detail?id=1220671
+    if (this.capabilities.bug_image_bitmap_orientation_region &&
+        (utils.isImage(from) || (utils.isImageBitmap(from)))) {
+      const tmpCanvas = this.options.createCanvas(opts.width, opts.height);
+      const tmpCtx = tmpCanvas.getContext('2d');
+      tmpCtx.drawImage(from, 0, 0);
+      from = tmpCanvas;
+    }
 
     // if createImageBitmap supports resize, just do it and return
     if (this.resize_features.cib) {
