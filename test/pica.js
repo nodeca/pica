@@ -23,30 +23,25 @@ describe('API', () => {
   });
 
   it('Should return result in promise', async () => {
-    let src = document.createElement('canvas');
+    const p = _pica();
+    await p.init();
 
-    src.width = 1000;
-    src.height = 1000;
+    let src = p.__createCanvas(1000, 1000);
+    let to = p.__createCanvas(100, 100);
 
-    let to = document.createElement('canvas');
-
-    to.width = 100;
-    to.height = 100;
-
-    const result = await _pica().resize(src, to);
+    const result = await p.resize(src, to);
     assert.strictEqual(result, to);
   });
 
   it('Resize with bad output size should fail', async () => {
-    let src = document.createElement('canvas');
-    src.width = 1000;
-    src.height = 1000;
-    let to = document.createElement('canvas');
-    to.width = 0;
-    to.height = 0;
+    const p = _pica();
+    await p.init();
+
+    let src = p.__createCanvas(1000, 1000);
+    let to = p.__createCanvas(0, 0);
 
     await assert.rejects(
-      async () => _pica().resize(src, to),
+      async () => p.resize(src, to),
       { message: 'Invalid output size: 0x0' }
     );
   });

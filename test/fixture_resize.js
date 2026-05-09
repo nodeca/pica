@@ -15,8 +15,9 @@ const OUTPUT_DIRECTORY   = path.join(__dirname, '..');
 
 describe('Fixture resize', () => {
 
-  it.skip('.resizeCanvas() should be correct for the given fixture', async () => {
-    this.timeout(3000);
+  it('.resizeCanvas() should be correct for the given fixture', async () => {
+    const resizer = pica({ features: [ 'js' ] });
+    await resizer.init();
 
     let srcImage = new Image();
     let srcBuf = fs.readFileSync(path.join(FIXTURES_DIRECTORY, 'original.jpg'));
@@ -24,10 +25,7 @@ describe('Fixture resize', () => {
     srcImage.src = 'data:image/jpeg;base64,' + srcBuf.toString('base64');
     await new Promise(resolve => { srcImage.onload = resolve; });
 
-    let srcCanvas = document.createElement('canvas');
-
-    srcCanvas.width = srcImage.width;
-    srcCanvas.height = srcImage.height;
+    let srcCanvas = resizer.__createCanvas(srcImage.width, srcImage.height);
 
     let srcCtx = srcCanvas.getContext('2d');
 
@@ -39,32 +37,22 @@ describe('Fixture resize', () => {
     fixtureImage.src = 'data:image/png;base64,' + fixtureBuf.toString('base64');
     await new Promise(resolve => { fixtureImage.onload = resolve; });
 
-    let fixtureCanvas = document.createElement('canvas');
-
-    fixtureCanvas.width = fixtureImage.width;
-    fixtureCanvas.height = fixtureImage.height;
+    let fixtureCanvas = resizer.__createCanvas(fixtureImage.width, fixtureImage.height);
 
     let fixtureCtx = fixtureCanvas.getContext('2d');
 
     fixtureCtx.drawImage(fixtureImage, 0, 0);
 
     let fixtureImageData = fixtureCtx.getImageData(0, 0, fixtureCanvas.width, fixtureCanvas.height);
-    let destCanvas = document.createElement('canvas');
-
-    destCanvas.width = fixtureImage.width;
-    destCanvas.height = fixtureImage.height;
+    let destCanvas = resizer.__createCanvas(fixtureImage.width, fixtureImage.height);
 
     let destCtx = destCanvas.getContext('2d');
-    let diffCanvas = document.createElement('canvas');
-
-    diffCanvas.width = fixtureImage.width;
-    diffCanvas.height = fixtureImage.height;
+    let diffCanvas = resizer.__createCanvas(fixtureImage.width, fixtureImage.height);
 
     let diffCtx = diffCanvas.getContext('2d');
     let diffImageData = diffCtx.createImageData(diffCanvas.width, diffCanvas.height);
 
-    await pica({ features: [ 'js' ] })
-      .resize(srcCanvas, destCanvas, { filter: 'lanczos3', unsharpAmount: 0 });
+    await resizer.resize(srcCanvas, destCanvas, { filter: 'lanczos3', unsharpAmount: 0 });
 
     let destImageData = destCtx.getImageData(0, 0, destCanvas.width, destCanvas.height);
 
