@@ -4,7 +4,7 @@
 
 const fs         = require('fs');
 const path       = require('path');
-const pica       = require('../index.js');
+const pica       = require('../lib/pica_main');
 const pixelmatch = require('pixelmatch').default;
 
 const ppm        = require('./ppm');

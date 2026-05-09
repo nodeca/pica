@@ -82,7 +82,7 @@ async function buildInlineWorker({ minify }) {
       minify,
       sourcemap: false,
       lib: {
-        entry: 'lib/worker.js',
+        entry: 'lib/pica_worker.js',
         name: 'picaWorker',
         formats: [ 'iife' ],
         fileName: () => 'pica_inline_worker.js'
@@ -105,7 +105,7 @@ async function buildWorker(fileName, emptyOutDir) {
       emptyOutDir,
       minify: false,
       lib: {
-        entry: 'lib/worker.js',
+        entry: 'lib/pica_worker.js',
         name: 'picaWorker',
         formats: [ 'iife' ],
         fileName: () => fileName
@@ -119,7 +119,7 @@ const inlineWorker = await buildInlineWorker({ minify: false });
 const inlineWorkerMin = await buildInlineWorker({ minify: 'terser' });
 
 await buildMain({
-  entry: 'index.js',
+  entry: 'lib/pica_main.js',
   name: 'pica',
   jsFile: 'pica.js',
   mjsFile: 'pica.mjs',
@@ -131,7 +131,7 @@ await buildMain({
 });
 
 await buildMain({
-  entry: 'index.js',
+  entry: 'lib/pica_main.js',
   name: 'pica',
   jsFile: 'pica.min.js',
   mjsFile: 'pica.min.mjs',
@@ -143,7 +143,7 @@ await buildMain({
 });
 
 await buildMain({
-  entry: 'index.js',
+  entry: 'lib/pica_main.js',
   name: 'pica',
   jsFile: 'pica_main.js',
   mjsFile: 'pica_main.mjs',

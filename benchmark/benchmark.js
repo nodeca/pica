@@ -9,8 +9,8 @@ const Benchmark   = require('benchmark');
 const filter_gen  = require('../lib/mm_resize/resize_filter_gen');
 const resize_raw  = require('../lib/mm_resize/resize');
 
-const pica_js     = require('../index.js')({ features: [ 'js' ] });
-const pica_wasm   = require('../index.js')({ features: [ 'wasm' ] });
+const pica_js     = require('../lib/pica_main')({ features: [ 'js' ] });
+const pica_wasm   = require('../lib/pica_main')({ features: [ 'wasm' ] });
 
 const SRC_WIDTH = 1024;
 const SRC_HEIGHT = 1024;

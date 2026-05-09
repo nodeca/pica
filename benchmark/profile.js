@@ -3,7 +3,7 @@
 'use strict';
 
 
-var pica      = require('../index.js')({ features: [ 'js' ] });
+var pica      = require('../lib/pica_main')({ features: [ 'js' ] });
 
 
 function noop() {}

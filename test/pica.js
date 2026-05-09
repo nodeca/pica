@@ -1,7 +1,7 @@
 'use strict';
 
 
-const _pica  = require('../index.js');
+const _pica  = require('../lib/pica_main');
 const assert = require('assert');
 
 
