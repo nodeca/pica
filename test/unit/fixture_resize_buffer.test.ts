@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url'
 import pixelmatch from 'pixelmatch'
 
 import pica from '../../src/pica_main'
-import ppm from '../ppm.js'
+import * as ppm from '../helpers/ppm'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const FIXTURES_DIRECTORY = path.join(__dirname, '..', 'fixtures')

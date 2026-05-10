@@ -14,7 +14,7 @@
   },
   "include": [
     "src/**/*.ts",
-    "test/**/*.mjs",
+    "test/**/*.ts",
     "vitest.config.mjs"
   ]
 }

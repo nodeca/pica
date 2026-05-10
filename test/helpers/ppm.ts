@@ -102,28 +102,7 @@ function encode (buffer, width, height) {
 }
 
 
-exports.encode = encode
-exports.decode = decode
-
-
-/* describe.only('ppm', function () {
-  var join = require('path').join;
-  var fs   = require('fs');
-
-  var src_path = join(__dirname, 'fixtures', 'original.ppm');
-
-  it('decode/encode', function () {
-    var src = fs.readFileSync(src_path);
-    var decoded = decode(src);
-    var encoded = encode(decoded);
-
-    // fs.writeFileSync(join(__dirname, 'fixtures', 'test.ppm'), Buffer.from(encoded));
-
-    for (var i = 0; i < src.length; i++) {
-      if (src[i] !== encoded[i]) {
-        throw new Error('pos: ' + i + ', expected: ' + src[i] + ' instead of ' + encoded[i]);
-      }
-    }
-  });
-
-}); */
+export {
+  decode,
+  encode
+}

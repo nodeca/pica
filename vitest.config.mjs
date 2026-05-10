@@ -18,14 +18,14 @@ export default defineConfig({
           name: 'unit',
           globals: true,
           environment: 'node',
-          include: ['test/unit/**/*.test.mjs']
+          include: ['test/unit/**/*.test.ts']
         }
       },
       {
         test: {
           name: 'browser',
           globals: true,
-          include: ['test/browser/**/*.test.mjs'],
+          include: ['test/browser/**/*.test.ts'],
           browser
         }
       },
@@ -33,7 +33,7 @@ export default defineConfig({
         test: {
           name: 'dist',
           globals: true,
-          include: ['test/dist/**/*.test.mjs'],
+          include: ['test/dist/**/*.test.ts'],
           browser
         }
       }
