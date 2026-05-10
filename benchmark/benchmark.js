@@ -5,12 +5,12 @@
 'use strict'
 
 
-const Benchmark   = require('benchmark')
-const filter_gen  = require('../lib/mm_resize/resize_filter_gen')
-const resize_raw  = require('../lib/mm_resize/resize')
+const Benchmark = require('benchmark')
+const filter_gen = require('../lib/mm_resize/resize_filter_gen')
+const resize_raw = require('../lib/mm_resize/resize')
 
-const pica_js     = require('../lib/pica_main')({ features: ['js'] })
-const pica_wasm   = require('../lib/pica_main')({ features: ['wasm'] })
+const pica_js = require('../lib/pica_main')({ features: ['js'] })
+const pica_wasm = require('../lib/pica_main')({ features: ['wasm'] })
 
 const SRC_WIDTH = 1024
 const SRC_HEIGHT = 1024
@@ -38,7 +38,7 @@ Benchmark.Suite()
 
   .add(`[js] resize (${SRC_WIDTH}x${SRC_HEIGHT} => ${DST_WIDTH}x${DST_HEIGHT})`, {
     defer: true,
-    fn: function (defer) {
+    fn (defer) {
       pica_js.resizeBuffer({ src: sample, ...RESIZE_DEFAULTS })
         .then(() => defer.resolve())
     }
@@ -46,7 +46,7 @@ Benchmark.Suite()
 
   .add(`[js] resize & premultiply (${SRC_WIDTH}x${SRC_HEIGHT} => ${DST_WIDTH}x${DST_HEIGHT})`, {
     defer: true,
-    fn: function (defer) {
+    fn (defer) {
       pica_js.resizeBuffer({ src: sampleWithAlpha, ...RESIZE_DEFAULTS })
         .then(() => defer.resolve())
     }
@@ -54,7 +54,7 @@ Benchmark.Suite()
 
   .add(`[wasm] resize (${SRC_WIDTH}x${SRC_HEIGHT} => ${DST_WIDTH}x${DST_HEIGHT})`, {
     defer: true,
-    fn: function (defer) {
+    fn (defer) {
       pica_wasm.resizeBuffer({ src: sample, ...RESIZE_DEFAULTS })
         .then(() => defer.resolve())
     }
@@ -62,38 +62,38 @@ Benchmark.Suite()
 
   .add(`[wasm] resize & premultiply (${SRC_WIDTH}x${SRC_HEIGHT} => ${DST_WIDTH}x${DST_HEIGHT})`, {
     defer: true,
-    fn: function (defer) {
+    fn (defer) {
       pica_wasm.resizeBuffer({ src: sampleWithAlpha, ...RESIZE_DEFAULTS })
         .then(() => defer.resolve())
     }
   })
 
   .add(`mm js resize (${SRC_WIDTH}x${SRC_HEIGHT} => ${DST_WIDTH}x${DST_HEIGHT})`, {
-    fn: function () {
+    fn () {
       resize_raw({ src: sample, ...RESIZE_DEFAULTS })
     }
   })
 
   .add(`mm js resize & premultiply (${SRC_WIDTH}x${SRC_HEIGHT} => ${DST_WIDTH}x${DST_HEIGHT})`, {
-    fn: function () {
+    fn () {
       resize_raw({ src: sampleWithAlpha, ...RESIZE_DEFAULTS })
     }
   })
 
   .add(`[js] unsharp (${SRC_WIDTH}x${SRC_HEIGHT})`, {
-    fn: function () {
+    fn () {
       pica_js.__mathlib.unsharp_mask(sample, SRC_WIDTH, SRC_HEIGHT, 80, 0.5, 4)
     }
   })
 
   .add(`[wasm] unsharp (${SRC_WIDTH}x${SRC_HEIGHT})`, {
-    fn: function () {
+    fn () {
       pica_wasm.__mathlib.unsharp_mask(sample, SRC_WIDTH, SRC_HEIGHT, 80, 0.5, 4)
     }
   })
 
   .add(`Build filters for (${SRC_WIDTH}x${SRC_HEIGHT})`, {
-    fn: function () {
+    fn () {
       filter_gen('lanczos3', SRC_WIDTH, DST_WIDTH, SCALE, 0.0)
       filter_gen('lanczos3', SRC_HEIGHT, DST_HEIGHT, SCALE, 0.0)
     }

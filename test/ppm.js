@@ -29,7 +29,7 @@ function decode (src) {
 
   if (peek_string(src) !== 'P6') throw new Error('Fromat should be P6')
 
-  const width  = parseInt(peek_string(src), 10)
+  const width = parseInt(peek_string(src), 10)
   const height = parseInt(peek_string(src), 10)
 
   const colors = parseInt(peek_string(src), 10)
@@ -56,16 +56,16 @@ function decode (src) {
   }
 
   return {
-    width: width,
-    height: height,
-    buffer: buffer
+    width,
+    height,
+    buffer
   }
 }
 
 
 function encode (buffer, width, height) {
   if (arguments.length === 1) {
-    width  = buffer.width
+    width = buffer.width
     height = buffer.height
     buffer = buffer.buffer
   }
@@ -94,7 +94,7 @@ function encode (buffer, width, height) {
     result[dest_pos + 1] = buffer[src_pos + 1]
     result[dest_pos + 2] = buffer[src_pos + 2]
     dest_pos += 3
-    src_pos  += 4
+    src_pos += 4
     pixels--
   }
 
@@ -106,7 +106,7 @@ exports.encode = encode
 exports.decode = decode
 
 
-/*describe.only('ppm', function () {
+/* describe.only('ppm', function () {
   var join = require('path').join;
   var fs   = require('fs');
 
@@ -126,4 +126,4 @@ exports.decode = decode
     }
   });
 
-});*/
+}); */

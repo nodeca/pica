@@ -1,6 +1,6 @@
 'use strict'
 
-const assert      = require('assert')
+const assert = require('assert')
 const mathlib_raw = require('multimath')
 
 
@@ -12,9 +12,7 @@ function fill (target, arr) {
 
 
 describe('unsharp_mask', () => {
-
   describe('glur_mono16', () => {
-
     it('js', () => {
       const glur_js = require('glur/mono16')
 
@@ -31,7 +29,7 @@ describe('unsharp_mask', () => {
 
 
     it('wasm', () => {
-      const glur_js   = require('glur/mono16')
+      const glur_js = require('glur/mono16')
       const mlib_wasm = mathlib_raw({ js: false }).use(require('../lib/mm_unsharp_mask'))
 
       // unsharp_mask wasm module does not provide API for direct glur16 call
@@ -73,7 +71,7 @@ describe('unsharp_mask', () => {
       const sample = new Uint16Array(100 * 100)
       fill(sample, [0, 255])
 
-      const sample_js   = sample.slice(0, sample.length)
+      const sample_js = sample.slice(0, sample.length)
 
       glur_js(sample_js, 100, 100, 2)
 
@@ -85,7 +83,6 @@ describe('unsharp_mask', () => {
 
 
   describe('unsharp_mask', () => {
-
     function createSample (width, height) {
       const result = new Uint8Array(width * height * 4)
 
@@ -107,7 +104,7 @@ describe('unsharp_mask', () => {
       const mlib_js = mathlib_raw({ wasm: false }).use(require('../lib/mm_unsharp_mask'))
       const mlib_wasm = mathlib_raw({ js: false }).use(require('../lib/mm_unsharp_mask'))
 
-      const sample_js   = createSample(100, 100)
+      const sample_js = createSample(100, 100)
       const sample_wasm = createSample(100, 100)
 
       mlib_js.unsharp_mask(sample_js, 100, 100, 80, 2, 2)

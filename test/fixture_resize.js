@@ -2,19 +2,18 @@
 //
 'use strict'
 
-const fs         = require('fs')
-const path       = require('path')
-const pica       = require('../lib/pica_main')
+const fs = require('fs')
+const path = require('path')
+const pica = require('../lib/pica_main')
 const pixelmatch = require('pixelmatch').default
 
-const ppm        = require('./ppm')
+const ppm = require('./ppm')
 
 const FIXTURES_DIRECTORY = path.join(__dirname, 'fixtures')
-const OUTPUT_DIRECTORY   = path.join(__dirname, '..')
+const OUTPUT_DIRECTORY = path.join(__dirname, '..')
 
 
 describe('Fixture resize', () => {
-
   it('.resizeCanvas() should be correct for the given fixture', async () => {
     const resizer = pica({ features: ['js'] })
     await resizer.init()
@@ -89,7 +88,7 @@ describe('Fixture resize', () => {
 
 
   it('.resizeBuffer() should be correct for the given fixture', async () => {
-    const src     = ppm.decode(fs.readFileSync(path.join(FIXTURES_DIRECTORY, 'original.ppm')))
+    const src = ppm.decode(fs.readFileSync(path.join(FIXTURES_DIRECTORY, 'original.ppm')))
     const fixture = ppm.decode(fs.readFileSync(path.join(FIXTURES_DIRECTORY, 'resized.ppm')))
 
     const dest = new Uint8Array(fixture.buffer.length)
@@ -99,7 +98,7 @@ describe('Fixture resize', () => {
       src: src.buffer,
       width: src.width,
       height: src.height,
-      dest: dest,
+      dest,
       toWidth: fixture.width,
       toHeight: fixture.height,
       filter: 'lanczos3'
@@ -130,5 +129,4 @@ describe('Fixture resize', () => {
       throw new Error(`Images mismatch in ${numDiffPixels} pixels`)
     }
   })
-
 })

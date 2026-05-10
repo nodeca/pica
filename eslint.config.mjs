@@ -19,6 +19,7 @@ export default [
     },
     rules: {
       camelcase: 'off',
+      'one-var': 'off',
       '@stylistic/no-multiple-empty-lines': 'off',
       '@stylistic/space-infix-ops': 'off'
     }

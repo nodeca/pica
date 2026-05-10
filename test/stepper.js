@@ -1,7 +1,7 @@
 'use strict'
 
 
-const assert       = require('assert')
+const assert = require('assert')
 const createStages = require('../lib/stepper')
 
 const TILE_SIZE = 1024

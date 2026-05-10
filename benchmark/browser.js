@@ -15,7 +15,7 @@ $(function () {
 
     .add(`Resize of ${sample.width}x${sample.height}`, {
       defer: true,
-      fn: function (defer) {
+      fn (defer) {
         p.resizeBuffer({
           src: sample.buffer,
           width: sample.width,
@@ -29,7 +29,7 @@ $(function () {
     })
 
     .add(`Unsharp of ${sample.width}x${sample.height}`, {
-      fn: function () {
+      fn () {
         p.__mathlib.unsharp_mask(
           sample.buffer, sample.width, sample.height,
           80, 0.5, 4
@@ -47,5 +47,4 @@ $(function () {
     })
 
     .run()
-
 })

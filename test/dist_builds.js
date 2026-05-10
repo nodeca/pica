@@ -69,7 +69,6 @@ async function assertResizeViaWorker (p) {
 
 
 describe('dist builds', () => {
-
   it('full .js build should resize via inline worker', async () => {
     const pica = require('../dist/pica.js')
     const p = pica({ features: ['js', 'ww'] })

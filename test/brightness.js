@@ -3,7 +3,7 @@
 'use strict'
 
 
-const pica   = require('../lib/pica_main')({ features: ['js', 'wasm'] })
+const pica = require('../lib/pica_main')({ features: ['js', 'wasm'] })
 const assert = require('assert')
 
 
@@ -11,17 +11,17 @@ function fill (arr, val) {
   for (let i = 0; i < arr.length; i++) { arr[i] = val }
 }
 
-const SRC_W =  1000,
-  SRC_H =  768,
+const SRC_W = 1000,
+  SRC_H = 768,
   DEST_W = 140,
   DEST_H = 108
 
 function createTest (color) {
-  const srcSize    = 4 * SRC_W * SRC_H,
+  const srcSize = 4 * SRC_W * SRC_H,
     resultSize = 4 * DEST_W * DEST_H,
-    hexColor   = color.toString(16),
-    src        = new Uint8Array(srcSize),
-    correct    = new Uint8Array(resultSize)
+    hexColor = color.toString(16),
+    src = new Uint8Array(srcSize),
+    correct = new Uint8Array(resultSize)
 
   fill(src, color)
   fill(correct, color)
@@ -30,7 +30,7 @@ function createTest (color) {
 
   it(test_name, async () => {
     const result = await pica.resizeBuffer({
-      src: src,
+      src,
       width: SRC_W,
       height: SRC_H,
       toWidth: DEST_W,

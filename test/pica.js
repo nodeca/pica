@@ -1,12 +1,11 @@
 'use strict'
 
 
-const _pica  = require('../lib/pica_main')
+const _pica = require('../lib/pica_main')
 const assert = require('assert')
 
 
 describe('API', () => {
-
   // Need node 8 to run
   it('Upscale (unexpected use) via wasm should not crash', async () => {
     const p = _pica({ features: ['wasm'] })
@@ -45,5 +44,4 @@ describe('API', () => {
       { message: 'Invalid output size: 0x0' }
     )
   })
-
 })

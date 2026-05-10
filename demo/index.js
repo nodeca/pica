@@ -1,4 +1,4 @@
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 // performance.now polyfill
 (function () {
   if(window.performance && window.performance.now) return
@@ -17,7 +17,7 @@
   window.performance.now = function () { return +(new Date()) }
 })()
 
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 
 window.pica.prototype.debug = console.log.bind(console)
 
@@ -96,7 +96,7 @@ const updateResized = _.debounce(function () {
   time = (performance.now() - start).toFixed(2)
 
   $('#dst-cvs-info').text(_.template('<%= time %>ms, <%= w %> x <%= h %>', {
-    time: time,
+    time,
     w: dst.width,
     h: dst.height
   }))
@@ -108,12 +108,12 @@ const updateResized = _.debounce(function () {
   dst.height = img.height * width / img.width
 
   const offScreenCanvas = document.createElement('canvas')
-  offScreenCanvas.width  = dst.width
+  offScreenCanvas.width = dst.width
   offScreenCanvas.height = dst.height
 
   start = performance.now()
 
-  /*createImageBitmap($('#src')[0]).then(image_bitmap => {
+  /* createImageBitmap($('#src')[0]).then(image_bitmap => {
     return resizer.resize(image_bitmap, offScreenCanvas, {
       filter: filter,
       unsharpAmount: unsharpAmount,
@@ -123,10 +123,10 @@ const updateResized = _.debounce(function () {
     });
   })*/
   resizer.resize($('#src')[0], offScreenCanvas, {
-    filter: filter,
-    unsharpAmount: unsharpAmount,
-    unsharpRadius: unsharpRadius,
-    unsharpThreshold: unsharpThreshold,
+    filter,
+    unsharpAmount,
+    unsharpRadius,
+    unsharpThreshold,
     transferable: true
   })
     .then(function () {
@@ -153,7 +153,7 @@ const updateResized = _.debounce(function () {
 
       if (unsharpAmount) {
         $('#dst-info').text(_.template('<%= time %>ms, <%= info %>, Unsharp [<%= amount %>, <%= radius %>, <%= threshold %>]', {
-          time: time,
+          time,
           info: filterInfo[filter],
           amount: unsharpAmount,
           radius: unsharpRadius,
@@ -161,7 +161,7 @@ const updateResized = _.debounce(function () {
         }))
       } else {
         $('#dst-info').text(_.template('<%= time %>ms, <%= info %>, Unsharp off', {
-          time: time,
+          time,
           info: filterInfo[filter]
         }))
       }
@@ -177,13 +177,13 @@ const updateResized = _.debounce(function () {
 //
 var img = new Image()
 
-var filter            = filter_name[Number($('#pica-filter').val())]
-var unsharpAmount     = Number($('#pica-unsharp-amount').val())
-var unsharpRadius     = Number($('#pica-unsharp-radius').val())
-var unsharpThreshold  = Number($('#pica-unsharp-threshold').val())
+var filter = filter_name[Number($('#pica-filter').val())]
+var unsharpAmount = Number($('#pica-unsharp-amount').val())
+var unsharpRadius = Number($('#pica-unsharp-radius').val())
+var unsharpThreshold = Number($('#pica-unsharp-threshold').val())
 
-resizer_mode.ww   = $('#pica-use-ww').is(":checked")
-resizer_mode.cib  = $('#pica-use-cib').is(":checked")
+resizer_mode.ww = $('#pica-use-ww').is(":checked")
+resizer_mode.cib = $('#pica-use-cib').is(":checked")
 resizer_mode.wasm = $('#pica-use-wasm').is(":checked")
 
 create_resizer()

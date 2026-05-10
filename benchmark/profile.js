@@ -3,7 +3,7 @@
 'use strict'
 
 
-const pica      = require('../lib/pica_main')({ features: ['js'] })
+const pica = require('../lib/pica_main')({ features: ['js'] })
 
 
 function noop () {}
@@ -13,7 +13,7 @@ const sample = {
   width: 3200,
   height: 2500
 }
-sample.buffer    = new Uint8Array(sample.width * sample.height * 4)
+sample.buffer = new Uint8Array(sample.width * sample.height * 4)
 
 
 for (let i = 0; i < 10; i++) {

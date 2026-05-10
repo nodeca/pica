@@ -3,7 +3,7 @@
 
 
 
-const fs   = require('fs')
+const fs = require('fs')
 
 
 if (process.argv.length !== 4) {

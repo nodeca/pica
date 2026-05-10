@@ -1,6 +1,5 @@
 import { build, mergeConfig } from 'vite'
 
-
 const TARGET = 'es2015'
 
 const common = {
@@ -25,7 +24,6 @@ const common = {
   }
 }
 
-
 function stripRegionComments () {
   return {
     name: 'strip-region-comments',
@@ -40,7 +38,6 @@ function stripRegionComments () {
   }
 }
 
-
 function withConfig (config) {
   return mergeConfig(common, {
     ...config,
@@ -50,7 +47,6 @@ function withConfig (config) {
     ]
   })
 }
-
 
 async function buildMain ({ entry, name, jsFile, mjsFile, minify, emptyOutDir, define }) {
   await build(withConfig({
@@ -73,7 +69,6 @@ async function buildMain ({ entry, name, jsFile, mjsFile, minify, emptyOutDir, d
     }
   }))
 }
-
 
 async function buildInlineWorker ({ minify }) {
   const result = await build(withConfig({
@@ -98,7 +93,6 @@ async function buildInlineWorker ({ minify }) {
   return `${chunk.code}\n//# sourceURL=pica-inline-worker.js`
 }
 
-
 async function buildWorker (fileName, emptyOutDir) {
   await build(withConfig({
     build: {
@@ -113,7 +107,6 @@ async function buildWorker (fileName, emptyOutDir) {
     }
   }))
 }
-
 
 const inlineWorker = await buildInlineWorker({ minify: false })
 const inlineWorkerMin = await buildInlineWorker({ minify: 'terser' })

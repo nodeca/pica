@@ -1,6 +1,6 @@
 'use strict'
 
-const pica   = require('../lib/pica_main')({ features: ['js', 'wasm'] })
+const pica = require('../lib/pica_main')({ features: ['js', 'wasm'] })
 const assert = require('assert')
 
 describe('Unsharp mask', () => {
