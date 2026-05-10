@@ -6,16 +6,16 @@
 'use strict'
 
 
-function is_empty(ch) {
+function is_empty (ch) {
   return ch <= 0x20
 }
 
 
-function decode(src) {
-  var pos = 0
+function decode (src) {
+  let pos = 0
 
-  function peek_string(src) {
-    var result = ''
+  function peek_string (src) {
+    let result = ''
 
     while (pos <= src.length && !is_empty(src[pos])) {
       result += String.fromCharCode(src[pos])
@@ -29,21 +29,21 @@ function decode(src) {
 
   if (peek_string(src) !== 'P6') throw new Error('Fromat should be P6')
 
-  var width  = parseInt(peek_string(src), 10)
-  var height = parseInt(peek_string(src), 10)
+  const width  = parseInt(peek_string(src), 10)
+  const height = parseInt(peek_string(src), 10)
 
-  var colors = parseInt(peek_string(src), 10)
+  const colors = parseInt(peek_string(src), 10)
 
   if (colors > 255) throw new Error('2-bytes per channel are not supported')
 
-  var pixels = width * height
+  let pixels = width * height
 
   if ((src.length - pos) !== pixels * 3) {
     throw new Error('Binary content does not match header')
   }
 
-  var buffer = new Uint8Array(pixels * 4)
-  var dest_pos = 0
+  const buffer = new Uint8Array(pixels * 4)
+  let dest_pos = 0
 
   while (pixels > 0) {
     buffer[dest_pos + 0] = src[pos + 0]
@@ -63,31 +63,31 @@ function decode(src) {
 }
 
 
-function encode(buffer, width, height) {
+function encode (buffer, width, height) {
   if (arguments.length === 1) {
     width  = buffer.width
     height = buffer.height
     buffer = buffer.buffer
   }
 
-  var header = 'P6\n' + width + ' ' + height + '\n255\n'
+  const header = 'P6\n' + width + ' ' + height + '\n255\n'
 
-  var pixels = width * height
+  let pixels = width * height
 
   if (buffer.length !== pixels * 4) {
     throw new Error('Data size does not match width*height')
   }
 
-  var result = new Uint8Array(header.length + pixels * 3)
+  const result = new Uint8Array(header.length + pixels * 3)
 
-  var dest_pos = 0
+  let dest_pos = 0
 
   while (dest_pos < header.length) {
     result[dest_pos] = header.charCodeAt(dest_pos)
     dest_pos++
   }
 
-  var src_pos = 0
+  let src_pos = 0
 
   while (pixels > 0) {
     result[dest_pos + 0] = buffer[src_pos + 0]

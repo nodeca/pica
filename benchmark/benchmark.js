@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
- 
+
 
 'use strict'
 
@@ -26,14 +26,14 @@ const sampleWithAlpha = new Uint8Array(SRC_WIDTH * SRC_HEIGHT * 4)
 sampleWithAlpha.fill(127)
 
 const RESIZE_DEFAULTS = {
-  width:    SRC_WIDTH,
-  height:   SRC_HEIGHT,
-  toWidth:  DST_WIDTH,
+  width: SRC_WIDTH,
+  height: SRC_HEIGHT,
+  toWidth: DST_WIDTH,
   toHeight: DST_HEIGHT,
-  filter:   'lanczos3'
+  filter: 'lanczos3'
 }
 
- 
+
 Benchmark.Suite()
 
   .add(`[js] resize (${SRC_WIDTH}x${SRC_HEIGHT} => ${DST_WIDTH}x${DST_HEIGHT})`, {

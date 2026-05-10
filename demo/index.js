@@ -1,20 +1,20 @@
 ////////////////////////////////////////////////////////////////////////////////
 // performance.now polyfill
-(function() {
+(function () {
   if(window.performance && window.performance.now) return
   if(!window.performance) window.performance = {}
-  var methods = ['webkitNow', 'msNow', 'mozNow']
-  for(var i = 0; i < methods.length; i++) {
+  const methods = ['webkitNow', 'msNow', 'mozNow']
+  for(let i = 0; i < methods.length; i++) {
     if(window.performance[methods[i]]) {
       window.performance.now = window.performance[methods[i]]
       return
     }
   }
   if(Date.now) {
-    window.performance.now = function() { return Date.now() }
+    window.performance.now = function () { return Date.now() }
     return
   }
-  window.performance.now = function() { return +(new Date()) }
+  window.performance.now = function () { return +(new Date()) }
 })()
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,7 +22,7 @@
 window.pica.prototype.debug = console.log.bind(console)
 
 
-var filterInfo = {
+const filterInfo = {
   box: 'Box (win 0.5px)',
   hamming: 'Hamming (win 1px)',
   lanczos2: 'Lanczos (win 2px)',
@@ -30,7 +30,7 @@ var filterInfo = {
   mks2013: 'MKS 2013 (win 2.5px)'
 }
 
-var filter_name = [
+const filter_name = [
   'box',
   'hamming',
   'lanczos2',
@@ -39,19 +39,19 @@ var filter_name = [
 ]
 
 
-var resizer
+let resizer
 
 
-var resizer_mode = {
-  js:   true,
+const resizer_mode = {
+  js: true,
   wasm: true,
-  cib:  true,
-  ww:   true
+  cib: true,
+  ww: true
 }
 
 
-function create_resizer() {
-  var opts = []
+function create_resizer () {
+  const opts = []
 
   Object.keys(resizer_mode).forEach(function (k) {
     if (resizer_mode[k]) opts.push(k)
@@ -61,8 +61,8 @@ function create_resizer() {
 }
 
 
-function updateOrig() {
-  var src, ctx
+function updateOrig () {
+  let src, ctx
 
   src = $('#src')[0]
   src.width = img.width
@@ -77,8 +77,8 @@ function updateOrig() {
   ctx.drawImage(img, 0, 0)
 }
 
-var updateResized = _.debounce(function () {
-  var dst, ctx, width, start, time
+const updateResized = _.debounce(function () {
+  let dst, ctx, width, start, time
 
   width = $('.pica-options').width()
 
@@ -107,7 +107,7 @@ var updateResized = _.debounce(function () {
   dst.width = width
   dst.height = img.height * width / img.width
 
-  var offScreenCanvas = document.createElement('canvas')
+  const offScreenCanvas = document.createElement('canvas')
   offScreenCanvas.width  = dst.width
   offScreenCanvas.height = dst.height
 
@@ -135,7 +135,7 @@ var updateResized = _.debounce(function () {
       // Copy buffer to visible element
       dst.getContext('2d').drawImage(offScreenCanvas, 0, 0)
 
-      var features
+      let features
 
       if (resizer.resize_features.cib) {
         features = 'method: CIB'
@@ -239,7 +239,7 @@ $('#upload-btn, #src').on('click', function () {
 })
 
 $('#upload').on('change', function () {
-  var files = $(this)[0].files
+  const files = $(this)[0].files
 
   if (files.length === 0) { return }
 

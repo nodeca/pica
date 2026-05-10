@@ -3,27 +3,27 @@
 'use strict'
 
 
-var pica      = require('../lib/pica_main')({ features: ['js'] })
+const pica      = require('../lib/pica_main')({ features: ['js'] })
 
 
-function noop() {}
+function noop () {}
 
 
 const sample = {
-  width:  3200,
+  width: 3200,
   height: 2500
 }
 sample.buffer    = new Uint8Array(sample.width * sample.height * 4)
 
 
-for (var i = 0; i < 10; i++) {
+for (let i = 0; i < 10; i++) {
   pica.resizeBuffer({
-    src:    sample.buffer,
-    width:  sample.width,
+    src: sample.buffer,
+    width: sample.width,
     height: sample.height,
     toWidth: 300,
     toHeight: 225,
-    filter:   'lanczos3'
+    filter: 'lanczos3'
   })
     .then(noop)
 }

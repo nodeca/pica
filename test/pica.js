@@ -14,10 +14,10 @@ describe('API', () => {
     const input = new Uint8Array(500 * 500 * 4)
 
     await p.resizeBuffer({
-      src:      input,
-      width:    500,
-      height:   500,
-      toWidth:  1000,
+      src: input,
+      width: 500,
+      height: 500,
+      toWidth: 1000,
       toHeight: 1000
     })
   })
@@ -26,8 +26,8 @@ describe('API', () => {
     const p = _pica({ features: ['js', 'wasm'] })
     await p.init()
 
-    let src = p.__createCanvas(1000, 1000)
-    let to = p.__createCanvas(100, 100)
+    const src = p.__createCanvas(1000, 1000)
+    const to = p.__createCanvas(100, 100)
 
     const result = await p.resize(src, to)
     assert.strictEqual(result, to)
@@ -37,8 +37,8 @@ describe('API', () => {
     const p = _pica({ features: ['js', 'wasm'] })
     await p.init()
 
-    let src = p.__createCanvas(1000, 1000)
-    let to = p.__createCanvas(0, 0)
+    const src = p.__createCanvas(1000, 1000)
+    const to = p.__createCanvas(0, 0)
 
     await assert.rejects(
       async () => p.resize(src, to),

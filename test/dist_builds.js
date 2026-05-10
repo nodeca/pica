@@ -8,18 +8,18 @@ const pixelmatch = require('pixelmatch').default
 const { pathToFileURL } = require('url')
 
 
-const importModule = new Function('url', 'return import(url);')  
+const importModule = new Function('url', 'return import(url);')
 const FIXTURES_DIRECTORY = path.join(__dirname, 'fixtures')
 
 
-function distURL(file) {
+function distURL (file) {
   return pathToFileURL(path.join(__dirname, '..', 'dist', file)).href
 }
 
 
-async function loadImage(file, mime) {
-  let image = new Image()
-  let buf = fs.readFileSync(path.join(FIXTURES_DIRECTORY, file))
+async function loadImage (file, mime) {
+  const image = new Image()
+  const buf = fs.readFileSync(path.join(FIXTURES_DIRECTORY, file))
 
   image.src = `data:${mime};base64,${buf.toString('base64')}`
   await new Promise(resolve => { image.onload = resolve })
@@ -28,34 +28,34 @@ async function loadImage(file, mime) {
 }
 
 
-async function assertResizeViaWorker(p) {
+async function assertResizeViaWorker (p) {
   await p.init()
 
   assert.strictEqual(p.resize_features.ww, true)
 
-  let sourceImage = await loadImage('original.jpg', 'image/jpeg')
-  let expectedImage = await loadImage('resized.png', 'image/png')
+  const sourceImage = await loadImage('original.jpg', 'image/jpeg')
+  const expectedImage = await loadImage('resized.png', 'image/png')
 
-  let srcCanvas = p.__createCanvas(sourceImage.width, sourceImage.height)
-  let srcCtx = srcCanvas.getContext('2d')
+  const srcCanvas = p.__createCanvas(sourceImage.width, sourceImage.height)
+  const srcCtx = srcCanvas.getContext('2d')
 
   srcCtx.drawImage(sourceImage, 0, 0)
 
-  let expectedCanvas = p.__createCanvas(expectedImage.width, expectedImage.height)
-  let expectedCtx = expectedCanvas.getContext('2d')
+  const expectedCanvas = p.__createCanvas(expectedImage.width, expectedImage.height)
+  const expectedCtx = expectedCanvas.getContext('2d')
 
   expectedCtx.drawImage(expectedImage, 0, 0)
 
-  let destCanvas = p.__createCanvas(expectedImage.width, expectedImage.height)
-  let destCtx = destCanvas.getContext('2d')
-  let diffImageData = destCtx.createImageData(destCanvas.width, destCanvas.height)
+  const destCanvas = p.__createCanvas(expectedImage.width, expectedImage.height)
+  const destCtx = destCanvas.getContext('2d')
+  const diffImageData = destCtx.createImageData(destCanvas.width, destCanvas.height)
 
   await p.resize(srcCanvas, destCanvas, { filter: 'lanczos3', unsharpAmount: 0 })
 
-  let destImageData = destCtx.getImageData(0, 0, destCanvas.width, destCanvas.height)
-  let expectedImageData = expectedCtx.getImageData(0, 0, expectedCanvas.width, expectedCanvas.height)
+  const destImageData = destCtx.getImageData(0, 0, destCanvas.width, destCanvas.height)
+  const expectedImageData = expectedCtx.getImageData(0, 0, expectedCanvas.width, expectedCanvas.height)
 
-  let numDiffPixels = pixelmatch(
+  const numDiffPixels = pixelmatch(
     destImageData.data,
     expectedImageData.data,
     diffImageData.data,

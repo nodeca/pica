@@ -18,7 +18,9 @@ export default [
       sourceType: 'commonjs'
     },
     rules: {
-      camelcase: 'off'
+      camelcase: 'off',
+      '@stylistic/no-multiple-empty-lines': 'off',
+      '@stylistic/space-infix-ops': 'off'
     }
   },
 

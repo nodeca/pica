@@ -26,10 +26,10 @@ const common = {
 }
 
 
-function stripRegionComments() {
+function stripRegionComments () {
   return {
     name: 'strip-region-comments',
-    renderChunk(code) {
+    renderChunk (code) {
       code = code.replace(/\\n\t?\/\/#(?:end)?region.*?(?=\\n)/g, '')
 
       return {
@@ -41,7 +41,7 @@ function stripRegionComments() {
 }
 
 
-function withConfig(config) {
+function withConfig (config) {
   return mergeConfig(common, {
     ...config,
     plugins: [
@@ -52,7 +52,7 @@ function withConfig(config) {
 }
 
 
-async function buildMain({ entry, name, jsFile, mjsFile, minify, emptyOutDir, define }) {
+async function buildMain ({ entry, name, jsFile, mjsFile, minify, emptyOutDir, define }) {
   await build(withConfig({
     define,
     build: {
@@ -75,7 +75,7 @@ async function buildMain({ entry, name, jsFile, mjsFile, minify, emptyOutDir, de
 }
 
 
-async function buildInlineWorker({ minify }) {
+async function buildInlineWorker ({ minify }) {
   const result = await build(withConfig({
     build: {
       write: false,
@@ -99,7 +99,7 @@ async function buildInlineWorker({ minify }) {
 }
 
 
-async function buildWorker(fileName, emptyOutDir) {
+async function buildWorker (fileName, emptyOutDir) {
   await build(withConfig({
     build: {
       emptyOutDir,

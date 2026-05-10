@@ -1,28 +1,28 @@
 /* global $, Benchmark */
- 
+
 
 $(function () {
-  var sample = {
-    width:  1024,
+  const sample = {
+    width: 1024,
     height: 1024
   }
   sample.buffer = new Uint8Array(sample.width * sample.height * 4)
 
-  var p = window.pica({ features: ['js'] })
+  const p = window.pica({ features: ['js'] })
 
-   
+
   Benchmark.Suite()
 
     .add(`Resize of ${sample.width}x${sample.height}`, {
       defer: true,
       fn: function (defer) {
         p.resizeBuffer({
-          src:      sample.buffer,
-          width:    sample.width,
-          height:   sample.height,
-          toWidth:  (sample.width * 0.15)|0,
+          src: sample.buffer,
+          width: sample.width,
+          height: sample.height,
+          toWidth: (sample.width * 0.15)|0,
           toHeight: (sample.height * 0.15)|0,
-          filter:   'lanczos3'
+          filter: 'lanczos3'
         })
           .then(() => defer.resolve())
       }
@@ -38,7 +38,7 @@ $(function () {
     })
 
     .on('cycle', event => {
-      var $el = $('<p></p>')
+      const $el = $('<p></p>')
 
       $el.text(`> ${event.target}`)
       $('body').append($el)

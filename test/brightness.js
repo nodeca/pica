@@ -7,7 +7,7 @@ const pica   = require('../lib/pica_main')({ features: ['js', 'wasm'] })
 const assert = require('assert')
 
 
-function fill(arr, val) {
+function fill (arr, val) {
   for (let i = 0; i < arr.length; i++) { arr[i] = val }
 }
 
@@ -16,8 +16,8 @@ const SRC_W =  1000,
   DEST_W = 140,
   DEST_H = 108
 
-function createTest(color) {
-  let srcSize    = 4 * SRC_W * SRC_H,
+function createTest (color) {
+  const srcSize    = 4 * SRC_W * SRC_H,
     resultSize = 4 * DEST_W * DEST_H,
     hexColor   = color.toString(16),
     src        = new Uint8Array(srcSize),
@@ -26,14 +26,14 @@ function createTest(color) {
   fill(src, color)
   fill(correct, color)
 
-  let test_name = `test ${SRC_W}x${SRC_H} -> ${DEST_W}x${DEST_H} with color #${hexColor}${hexColor}${hexColor}`
+  const test_name = `test ${SRC_W}x${SRC_H} -> ${DEST_W}x${DEST_H} with color #${hexColor}${hexColor}${hexColor}`
 
   it(test_name, async () => {
     const result = await pica.resizeBuffer({
-      src:      src,
-      width:    SRC_W,
-      height:   SRC_H,
-      toWidth:  DEST_W,
+      src: src,
+      width: SRC_W,
+      height: SRC_H,
+      toWidth: DEST_W,
       toHeight: DEST_H
     })
 
