@@ -1,7 +1,7 @@
-import { build, mergeConfig } from 'vite';
+import { build, mergeConfig } from 'vite'
 
 
-const TARGET = 'es2015';
+const TARGET = 'es2015'
 
 const common = {
   configFile: false,
@@ -23,21 +23,21 @@ const common = {
   worker: {
     format: 'iife'
   }
-};
+}
 
 
 function stripRegionComments() {
   return {
     name: 'strip-region-comments',
     renderChunk(code) {
-      code = code.replace(/\\n\t?\/\/#(?:end)?region.*?(?=\\n)/g, '');
+      code = code.replace(/\\n\t?\/\/#(?:end)?region.*?(?=\\n)/g, '')
 
       return {
         code: code.replace(/^\s*\/\/#(?:end)?region.*\n/gm, ''),
         map: null
-      };
+      }
     }
-  };
+  }
 }
 
 
@@ -48,7 +48,7 @@ function withConfig(config) {
       stripRegionComments(),
       ...(config.plugins || [])
     ]
-  });
+  })
 }
 
 
@@ -61,7 +61,7 @@ async function buildMain({ entry, name, jsFile, mjsFile, minify, emptyOutDir, de
       lib: {
         entry,
         name: 'pica',
-        formats: [ 'umd', 'es' ],
+        formats: ['umd', 'es'],
         fileName: format => (format === 'es' ? mjsFile : jsFile)
       },
       rollupOptions: {
@@ -71,7 +71,7 @@ async function buildMain({ entry, name, jsFile, mjsFile, minify, emptyOutDir, de
         }
       }
     }
-  }));
+  }))
 }
 
 
@@ -84,18 +84,18 @@ async function buildInlineWorker({ minify }) {
       lib: {
         entry: 'lib/pica_worker.js',
         name: 'picaWorker',
-        formats: [ 'iife' ],
+        formats: ['iife'],
         fileName: () => 'pica_inline_worker.js'
       }
     }
-  }));
+  }))
 
-  const output = Array.isArray(result) ? result.flatMap(item => item.output) : result.output;
-  const chunk = output.find(item => item.type === 'chunk' && item.fileName === 'pica_inline_worker.js');
+  const output = Array.isArray(result) ? result.flatMap(item => item.output) : result.output
+  const chunk = output.find(item => item.type === 'chunk' && item.fileName === 'pica_inline_worker.js')
 
-  if (!chunk) throw new Error('Inline worker build failed');
+  if (!chunk) throw new Error('Inline worker build failed')
 
-  return `${chunk.code}\n//# sourceURL=pica-inline-worker.js`;
+  return `${chunk.code}\n//# sourceURL=pica-inline-worker.js`
 }
 
 
@@ -107,16 +107,16 @@ async function buildWorker(fileName, emptyOutDir) {
       lib: {
         entry: 'lib/pica_worker.js',
         name: 'picaWorker',
-        formats: [ 'iife' ],
+        formats: ['iife'],
         fileName: () => fileName
       }
     }
-  }));
+  }))
 }
 
 
-const inlineWorker = await buildInlineWorker({ minify: false });
-const inlineWorkerMin = await buildInlineWorker({ minify: 'terser' });
+const inlineWorker = await buildInlineWorker({ minify: false })
+const inlineWorkerMin = await buildInlineWorker({ minify: 'terser' })
 
 await buildMain({
   entry: 'lib/pica_main.js',
@@ -128,7 +128,7 @@ await buildMain({
   define: {
     __PICA_WORKER_SRC__: JSON.stringify(inlineWorker)
   }
-});
+})
 
 await buildMain({
   entry: 'lib/pica_main.js',
@@ -140,7 +140,7 @@ await buildMain({
   define: {
     __PICA_WORKER_SRC__: JSON.stringify(inlineWorkerMin)
   }
-});
+})
 
 await buildMain({
   entry: 'lib/pica_main.js',
@@ -149,7 +149,7 @@ await buildMain({
   mjsFile: 'pica_main.mjs',
   minify: false,
   emptyOutDir: false
-});
+})
 
-await buildWorker('pica_worker.js', false);
-await buildWorker('pica_worker.mjs', false);
+await buildWorker('pica_worker.js', false)
+await buildWorker('pica_worker.mjs', false)

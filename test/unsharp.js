@@ -1,61 +1,61 @@
-'use strict';
+'use strict'
 
-const pica   = require('../lib/pica_main')({ features: [ 'js', 'wasm' ] });
-const assert = require('assert');
+const pica   = require('../lib/pica_main')({ features: ['js', 'wasm'] })
+const assert = require('assert')
 
 describe('Unsharp mask', () => {
   it('save random image untouched when amount, radius and threshold are equal to 0', async () => {
     let width = 100,
-        height = 100,
-        size = width * height * 4,
-        srcImage = new Uint8Array(size),
-        image = new Uint8Array(size);
+      height = 100,
+      size = width * height * 4,
+      srcImage = new Uint8Array(size),
+      image = new Uint8Array(size)
 
     for (let i = 0; i < size; i++) {
-      image[i] = srcImage[i] = (Math.random() * 0xff + 0.5) | 0;
+      image[i] = srcImage[i] = (Math.random() * 0xff + 0.5) | 0
     }
 
-    await pica.init();
-    pica.__mathlib.unsharp_mask(image, width, height, 1e-4, 0, 0);
+    await pica.init()
+    pica.__mathlib.unsharp_mask(image, width, height, 1e-4, 0, 0)
 
     for (let i = 0; i < size; i++) {
-      assert.strictEqual(image[i], srcImage[i]);
+      assert.strictEqual(image[i], srcImage[i])
     }
-  });
+  })
 
   it('save white color untouched', async () => {
-    let srcImage = [ 255, 255, 255, 255 ];
-    let image = [ 255, 255, 255, 255 ];
+    let srcImage = [255, 255, 255, 255]
+    let image = [255, 255, 255, 255]
 
-    await pica.init();
-    pica.__mathlib.unsharp_mask(image, 1, 1, 0, 0, 0);
+    await pica.init()
+    pica.__mathlib.unsharp_mask(image, 1, 1, 0, 0, 0)
 
     for (var i = 0; i < image.length; i++) {
-      assert.strictEqual(image[i], srcImage[i]);
+      assert.strictEqual(image[i], srcImage[i])
     }
-  });
+  })
 
   it('save black color untouched', async () => {
-    let srcImage = [ 0, 0, 0, 0 ];
-    let image = [ 0, 0, 0, 0 ];
+    let srcImage = [0, 0, 0, 0]
+    let image = [0, 0, 0, 0]
 
-    await pica.init();
-    pica.__mathlib.unsharp_mask(image, 1, 1, 0, 0, 0);
+    await pica.init()
+    pica.__mathlib.unsharp_mask(image, 1, 1, 0, 0, 0)
 
     for (var i = 0; i < image.length; i++) {
-      assert.strictEqual(image[i], srcImage[i]);
+      assert.strictEqual(image[i], srcImage[i])
     }
-  });
+  })
 
   it('save red color untouched', async () => {
-    let srcImage = [ 255, 0, 0, 0 ];
-    let image = [ 255, 0, 0, 0 ];
+    let srcImage = [255, 0, 0, 0]
+    let image = [255, 0, 0, 0]
 
-    await pica.init();
-    pica.__mathlib.unsharp_mask(image, 1, 1, 0, 0, 0);
+    await pica.init()
+    pica.__mathlib.unsharp_mask(image, 1, 1, 0, 0, 0)
 
     for (var i = 0; i < image.length; i++) {
-      assert.strictEqual(image[i], srcImage[i]);
+      assert.strictEqual(image[i], srcImage[i])
     }
-  });
-});
+  })
+})

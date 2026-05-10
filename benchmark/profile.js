@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-'use strict';
+'use strict'
 
 
-var pica      = require('../lib/pica_main')({ features: [ 'js' ] });
+var pica      = require('../lib/pica_main')({ features: ['js'] })
 
 
 function noop() {}
@@ -12,8 +12,8 @@ function noop() {}
 const sample = {
   width:  3200,
   height: 2500
-};
-sample.buffer    = new Uint8Array(sample.width * sample.height * 4);
+}
+sample.buffer    = new Uint8Array(sample.width * sample.height * 4)
 
 
 for (var i = 0; i < 10; i++) {
@@ -25,7 +25,7 @@ for (var i = 0; i < 10; i++) {
     toHeight: 225,
     filter:   'lanczos3'
   })
-  .then(noop);
+    .then(noop)
 }
 /*
 var unsharp = require('../lib/pure/unsharp');
