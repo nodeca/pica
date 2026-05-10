@@ -31,7 +31,10 @@
   "license": "MIT",
   "repository": "nodeca/pica",
   "scripts": {
-    "test": "npm run lint && npm run build && electron-mocha --renderer ./test",
+    "test": "npm run lint && npm run build && npm run test:unit && vitest run --project browser && vitest run --project dist",
+    "test:unit": "vitest run --project unit",
+    "test:browser": "npm run build && vitest run --project browser",
+    "test:dist": "npm run build && vitest run --project dist",
     "lint": "eslint .",
     "gh-pages": "gh-pages -d . -s {demo,dist}/* -f",
     "build": "node support/build/build.mjs",
@@ -48,15 +51,17 @@
     "object-assign": "^4.1.1"
   },
   "devDependencies": {
+    "@vitest/browser": "^4.1.5",
+    "@vitest/browser-playwright": "^4.1.5",
     "benchmark": "^2.1.0",
-    "electron": "^41.5.0",
-    "electron-mocha": "^13.1.0",
     "eslint": "^9",
+    "gh-pages": "^6.3.0",
     "globals": "^15.15.0",
     "neostandard": "^0.13.0",
-    "gh-pages": "^6.3.0",
     "pixelmatch": "^7.2.0",
+    "playwright": "^1.59.1",
     "terser": "^5.10.0",
-    "vite": "^8.0.11"
+    "vite": "^8.0.11",
+    "vitest": "^4.1.5"
   }
 }

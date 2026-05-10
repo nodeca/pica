@@ -30,7 +30,7 @@ describe('unsharp_mask', () => {
 
     it('wasm', () => {
       const glur_js = require('glur/mono16')
-      const mlib_wasm = mathlib_raw({ js: false }).use(require('../lib/mm_unsharp_mask'))
+      const mlib_wasm = mathlib_raw({ js: false }).use(require('../../lib/mm_unsharp_mask'))
 
       // unsharp_mask wasm module does not provide API for direct glur16 call
       // Here is simple wrapper for testing
@@ -93,7 +93,7 @@ describe('unsharp_mask', () => {
 
 
     it('js should not throw without wasm', () => {
-      const mlib = mathlib_raw({ wasm: false }).use(require('../lib/mm_unsharp_mask'))
+      const mlib = mathlib_raw({ wasm: false }).use(require('../../lib/mm_unsharp_mask'))
 
       const sample = createSample(100, 100)
       mlib.unsharp_mask(sample, 100, 100, 80, 2, 2)
@@ -101,8 +101,8 @@ describe('unsharp_mask', () => {
 
 
     it('wasm', () => {
-      const mlib_js = mathlib_raw({ wasm: false }).use(require('../lib/mm_unsharp_mask'))
-      const mlib_wasm = mathlib_raw({ js: false }).use(require('../lib/mm_unsharp_mask'))
+      const mlib_js = mathlib_raw({ wasm: false }).use(require('../../lib/mm_unsharp_mask'))
+      const mlib_wasm = mathlib_raw({ js: false }).use(require('../../lib/mm_unsharp_mask'))
 
       const sample_js = createSample(100, 100)
       const sample_wasm = createSample(100, 100)

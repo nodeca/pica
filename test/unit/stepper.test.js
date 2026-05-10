@@ -2,7 +2,7 @@
 
 
 const assert = require('assert')
-const createStages = require('../lib/stepper')
+const createStages = require('../../lib/stepper')
 
 const TILE_SIZE = 1024
 const TILE_BORDER = 3

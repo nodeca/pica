@@ -16,7 +16,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [ '14' ]
+        node-version: [ 24 ]
 
     steps:
     - uses: actions/checkout@v6
@@ -29,10 +29,8 @@ jobs:
     - name: Install dependencies
       run: npm install
 
-    - name: Fix Electron sandbox permissions for ubuntu 24
-      run: |
-        sudo chown root:root node_modules/electron/dist/chrome-sandbox
-        sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+    - name: Install Playwright browsers
+      run: npx playwright install --with-deps chromium
 
-    - name: Run headless test
-      run: xvfb-run --auto-servernum npm test
+    - name: Run tests
+      run: npm test
