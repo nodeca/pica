@@ -1,8 +1,9 @@
+// @ts-nocheck
 'use strict'
 
 
-const createFilters = require('./resize_filter_gen')
-const { convolveHor, convolveVert, convolveHorWithPre, convolveVertWithPre } = require('./convolve')
+import createFilters from './resize_filter_gen'
+import { convolveHor, convolveVert, convolveHorWithPre, convolveVertWithPre } from './convolve'
 
 
 function hasAlpha (src, width, height) {
@@ -22,7 +23,7 @@ function resetAlpha (dst, width, height) {
 }
 
 
-module.exports = function resize (options) {
+export default function resize (options) {
   const src = options.src
   const srcW = options.width
   const srcH = options.height

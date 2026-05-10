@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Calculate convolution filters for each destination point,
 // and pack data to Int16Array:
 //
@@ -10,7 +11,7 @@
 'use strict'
 
 
-const FILTER_INFO = require('./resize_filter_info')
+import FILTER_INFO from './resize_filter_info'
 
 // Precision of fixed FP values
 const FIXED_FRAC_BITS = 14
@@ -21,7 +22,7 @@ function toFixedPoint (num) {
 }
 
 
-module.exports = function resizeFilterGen (filter, srcSize, destSize, scale, offset) {
+export default function resizeFilterGen (filter, srcSize, destSize, scale, offset) {
   const filterFunction = FILTER_INFO.filter[filter].fn
 
   const scaleInverted = 1.0 / scale

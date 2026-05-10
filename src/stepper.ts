@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Add intermediate resizing steps when scaling down by a very large factor.
 //
 // For example, when resizing 10000x10000 down to 10x10, it'll resize it to
@@ -19,7 +20,7 @@
 const MIN_INNER_TILE_SIZE = 2
 
 
-module.exports = function createStages (fromWidth, fromHeight, toWidth, toHeight, srcTileSize, destTileBorder) {
+export default function createStages (fromWidth, fromHeight, toWidth, toHeight, srcTileSize, destTileBorder) {
   const scaleX = toWidth / fromWidth
   const scaleY = toHeight / fromHeight
 

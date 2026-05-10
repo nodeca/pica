@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Unsharp mask filter
 //
 // http://stackoverflow.com/a/23322820/1031804
@@ -10,7 +11,7 @@
 'use strict'
 
 
-const glur_mono16 = require('glur/mono16')
+import glur_mono16 from 'glur/mono16'
 
 
 function hsv_v16 (img, width, height) {
@@ -28,7 +29,7 @@ function hsv_v16 (img, width, height) {
 }
 
 
-module.exports = function unsharp (img, width, height, amount, radius, threshold) {
+export default function unsharp (img, width, height, amount, radius, threshold) {
   let v1, v2, vmul
   let diff, iTimes4
 

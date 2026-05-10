@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use strict'
 
 
@@ -62,4 +63,4 @@ Pool.prototype.gc = function () {
 }
 
 
-module.exports = Pool
+export default Pool

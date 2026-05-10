@@ -1,7 +1,7 @@
 'use strict'
 
 
-const pica = require('../../lib/pica_main')
+import pica from '../../src/pica_main'
 
 
 describe('API buffer', () => {

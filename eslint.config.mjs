@@ -26,9 +26,18 @@ export default [
   },
 
   {
-    files: ['lib/pica_main.js', 'test/**/*.js', 'benchmark/**/*.js'],
+    files: ['src/**/*.ts', 'test/**/*.{js,mjs}', 'support/**/*.mjs', 'benchmark/**/*.js'],
     languageOptions: {
-      ecmaVersion: 2018
+      ecmaVersion: 2022,
+      sourceType: 'module'
+    },
+    rules: {
+      camelcase: 'off',
+      'one-var': 'off',
+      '@stylistic/no-multiple-empty-lines': 'off',
+      '@stylistic/space-infix-ops': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unsafe-function-type': 'off'
     }
   },
 

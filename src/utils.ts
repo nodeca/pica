@@ -1,10 +1,11 @@
+// @ts-nocheck
 'use strict'
 
 
 function objClass (obj) { return Object.prototype.toString.call(obj) }
 
 
-module.exports.isCanvas = function isCanvas (element) {
+export function isCanvas (element) {
   const cname = objClass(element)
 
   return cname === '[object HTMLCanvasElement]'/* browser */ ||
@@ -13,17 +14,17 @@ module.exports.isCanvas = function isCanvas (element) {
 }
 
 
-module.exports.isImage = function isImage (element) {
+export function isImage (element) {
   return objClass(element) === '[object HTMLImageElement]'
 }
 
 
-module.exports.isImageBitmap = function isImageBitmap (element) {
+export function isImageBitmap (element) {
   return objClass(element) === '[object ImageBitmap]'
 }
 
 
-module.exports.limiter = function limiter (concurrency) {
+export function limiter (concurrency) {
   let active = 0
   const queue = []
 
@@ -57,7 +58,7 @@ module.exports.limiter = function limiter (concurrency) {
 }
 
 
-module.exports.cib_quality_name = function cib_quality_name (num) {
+export function cib_quality_name (num) {
   switch (num) {
     case 0: return 'pixelated'
     case 1: return 'low'

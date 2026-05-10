@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Resize convolvers, pure JS implementation
 //
 'use strict'
@@ -251,7 +252,7 @@ function convolveVertWithPre (src, dest, srcW, srcH, destW, filters) {
 }
 
 
-module.exports = {
+export {
   convolveHor,
   convolveVert,
   convolveHorWithPre,

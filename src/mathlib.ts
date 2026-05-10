@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Collection of math functions
 //
 // 1. Combine components together
@@ -6,10 +7,10 @@
 'use strict'
 
 
-const Multimath = require('multimath')
+import Multimath from 'multimath'
 
-const mm_unsharp_mask = require('./mm_unsharp_mask')
-const mm_resize = require('./mm_resize')
+import mm_unsharp_mask from './mm_unsharp_mask'
+import mm_resize from './mm_resize'
 
 
 function MathLib (requested_features) {
@@ -54,4 +55,4 @@ MathLib.prototype.resizeAndUnsharp = function resizeAndUnsharp (options, cache) 
 }
 
 
-module.exports = MathLib
+export default MathLib

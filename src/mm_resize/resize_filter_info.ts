@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Filter definitions to build tables for
 // resizing convolvers.
 //
@@ -62,7 +63,7 @@ const filter = {
   }
 }
 
-module.exports = {
+export default {
   filter,
   // Legacy mapping
   f2q: { box: 0, hamming: 1, lanczos2: 2, lanczos3: 3 },

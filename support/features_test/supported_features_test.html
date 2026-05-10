@@ -1,0 +1,14 @@
+<!doctype html>
+<script type="module">
+import { get_supported_features } from '../../src/supported_features.ts'
+
+get_supported_features().then(
+  features => {
+    console.log('supported_features:', features)
+    console.table(features)
+  },
+  err => console.error(err)
+)
+
+new Worker(new URL('./worker.mjs', import.meta.url), { type: 'module' })
+</script>

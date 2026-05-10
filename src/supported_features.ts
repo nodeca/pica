@@ -1,3 +1,4 @@
+// @ts-nocheck
 'use strict'
 
 // 3x2 JPEG with EXIF orientation 6 (rotate 90deg clockwise when decoded).
@@ -270,7 +271,7 @@ function check_cib_resize_async () {
 }
 
 
-function get_supported_features () {
+export function get_supported_features () {
   if (checked) return Promise.resolve(Object.assign({}, features))
   if (checking) return checking.then(() => Object.assign({}, features))
 
@@ -308,6 +309,3 @@ function get_supported_features () {
 
   return checking
 }
-
-
-module.exports.get_supported_features = get_supported_features

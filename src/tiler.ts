@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Split original image into multiple 1024x1024 chunks to reduce memory usage
 // (images have to be unpacked into typed arrays for resizing) and allow
 // parallel processing of multiple tiles at a time.
@@ -30,7 +31,7 @@ function pixelCeil (x) {
 }
 
 
-module.exports = function createRegions (options) {
+export default function createRegions (options) {
   const scaleX = options.toWidth / options.width
   const scaleY = options.toHeight / options.height
 

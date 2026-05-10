@@ -1,7 +1,9 @@
 'use strict'
 
-const pica = require('../../lib/pica_main')({ features: ['js', 'wasm'] })
-const assert = require('assert')
+import assert from 'assert'
+import picaFactory from '../../src/pica_main'
+
+const pica = picaFactory({ features: ['js', 'wasm'] })
 
 describe('Unsharp mask', () => {
   it('save random image untouched when amount, radius and threshold are equal to 0', async () => {

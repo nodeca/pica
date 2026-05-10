@@ -1,7 +1,8 @@
+// @ts-nocheck
 'use strict'
 
 
-const createFilters = require('./resize_filter_gen')
+import createFilters from './resize_filter_gen'
 
 
 function hasAlpha (src, width, height) {
@@ -47,7 +48,7 @@ function copyInt16asLE (src, target, target_offset) {
   }
 }
 
-module.exports = function resize_wasm (options) {
+export default function resize_wasm (options) {
   const src = options.src
   const srcW = options.width
   const srcH = options.height

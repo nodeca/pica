@@ -3,8 +3,10 @@
 'use strict'
 
 
-const pica = require('../../lib/pica_main')({ features: ['js', 'wasm'] })
-const assert = require('assert')
+import assert from 'assert'
+import picaFactory from '../../src/pica_main'
+
+const pica = picaFactory({ features: ['js', 'wasm'] })
 
 
 function fill (arr, val) {

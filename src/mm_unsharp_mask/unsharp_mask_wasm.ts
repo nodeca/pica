@@ -1,7 +1,8 @@
+// @ts-nocheck
 'use strict'
 
 
-module.exports = function unsharp (img, width, height, amount, radius, threshold) {
+export default function unsharp (img, width, height, amount, radius, threshold) {
   if (amount === 0 || radius < 0.5) {
     return
   }

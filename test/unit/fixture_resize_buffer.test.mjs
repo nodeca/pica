@@ -2,13 +2,15 @@
 //
 'use strict'
 
-const fs = require('fs')
-const path = require('path')
-const pica = require('../../lib/pica_main')
-const pixelmatch = require('pixelmatch').default
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import pixelmatch from 'pixelmatch'
 
-const ppm = require('../ppm')
+import pica from '../../src/pica_main'
+import ppm from '../ppm.js'
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const FIXTURES_DIRECTORY = path.join(__dirname, '..', 'fixtures')
 const OUTPUT_DIRECTORY = path.join(__dirname, '..', '..')
 

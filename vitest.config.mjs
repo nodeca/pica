@@ -18,7 +18,7 @@ export default defineConfig({
           name: 'unit',
           globals: true,
           environment: 'node',
-          include: ['test/unit/**/*.test.js']
+          include: ['test/unit/**/*.test.mjs']
         }
       },
       {

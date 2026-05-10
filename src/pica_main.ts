@@ -1,16 +1,17 @@
+// @ts-nocheck
 'use strict'
 
 
-const assign = require('object-assign')
+import assign from 'object-assign'
 
 
-const MathLib = require('./mathlib')
-const Pool = require('./pool')
-const utils = require('./utils')
-const createStages = require('./stepper')
-const createRegions = require('./tiler')
-const filter_info = require('./mm_resize/resize_filter_info')
-const supported_features = require('./supported_features')
+import MathLib from './mathlib'
+import Pool from './pool'
+import * as utils from './utils'
+import createStages from './stepper'
+import createRegions from './tiler'
+import filter_info from './mm_resize/resize_filter_info'
+import * as supported_features from './supported_features'
 
 
 /* global __PICA_WORKER_SRC__ */
@@ -752,4 +753,4 @@ Pica.prototype.toBlob = function (canvas, mimeType, quality) {
 Pica.prototype.debug = function () {}
 
 
-module.exports = Pica
+export default Pica
