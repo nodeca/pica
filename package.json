@@ -31,7 +31,7 @@
   "license": "MIT",
   "repository": "nodeca/pica",
   "scripts": {
-    "test": "npm run lint && electron-mocha --renderer ./test",
+    "test": "npm run lint && bpm run build && electron-mocha --renderer ./test",
     "lint": "eslint .",
     "gh-pages": "gh-pages -d . -s {demo,dist}/* -f",
     "build": "node support/build/build.mjs",
@@ -51,9 +51,10 @@
     "benchmark": "^2.1.0",
     "electron": "^41.5.0",
     "electron-mocha": "^13.1.0",
-    "eslint": "^8.3.0",
+    "eslint": "^9",
+    "globals": "^15.15.0",
+    "neostandard": "^0.13.0",
     "gh-pages": "^6.3.0",
-    "mocha": "^11.7.5",
     "pixelmatch": "^7.2.0",
     "terser": "^5.10.0",
     "vite": "^8.0.11"
