@@ -31,7 +31,7 @@
   "license": "MIT",
   "repository": "nodeca/pica",
   "scripts": {
-    "test": "npm run lint && bpm run build && electron-mocha --renderer ./test",
+    "test": "npm run lint && npm run build && electron-mocha --renderer ./test",
     "lint": "eslint .",
     "gh-pages": "gh-pages -d . -s {demo,dist}/* -f",
     "build": "node support/build/build.mjs",

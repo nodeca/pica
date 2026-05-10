@@ -8,7 +8,7 @@ const pixelmatch = require('pixelmatch').default
 const { pathToFileURL } = require('url')
 
 
-const importModule = new Function('url', 'return import(url);')
+const importModule = new Function('url', 'return import(url);') // eslint-disable-line no-new-func
 const FIXTURES_DIRECTORY = path.join(__dirname, 'fixtures')
 
 
