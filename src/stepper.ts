@@ -12,13 +12,9 @@
 // quality algorithms for first stages.
 //
 
-'use strict'
-
-
 // min size = 0 results in infinite loop,
 // min size = 1 can consume large amount of memory
 const MIN_INNER_TILE_SIZE = 2
-
 
 export default function createStages (fromWidth, fromHeight, toWidth, toHeight, srcTileSize, destTileBorder) {
   const scaleX = toWidth / fromWidth

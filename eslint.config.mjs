@@ -16,7 +16,6 @@ export default [
     rules: {
       camelcase: 'off',
       'one-var': 'off',
-      '@stylistic/no-multiple-empty-lines': 'off',
       '@stylistic/space-infix-ops': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unsafe-function-type': 'off'

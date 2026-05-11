@@ -8,11 +8,7 @@
 // Image is converted from RGB to HSV, unsharp mask is applied to the
 // brightness channel and then image is converted back to RGB.
 //
-'use strict'
-
-
 import glur_mono16 from 'glur/mono16'
-
 
 function hsv_v16 (img, width, height) {
   const size = width * height
@@ -27,7 +23,6 @@ function hsv_v16 (img, width, height) {
   }
   return out
 }
-
 
 export default function unsharp (img, width, height, amount, radius, threshold) {
   let v1, v2, vmul
@@ -50,7 +45,6 @@ export default function unsharp (img, width, height, amount, radius, threshold) 
   const thresholdFp = threshold << 8
 
   const size = width * height
-
 
   for (let i = 0; i < size; i++) {
     v1 = brightness[i]

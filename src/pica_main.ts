@@ -1,6 +1,4 @@
 // @ts-nocheck
-'use strict'
-
 import MathLib from './mathlib'
 import Pool from './pool'
 import * as utils from './utils'
@@ -9,22 +7,18 @@ import createRegions from './tiler'
 import filter_info from './mm_resize/resize_filter_info'
 import * as supported_features from './supported_features'
 
-
 /* global __PICA_WORKER_SRC__ */
 
 const WORKER_SRC = typeof __PICA_WORKER_SRC__ !== 'undefined' ? __PICA_WORKER_SRC__ : ''
-
 
 // Deduplicate pools & limiters with the same configs
 // when user creates multiple pica instances.
 const singletones = {}
 
-
 let concurrency = 1
 if (typeof navigator !== 'undefined') {
   concurrency = Math.min(navigator.hardwareConcurrency || 1, 4)
 }
-
 
 const DEFAULT_PICA_OPTS = {
   tile: 1024,
@@ -39,7 +33,6 @@ const DEFAULT_PICA_OPTS = {
     return tmpCanvas
   }
 }
-
 
 const DEFAULT_RESIZE_OPTS = {
   filter: 'mks2013',
@@ -66,7 +59,6 @@ function createWorkerFabric (createWorker) {
   }
 }
 
-
 function workerFactory (options) {
   if (Pica.__workerFactory) return Pica.__workerFactory
 
@@ -88,7 +80,6 @@ function workerFactory (options) {
     return new Worker(String(options.workerURL))
   }
 }
-
 
 // //////////////////////////////////////////////////////////////////////////////
 // API methods
@@ -141,7 +132,6 @@ export class Pica {
     this.__mathlib = null
   }
 
-
   init () {
     if (this.__initPromise) return this.__initPromise
 
@@ -149,7 +139,6 @@ export class Pica {
 
     return this.__initPromise
   }
-
 
   async __init () {
     let features = this.options.features.slice()
@@ -202,7 +191,6 @@ export class Pica {
     return this
   }
 
-
   createCanvas (width, height, preferOffscreen) {
     if (preferOffscreen && this.capabilities.offscreen_canvas) {
       return new OffscreenCanvas(width, height)
@@ -222,7 +210,6 @@ export class Pica {
     throw new Error('Pica: cannot create canvas')
   }
 
-
   // Call resizer in webworker or locally, depending on config
   __invokeWorker (method, payload, transfer, opts) {
     return new Promise((resolve, reject) => {
@@ -240,7 +227,6 @@ export class Pica {
       w.value.postMessage(Object.assign({ method }, payload || {}), transfer || [])
     })
   }
-
 
   async __invokeResize (tileOpts, opts) {
   // Share cache between calls:
@@ -275,7 +261,6 @@ export class Pica {
       opts
     )
   }
-
 
   // this function can return promise if createImageBitmap is used
   __extractTileData (tile, from, opts, stageEnv, extractTo) {
@@ -338,7 +323,6 @@ export class Pica {
     return extractTo
   }
 
-
   __landTileData (tile, result, stageEnv) {
     if (result.bitmap) {
       stageEnv.toCtx.drawImage(result.bitmap, tile.toX, tile.toY)
@@ -364,7 +348,6 @@ export class Pica {
 
     return null
   }
-
 
   async __tileAndResize (from, to, opts) {
     const stageEnv = {
@@ -403,7 +386,6 @@ export class Pica {
       stageEnv.srcImageData = null
       return this.__landTileData(tile, result, stageEnv)
     })
-
 
     // Need to normalize data source first. It can be canvas or image.
     // If image - try to decode in background if possible
@@ -472,7 +454,6 @@ export class Pica {
     }
   }
 
-
   async __processStages (stages, from, to, opts) {
     if (opts.canceled) return opts.cancelToken
 
@@ -522,7 +503,6 @@ export class Pica {
       }
     }
   }
-
 
   async __resizeViaCreateImageBitmap (from, to, opts) {
     let toCtx = to.getContext('2d')
@@ -579,7 +559,6 @@ export class Pica {
 
     return to
   }
-
 
   async resize (from, to, options) {
     this.debug('Start resize...')
@@ -689,7 +668,6 @@ export class Pica {
     return this.__mathlib.resizeAndUnsharp(opts)
   }
 
-
   async toBlob (canvas, mimeType, quality) {
     mimeType = mimeType || 'image/png'
 
@@ -720,10 +698,8 @@ export class Pica {
     return new Blob([asBuffer], { type: mimeType })
   }
 
-
   debug () {}
 }
-
 
 export default function pica (options): any {
   return new Pica(options)

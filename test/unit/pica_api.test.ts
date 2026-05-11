@@ -1,8 +1,4 @@
-'use strict'
-
-
 import pica from '../../src/pica_main'
-
 
 describe('API buffer', () => {
   // Need node 8 to run

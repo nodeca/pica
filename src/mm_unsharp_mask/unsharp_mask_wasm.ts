@@ -1,7 +1,4 @@
 // @ts-nocheck
-'use strict'
-
-
 export default function unsharp (img, width, height, amount, radius, threshold) {
   if (amount === 0 || radius < 0.5) {
     return

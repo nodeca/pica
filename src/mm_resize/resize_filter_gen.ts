@@ -8,19 +8,14 @@
 // - length - filter length (in src points)
 // - data - filter values sequence
 //
-'use strict'
-
-
 import FILTER_INFO from './resize_filter_info'
 
 // Precision of fixed FP values
 const FIXED_FRAC_BITS = 14
 
-
 function toFixedPoint (num) {
   return Math.round(num * ((1 << FIXED_FRAC_BITS) - 1))
 }
-
 
 export default function resizeFilterGen (filter, srcSize, destSize, scale, offset) {
   const filterFunction = FILTER_INFO.filter[filter].fn

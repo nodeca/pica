@@ -1,6 +1,4 @@
 // @ts-nocheck
-'use strict'
-
 // 3x2 JPEG with EXIF orientation 6 (rotate 90deg clockwise when decoded).
 //
 // Stored pixels, before orientation (Black, White):
@@ -23,7 +21,6 @@ const ORIENTED_JPEG_BASE64 =
   'kJDRENDg8QEBEQCgwSExIQEw8QEBD/wAALCAACAAMBAREA/8QAFAABAAAAAAAAAAAAAAAA' +
   'AAAACf/EABsQAAMBAQADAAAAAAAAAAAAAAECAwQFABEx/9oACAEBAAA/AC06fW6va0ps' +
   '7PT179E88MiV02arrCEkjGQZiSEnKc5ovxURVHoADz//2Q=='
-
 
 const features = {
   canvas: false,
@@ -65,7 +62,6 @@ function check_canvas () {
   }
 }
 
-
 function check_offscreen_canvas () {
   if (typeof OffscreenCanvas === 'undefined') return false
 
@@ -89,18 +85,15 @@ function check_offscreen_canvas () {
   }
 }
 
-
 function check_create_image_bitmap () {
   return typeof createImageBitmap !== 'undefined'
 }
-
 
 function check_may_be_worker () {
   return typeof Worker !== 'undefined' &&
     // Filter out IE <= 11 for sure
     (typeof URL !== 'undefined' && !!URL.createObjectURL)
 }
-
 
 function check_safari_put_image_data_fix () {
   try {
@@ -112,7 +105,6 @@ function check_safari_put_image_data_fix () {
     return false
   }
 }
-
 
 function check_bug_canvas_orientation_region_async () {
   return Promise.resolve().then(() => {
@@ -173,7 +165,6 @@ function check_bug_canvas_orientation_region_async () {
     .catch(() => true)
 }
 
-
 function check_bug_image_bitmap_orientation_region_async () {
   return Promise.resolve().then(() => {
     if (!features.create_image_bitmap && !check_create_image_bitmap()) return true
@@ -222,7 +213,6 @@ function check_bug_image_bitmap_orientation_region_async () {
     .catch(() => true)
 }
 
-
 function check_cib_resize_async () {
   return Promise.resolve().then(() => {
     if (!check_create_image_bitmap()) return false
@@ -261,7 +251,6 @@ function check_cib_resize_async () {
   })
     .catch(() => false)
 }
-
 
 export function get_supported_features () {
   if (checked) return Promise.resolve(Object.assign({}, features))

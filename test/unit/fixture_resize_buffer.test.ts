@@ -1,7 +1,5 @@
 // Algorythm should not change. Use fixtures to check.
 //
-'use strict'
-
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -13,7 +11,6 @@ import * as ppm from '../helpers/ppm'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const FIXTURES_DIRECTORY = path.join(__dirname, '..', 'fixtures')
 const OUTPUT_DIRECTORY = path.join(__dirname, '..', '..')
-
 
 describe('Fixture resize buffer', () => {
   it('.resizeBuffer() should be correct for the given fixture', async () => {

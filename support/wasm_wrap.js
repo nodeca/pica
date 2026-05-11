@@ -1,10 +1,7 @@
 #!/usr/bin/env node
 'use strict'
 
-
-
 const fs = require('fs')
-
 
 if (process.argv.length !== 4) {
   console.log(`Convert wasm binary to base64 encoded node module
@@ -12,7 +9,6 @@ Usage: wasm_wrap.js source destination
 `)
   process.exit()
 }
-
 
 if (!fs.existsSync(process.argv[2])) {
   console.log(`Can not read file: '${process.argv[2]}'`)

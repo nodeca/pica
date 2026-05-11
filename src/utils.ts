@@ -1,9 +1,5 @@
 // @ts-nocheck
-'use strict'
-
-
 function objClass (obj) { return Object.prototype.toString.call(obj) }
-
 
 export function isCanvas (element) {
   const cname = objClass(element)
@@ -13,16 +9,13 @@ export function isCanvas (element) {
          cname === '[object Canvas]'/* node-canvas */
 }
 
-
 export function isImage (element) {
   return objClass(element) === '[object HTMLImageElement]'
 }
 
-
 export function isImageBitmap (element) {
   return objClass(element) === '[object ImageBitmap]'
 }
-
 
 export function limiter (concurrency) {
   let active = 0
@@ -56,7 +49,6 @@ export function limiter (concurrency) {
     })
   }
 }
-
 
 export function cib_quality_name (num) {
   switch (num) {

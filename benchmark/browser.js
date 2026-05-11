@@ -1,6 +1,5 @@
 /* global $, Benchmark */
 
-
 $(function () {
   const sample = {
     width: 1024,
@@ -9,7 +8,6 @@ $(function () {
   sample.buffer = new Uint8Array(sample.width * sample.height * 4)
 
   const p = window.pica({ features: ['js'] })
-
 
   Benchmark.Suite()
 

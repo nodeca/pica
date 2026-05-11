@@ -1,11 +1,8 @@
 // @ts-nocheck
 // Web Worker wrapper for image resize function
 
-'use strict'
-
 import MathLib from './mathlib'
 import * as supported_features from './supported_features'
-
 
 const workerScope = self
 

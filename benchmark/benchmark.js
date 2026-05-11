@@ -1,9 +1,6 @@
 #!/usr/bin/env node
 
-
-
 'use strict'
-
 
 const Benchmark = require('benchmark')
 const filter_gen = require('../lib/mm_resize/resize_filter_gen')
@@ -18,7 +15,6 @@ const SCALE = 0.15
 const DST_WIDTH = (SRC_WIDTH * SCALE)|0
 const DST_HEIGHT = (SRC_HEIGHT * SCALE)|0
 
-
 const sample = new Uint8Array(SRC_WIDTH * SRC_HEIGHT * 4)
 sample.fill(255)
 
@@ -32,7 +28,6 @@ const RESIZE_DEFAULTS = {
   toHeight: DST_HEIGHT,
   filter: 'lanczos3'
 }
-
 
 Benchmark.Suite()
 

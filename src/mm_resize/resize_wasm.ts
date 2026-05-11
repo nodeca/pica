@@ -1,9 +1,5 @@
 // @ts-nocheck
-'use strict'
-
-
 import createFilters from './resize_filter_gen'
-
 
 function hasAlpha (src, width, height) {
   let ptr = 3
@@ -15,25 +11,21 @@ function hasAlpha (src, width, height) {
   return false
 }
 
-
 function resetAlpha (dst, width, height) {
   let ptr = 3
   const len = (width * height * 4)|0
   while (ptr < len) { dst[ptr] = 0xFF; ptr = (ptr + 4)|0 }
 }
 
-
 function asUint8Array (src) {
   return new Uint8Array(src.buffer, 0, src.byteLength)
 }
-
 
 let IS_LE = true
 // should not crash everything on module load in old browsers
 try {
   IS_LE = ((new Uint32Array((new Uint8Array([1, 0, 0, 0])).buffer))[0] === 1)
 } catch (__) {}
-
 
 function copyInt16asLE (src, target, target_offset) {
   if (IS_LE) {

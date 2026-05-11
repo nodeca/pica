@@ -3,13 +3,9 @@
 //
 // Implementation is simplified, for test only.
 //
-'use strict'
-
-
 function is_empty (ch) {
   return ch <= 0x20
 }
-
 
 function decode (src) {
   let pos = 0
@@ -62,7 +58,6 @@ function decode (src) {
   }
 }
 
-
 function encode (buffer, width, height) {
   if (arguments.length === 1) {
     width = buffer.width
@@ -100,7 +95,6 @@ function encode (buffer, width, height) {
 
   return result
 }
-
 
 export {
   decode,

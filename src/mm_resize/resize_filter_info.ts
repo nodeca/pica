@@ -4,9 +4,6 @@
 //
 // Presets for quality 0..3. Filter functions + window size
 //
-'use strict'
-
-
 const filter = {
   // Nearest neibor
   box: {

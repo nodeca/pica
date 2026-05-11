@@ -1,13 +1,9 @@
 // Check that brightness is not changes after rescale
 //
-'use strict'
-
-
 import assert from 'assert'
 import picaFactory from '../../src/pica_main'
 
 const pica = picaFactory({ features: ['js', 'wasm'] })
-
 
 function fill (arr, val) {
   for (let i = 0; i < arr.length; i++) { arr[i] = val }
@@ -42,7 +38,6 @@ function createTest (color) {
     assert.deepStrictEqual(result, correct)
   })
 }
-
 
 describe('Brightness should not change', () => {
   createTest(255)

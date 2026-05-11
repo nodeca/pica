@@ -1,9 +1,5 @@
 // @ts-nocheck
-'use strict'
-
-
 const GC_INTERVAL = 100
-
 
 export default class Pool {
   constructor (create, idle) {

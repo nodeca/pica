@@ -1,10 +1,6 @@
 // @ts-nocheck
-'use strict'
-
-
 import createFilters from './resize_filter_gen'
 import { convolveHor, convolveVert, convolveHorWithPre, convolveVertWithPre } from './convolve'
-
 
 function hasAlpha (src, width, height) {
   let ptr = 3
@@ -21,7 +17,6 @@ function resetAlpha (dst, width, height) {
   const len = (width * height * 4)|0
   while (ptr < len) { dst[ptr] = 0xFF; ptr = (ptr + 4)|0 }
 }
-
 
 export default function resize (options) {
   const src = options.src

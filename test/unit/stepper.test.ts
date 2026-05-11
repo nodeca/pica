@@ -1,12 +1,8 @@
-'use strict'
-
-
 import assert from 'assert'
 import createStages from '../../src/stepper'
 
 const TILE_SIZE = 1024
 const TILE_BORDER = 3
-
 
 describe('createStages', () => {
   it('1024x1024 -> 300x300 (1 stage)', () => {

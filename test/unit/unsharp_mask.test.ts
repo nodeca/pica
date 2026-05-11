@@ -1,18 +1,14 @@
-'use strict'
-
 import assert from 'assert'
 import glur_js from 'glur/mono16'
 import mathlib_raw from 'multimath'
 
 import mm_unsharp_mask from '../../src/mm_unsharp_mask'
 
-
 function fill (target, arr) {
   if (!Array.isArray(arr)) arr = [arr]
 
   for (let i = 0; i < target.length; i++) target[i] = arr[i % arr.length]
 }
-
 
 describe('unsharp_mask', () => {
   describe('glur_mono16', () => {
@@ -27,7 +23,6 @@ describe('unsharp_mask', () => {
 
       assert.deepStrictEqual(sample, orig)
     })
-
 
     it('wasm', () => {
       const mlib_wasm = mathlib_raw({ js: false }).use(mm_unsharp_mask)
@@ -67,7 +62,6 @@ describe('unsharp_mask', () => {
         return new Uint16Array(thisobj.__memory.buffer.slice(out_offset, out_offset + out_byte_cnt))
       }
 
-
       const sample = new Uint16Array(100 * 100)
       fill(sample, [0, 255])
 
@@ -81,7 +75,6 @@ describe('unsharp_mask', () => {
     })
   })
 
-
   describe('unsharp_mask', () => {
     function createSample (width, height) {
       const result = new Uint8Array(width * height * 4)
@@ -91,14 +84,12 @@ describe('unsharp_mask', () => {
       return result
     }
 
-
     it('js should not throw without wasm', () => {
       const mlib = mathlib_raw({ wasm: false }).use(mm_unsharp_mask)
 
       const sample = createSample(100, 100)
       mlib.unsharp_mask(sample, 100, 100, 80, 2, 2)
     })
-
 
     it('wasm', () => {
       const mlib_js = mathlib_raw({ wasm: false }).use(mm_unsharp_mask)

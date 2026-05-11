@@ -1,12 +1,8 @@
 // @ts-nocheck
 // Resize convolvers, pure JS implementation
 //
-'use strict'
-
-
 // Precision of fixed FP values
 // var FIXED_FRAC_BITS = 14;
-
 
 function clampTo8 (i) { return i < 0 ? 0 : (i > 255 ? 255 : i) }
 function clampNegative (i) { return i >= 0 ? i : 0 }
@@ -123,7 +119,6 @@ function convolveVert (src, dest, srcW, srcH, destW, filters) {
     srcOffset = ((srcY + 1) * srcW * 4)|0
   }
 }
-
 
 // Premultiply & convolve image data in horizontal direction. Can be used for:
 //
@@ -250,7 +245,6 @@ function convolveVertWithPre (src, dest, srcW, srcH, destW, filters) {
     srcOffset = ((srcY + 1) * srcW * 4)|0
   }
 }
-
 
 export {
   convolveHor,

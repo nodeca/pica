@@ -1,5 +1,3 @@
-'use strict'
-
 import assert from 'assert'
 import picaFactory from '../../src/pica_main'
 

@@ -4,8 +4,6 @@
 // parallel processing of multiple tiles at a time.
 //
 
-'use strict'
-
 /*
  * pixelFloor and pixelCeil are modified versions of Math.floor and Math.ceil
  * functions which take into account floating point arithmetic errors.
@@ -29,7 +27,6 @@ function pixelCeil (x) {
   if (Math.abs(x - nearest) < PIXEL_EPSILON) { return nearest }
   return Math.ceil(x)
 }
-
 
 export default function createRegions (options) {
   const scaleX = options.toWidth / options.width

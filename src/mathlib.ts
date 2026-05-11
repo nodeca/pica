@@ -4,14 +4,10 @@
 // 1. Combine components together
 // 2. Has async init to load wasm modules
 //
-'use strict'
-
-
 import Multimath from 'multimath'
 
 import mm_unsharp_mask from './mm_unsharp_mask'
 import mm_resize from './mm_resize'
-
 
 export default class MathLib extends Multimath {
   constructor (requested_features) {
