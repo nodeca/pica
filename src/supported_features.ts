@@ -28,7 +28,6 @@ const ORIENTED_JPEG_BASE64 =
 const features = {
   canvas: false,
   offscreen_canvas: false,
-  image_bitmap: false,
   may_be_worker: false,
   create_image_bitmap: false,
   safari_put_image_data_fix: false,
@@ -91,13 +90,6 @@ function check_offscreen_canvas () {
 }
 
 
-function check_image_bitmap () {
-  return typeof ImageBitmap !== 'undefined' &&
-         ImageBitmap.prototype &&
-         !!ImageBitmap.prototype.close
-}
-
-
 function check_create_image_bitmap () {
   return typeof createImageBitmap !== 'undefined'
 }
@@ -125,7 +117,7 @@ function check_safari_put_image_data_fix () {
 function check_bug_canvas_orientation_region_async () {
   return Promise.resolve().then(() => {
     const canOffscreenCanvas = check_offscreen_canvas() &&
-                             typeof createImageBitmap !== 'undefined' &&
+                             check_create_image_bitmap() &&
                              typeof Blob !== 'undefined' &&
                              typeof atob !== 'undefined'
 
@@ -184,7 +176,7 @@ function check_bug_canvas_orientation_region_async () {
 
 function check_bug_image_bitmap_orientation_region_async () {
   return Promise.resolve().then(() => {
-    if (!features.image_bitmap && !check_image_bitmap()) return true
+    if (!features.create_image_bitmap && !check_create_image_bitmap()) return true
     if (typeof Blob === 'undefined' || typeof atob === 'undefined') return true
 
     const canOffscreenCanvas = check_offscreen_canvas()
@@ -233,7 +225,7 @@ function check_bug_image_bitmap_orientation_region_async () {
 
 function check_cib_resize_async () {
   return Promise.resolve().then(() => {
-    if (typeof createImageBitmap === 'undefined') return false
+    if (!check_create_image_bitmap()) return false
 
     const SRC_SIZE = 20
     const DST_SIZE = 5
@@ -278,7 +270,6 @@ export function get_supported_features () {
   features.canvas = check_canvas()
   features.offscreen_canvas = check_offscreen_canvas()
   features.may_be_worker = check_may_be_worker()
-  features.image_bitmap = check_image_bitmap()
   features.create_image_bitmap = check_create_image_bitmap()
   features.safari_put_image_data_fix = check_safari_put_image_data_fix()
 

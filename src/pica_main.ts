@@ -107,7 +107,6 @@ function Pica (options) {
     ww_offscreen_canvas: false,
     canvas: false,
     offscreen_canvas: false,
-    image_bitmap: false,
     may_be_worker: false,
     create_image_bitmap: false,
     safari_put_image_data_fix: false,
@@ -426,7 +425,7 @@ Pica.prototype.__tileAndResize = async function (from, to, opts) {
   } else if (utils.isImage(from)) {
     // try do decode image in background for faster next operations;
     // if we're using offscreen canvas, cib is called per tile, so not needed here
-    if (this.capabilities.image_bitmap) {
+    if (this.capabilities.create_image_bitmap) {
       this.debug('Decode image via createImageBitmap')
 
       // Suppress error to use fallback, if method fails
@@ -700,12 +699,14 @@ Pica.prototype.resizeBuffer = async function (options) {
 Pica.prototype.toBlob = async function (canvas, mimeType, quality) {
   mimeType = mimeType || 'image/png'
 
+  // Ordinary Canvas
   if (canvas.toBlob) {
     return new Promise(resolve => {
       canvas.toBlob(blob => resolve(blob), mimeType, quality)
     })
   }
 
+  // OffscreenCanvas
   if (canvas.convertToBlob) {
     return canvas.convertToBlob({
       type: mimeType,
