@@ -1,4 +1,5 @@
 import { build, mergeConfig } from 'vite'
+import { rm } from 'node:fs/promises'
 
 const TARGET = 'es2015'
 
@@ -48,23 +49,37 @@ function withConfig (config) {
   })
 }
 
-async function buildMain ({ entry, name, jsFile, mjsFile, minify, emptyOutDir, define }) {
+async function buildMainUmd ({ name, jsFile, minify, define }) {
   await build(withConfig({
     define,
     build: {
-      emptyOutDir,
       minify,
       lib: {
-        entry,
+        entry: 'src/pica_main_cjs_proxy.ts',
         name: 'pica',
-        formats: ['umd', 'es'],
-        fileName: format => (format === 'es' ? mjsFile : jsFile)
+        formats: ['umd'],
+        fileName: () => jsFile
       },
       rollupOptions: {
         output: {
           exports: 'default',
           name
         }
+      }
+    }
+  }))
+}
+
+async function buildMainEsm ({ entry, mjsFile, minify, define }) {
+  await build(withConfig({
+    define,
+    build: {
+      minify,
+      lib: {
+        entry,
+        name: 'pica',
+        formats: ['es'],
+        fileName: () => mjsFile
       }
     }
   }))
@@ -93,10 +108,9 @@ async function buildInlineWorker ({ minify }) {
   return `${chunk.code}\n//# sourceURL=pica-inline-worker.js`
 }
 
-async function buildWorker (fileName, emptyOutDir) {
+async function buildWorker (fileName) {
   await build(withConfig({
     build: {
-      emptyOutDir,
       minify: false,
       lib: {
         entry: 'src/pica_worker.ts',
@@ -111,38 +125,55 @@ async function buildWorker (fileName, emptyOutDir) {
 const inlineWorker = await buildInlineWorker({ minify: false })
 const inlineWorkerMin = await buildInlineWorker({ minify: 'terser' })
 
-await buildMain({
-  entry: 'src/pica_main.ts',
+await rm('dist', { recursive: true, force: true })
+
+await buildMainUmd({
   name: 'pica',
   jsFile: 'pica.js',
-  mjsFile: 'pica.mjs',
   minify: false,
-  emptyOutDir: true,
   define: {
     __PICA_WORKER_SRC__: JSON.stringify(inlineWorker)
   }
 })
 
-await buildMain({
+await buildMainEsm({
   entry: 'src/pica_main.ts',
+  mjsFile: 'pica.mjs',
+  minify: false,
+  define: {
+    __PICA_WORKER_SRC__: JSON.stringify(inlineWorker)
+  }
+})
+
+await buildMainUmd({
   name: 'pica',
   jsFile: 'pica.min.js',
-  mjsFile: 'pica.min.mjs',
   minify: 'terser',
-  emptyOutDir: false,
   define: {
     __PICA_WORKER_SRC__: JSON.stringify(inlineWorkerMin)
   }
 })
 
-await buildMain({
+await buildMainEsm({
   entry: 'src/pica_main.ts',
-  name: 'pica',
-  jsFile: 'pica_main.js',
-  mjsFile: 'pica_main.mjs',
-  minify: false,
-  emptyOutDir: false
+  mjsFile: 'pica.min.mjs',
+  minify: 'terser',
+  define: {
+    __PICA_WORKER_SRC__: JSON.stringify(inlineWorkerMin)
+  }
 })
 
-await buildWorker('pica_worker.js', false)
-await buildWorker('pica_worker.mjs', false)
+await buildMainUmd({
+  name: 'pica',
+  jsFile: 'pica_main.js',
+  minify: false
+})
+
+await buildMainEsm({
+  entry: 'src/pica_main.ts',
+  mjsFile: 'pica_main.mjs',
+  minify: false
+})
+
+await buildWorker('pica_worker.js')
+await buildWorker('pica_worker.mjs')

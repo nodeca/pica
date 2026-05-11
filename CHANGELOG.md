@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added ESM builds.
 
 ### Changed
+- Migrated to classes. Library now exports fabcic `pica(optiona)` as default,
+  and `Pica` class as named property.
 - Removed ancient browsers support (IE < Edge and so on).
 - Moved to Typescript and modern tooling.
 - Removed `createCanvas` option. Expose `OffscreenCanvas` to global instead,
