@@ -48,8 +48,7 @@
   ],
   "dependencies": {
     "glur": "^1.1.2",
-    "multimath": "^2.0.0",
-    "object-assign": "^4.1.1"
+    "multimath": "^2.0.0"
   },
   "devDependencies": {
     "@types/node": "^24.12.2",

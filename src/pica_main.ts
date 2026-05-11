@@ -1,10 +1,6 @@
 // @ts-nocheck
 'use strict'
 
-
-import assign from 'object-assign'
-
-
 import MathLib from './mathlib'
 import Pool from './pool'
 import * as utils from './utils'
@@ -77,7 +73,7 @@ function createWorkerFabric (createWorker) {
 function Pica (options) {
   if (!(this instanceof Pica)) return new Pica(options)
 
-  this.options = assign({}, DEFAULT_PICA_OPTS, options || {})
+  this.options = Object.assign({}, DEFAULT_PICA_OPTS, options || {})
 
   const workerRequested = this.options.features.indexOf('ww') >= 0 || this.options.features.indexOf('all') >= 0
 
@@ -169,7 +165,7 @@ Pica.prototype.__init = async function () {
   this.__mathlib = new MathLib(features)
 
   const result = await supported_features.get_supported_features()
-  assign(this.capabilities, result)
+  Object.assign(this.capabilities, result)
 
   if (this.capabilities.cib_resize && features.indexOf('cib') >= 0) {
     this.resize_features.cib = true
@@ -203,7 +199,7 @@ Pica.prototype.__init = async function () {
 
   const mathlib = await this.__mathlib.init()
   // Copy detected resize methods
-  assign(this.resize_features, mathlib.features)
+  Object.assign(this.resize_features, mathlib.features)
 
   return this
 }
@@ -243,7 +239,7 @@ Pica.prototype.__invokeWorker = function (method, payload, transfer, opts) {
       else resolve(ev.data)
     }
 
-    w.value.postMessage(assign({ method }, payload || {}), transfer || [])
+    w.value.postMessage(Object.assign({ method }, payload || {}), transfer || [])
   })
 }
 
@@ -499,7 +495,7 @@ Pica.prototype.__processStages = async function (stages, from, to, opts) {
   else if (opts.filter === 'box') filter = 'box'
   else filter = 'hamming'
 
-  opts = assign({}, opts, {
+  opts = Object.assign({}, opts, {
     toWidth,
     toHeight,
     filter
@@ -590,12 +586,12 @@ Pica.prototype.__resizeViaCreateImageBitmap = async function (from, to, opts) {
 Pica.prototype.resize = async function (from, to, options) {
   this.debug('Start resize...')
 
-  let opts = assign({}, DEFAULT_RESIZE_OPTS)
+  let opts = Object.assign({}, DEFAULT_RESIZE_OPTS)
 
   if (!isNaN(options)) {
-    opts = assign(opts, { quality: options })
+    opts = Object.assign(opts, { quality: options })
   } else if (options) {
-    opts = assign(opts, options)
+    opts = Object.assign(opts, options)
   }
 
   opts.toWidth = to.width
@@ -681,7 +677,7 @@ Pica.prototype.resize = async function (from, to, options) {
 // RGBA buffer resize
 //
 Pica.prototype.resizeBuffer = async function (options) {
-  const opts = assign({}, DEFAULT_RESIZE_OPTS, options)
+  const opts = Object.assign({}, DEFAULT_RESIZE_OPTS, options)
 
   // Legacy `.quality` option
   if (Object.prototype.hasOwnProperty.call(opts, 'quality')) {
