@@ -152,6 +152,13 @@ function workerFactory (options) {
 Pica.prototype.init = function () {
   if (this.__initPromise) return this.__initPromise
 
+  this.__initPromise = this.__init()
+
+  return this.__initPromise
+}
+
+
+Pica.prototype.__init = async function () {
   let features = this.options.features.slice()
 
   if (features.indexOf('all') >= 0) {
@@ -162,51 +169,44 @@ Pica.prototype.init = function () {
 
   this.__mathlib = new MathLib(features)
 
-  const checkCapabilities = supported_features.get_supported_features().then(result => {
-    assign(this.capabilities, result)
+  const result = await supported_features.get_supported_features()
+  assign(this.capabilities, result)
 
-    if (this.capabilities.cib_resize && features.indexOf('cib') >= 0) {
-      this.resize_features.cib = true
+  if (this.capabilities.cib_resize && features.indexOf('cib') >= 0) {
+    this.resize_features.cib = true
+  }
+
+  // Check WebWorker support if requested
+  const createWorker = workerFactory(this.options)
+
+  if (this.capabilities.may_be_worker && features.indexOf('ww') >= 0 && createWorker) {
+    // pool uniqueness depends on pool config + webworker config
+    const wpool_key = `wp_${JSON.stringify(this.options)}`
+
+    if (singletones[wpool_key]) {
+      this.__workersPool = singletones[wpool_key]
+    } else {
+      this.__workersPool = new Pool(createWorkerFabric(createWorker), this.options.idle)
+      singletones[wpool_key] = this.__workersPool
     }
+  }
 
-    // Check WebWorker support if requested
-    const createWorker = workerFactory(this.options)
-
-    if (this.capabilities.may_be_worker && features.indexOf('ww') >= 0 && createWorker) {
-      // pool uniqueness depends on pool config + webworker config
-      const wpool_key = `wp_${JSON.stringify(this.options)}`
-
-      if (singletones[wpool_key]) {
-        this.__workersPool = singletones[wpool_key]
-      } else {
-        this.__workersPool = new Pool(createWorkerFabric(createWorker), this.options.idle)
-        singletones[wpool_key] = this.__workersPool
+  if (this.__workersPool) {
+    try {
+      const result = await this.__invokeWorker('get_supported_features')
+      if (result && result.data) {
+        this.capabilities.worker = true
+        this.resize_features.ww = true
+        this.capabilities.ww_offscreen_canvas = !!result.data.offscreen_canvas
       }
-    }
+    } catch (__) {}
+  }
 
-    if (!this.__workersPool) return null
+  const mathlib = await this.__mathlib.init()
+  // Copy detected resize methods
+  assign(this.resize_features, mathlib.features)
 
-    return this.__invokeWorker('get_supported_features').then(result => {
-      if (!result || !result.data) return
-
-      this.capabilities.worker = true
-      this.resize_features.ww = true
-      this.capabilities.ww_offscreen_canvas = !!result.data.offscreen_canvas
-    }, () => {})
-  })
-
-
-  const initMath = this.__mathlib.init().then(mathlib => {
-    // Copy detected resize methods
-    assign(this.resize_features, mathlib.features)
-  })
-
-  // Init math lib. That's async because can load some
-  this.__initPromise = Promise.all([
-    initMath, checkCapabilities
-  ]).then(() => this)
-
-  return this.__initPromise
+  return this
 }
 
 
@@ -249,7 +249,7 @@ Pica.prototype.__invokeWorker = function (method, payload, transfer, opts) {
 }
 
 
-Pica.prototype.__invokeResize = function (tileOpts, opts) {
+Pica.prototype.__invokeResize = async function (tileOpts, opts) {
   // Share cache between calls:
   //
   // - wasm instance
@@ -257,39 +257,30 @@ Pica.prototype.__invokeResize = function (tileOpts, opts) {
   //
   opts.__mathCache = opts.__mathCache || {}
 
-  return Promise.resolve().then(() => {
-    if (!this.resize_features.ww) {
-      // not possible to have ImageBitmap here if user disabled WW
-      return { data: this.__mathlib.resizeAndUnsharp(tileOpts, opts.__mathCache) }
-    }
+  await Promise.resolve()
 
-    return new Promise((resolve, reject) => {
-      const w = this.__workersPool.acquire()
+  if (!this.resize_features.ww) {
+    // not possible to have ImageBitmap here if user disabled WW
+    return { data: this.__mathlib.resizeAndUnsharp(tileOpts, opts.__mathCache) }
+  }
 
-      if (opts.cancelToken) opts.cancelToken.catch(err => reject(err))
+  const transfer = []
 
-      w.value.onmessage = ev => {
-        w.release()
+  if (tileOpts.src) transfer.push(tileOpts.src.buffer)
+  if (tileOpts.srcBitmap) transfer.push(tileOpts.srcBitmap)
 
-        if (ev.data.err) reject(ev.data.err)
-        else resolve(ev.data)
+  return this.__invokeWorker(
+    tileOpts.srcBitmap ? 'resize_bitmap' : 'resize',
+    {
+      opts: tileOpts,
+      features: this.__requested_features,
+      preload: {
+        wasm_nodule: this.__mathlib.__
       }
-
-      const transfer = []
-
-      if (tileOpts.src) transfer.push(tileOpts.src.buffer)
-      if (tileOpts.srcBitmap) transfer.push(tileOpts.srcBitmap)
-
-      w.value.postMessage({
-        method: tileOpts.srcBitmap ? 'resize_bitmap' : 'resize',
-        opts: tileOpts,
-        features: this.__requested_features,
-        preload: {
-          wasm_nodule: this.__mathlib.__
-        }
-      }, transfer)
-    })
-  })
+    },
+    transfer,
+    opts
+  )
 }
 
 
@@ -382,7 +373,7 @@ Pica.prototype.__landTileData = function (tile, result, stageEnv) {
 }
 
 
-Pica.prototype.__tileAndResize = function (from, to, opts) {
+Pica.prototype.__tileAndResize = async function (from, to, opts) {
   const stageEnv = {
     srcCtx: null,
     srcImageBitmap: null,
@@ -390,7 +381,7 @@ Pica.prototype.__tileAndResize = function (from, to, opts) {
     toCtx: null
   }
 
-  const processTile = tile => this.__limit(() => {
+  const processTile = tile => this.__limit(async () => {
     if (opts.canceled) return opts.cancelToken
 
     const tileOpts = {
@@ -410,94 +401,86 @@ Pica.prototype.__tileAndResize = function (from, to, opts) {
 
     this.debug('Invoke resize math')
 
-    return Promise.resolve(tileOpts)
-      .then(tileOpts => this.__extractTileData(tile, from, opts, stageEnv, tileOpts))
-      .then(tileOpts => {
-        this.debug('Invoke resize math')
-        return this.__invokeResize(tileOpts, opts)
-      })
-      .then(result => {
-        if (opts.canceled) return opts.cancelToken
-        stageEnv.srcImageData = null
-        return this.__landTileData(tile, result, stageEnv)
-      })
+    const extractedTileOpts = await this.__extractTileData(tile, from, opts, stageEnv, tileOpts)
+
+    this.debug('Invoke resize math')
+    const result = await this.__invokeResize(extractedTileOpts, opts)
+
+    if (opts.canceled) return opts.cancelToken
+    stageEnv.srcImageData = null
+    return this.__landTileData(tile, result, stageEnv)
   })
 
 
   // Need to normalize data source first. It can be canvas or image.
   // If image - try to decode in background if possible
-  return Promise.resolve().then(() => {
-    stageEnv.toCtx = to.getContext('2d')
+  await Promise.resolve()
 
-    if (utils.isCanvas(from)) return null
+  stageEnv.toCtx = to.getContext('2d')
 
-    if (utils.isImageBitmap(from)) {
-      stageEnv.srcImageBitmap = from
-      stageEnv.isImageBitmapReused = true
-      return null
-    }
-
-    if (utils.isImage(from)) {
-      // try do decode image in background for faster next operations;
-      // if we're using offscreen canvas, cib is called per tile, so not needed here
-      if (!this.capabilities.image_bitmap) return null
-
+  if (utils.isCanvas(from)) {
+    // Source is ready as-is.
+  } else if (utils.isImageBitmap(from)) {
+    stageEnv.srcImageBitmap = from
+    stageEnv.isImageBitmapReused = true
+  } else if (utils.isImage(from)) {
+    // try do decode image in background for faster next operations;
+    // if we're using offscreen canvas, cib is called per tile, so not needed here
+    if (this.capabilities.image_bitmap) {
       this.debug('Decode image via createImageBitmap')
 
-      return createImageBitmap(from)
-        .then(imageBitmap => {
-          stageEnv.srcImageBitmap = imageBitmap
-        })
       // Suppress error to use fallback, if method fails
       // https://github.com/nodeca/pica/issues/190
-
-        .catch(e => null)
+      try {
+        stageEnv.srcImageBitmap = await createImageBitmap(from)
+      } catch (__) {}
     }
-
+  } else {
     throw new Error('Pica: ".from" should be Image, Canvas or ImageBitmap')
+  }
+
+  if (opts.canceled) return opts.cancelToken
+
+  this.debug('Calculate tiles')
+
+  //
+  // Here we are with "normalized" source,
+  // follow to tiling
+  //
+
+  const regions = createRegions({
+    width: opts.width,
+    height: opts.height,
+    srcTileSize: this.options.tile,
+    toWidth: opts.toWidth,
+    toHeight: opts.toHeight,
+    destTileBorder: opts.__destTileBorder
   })
-    .then(() => {
-      if (opts.canceled) return opts.cancelToken
 
-      this.debug('Calculate tiles')
+  const jobs = regions.map(tile => processTile(tile))
 
-      //
-      // Here we are with "normalized" source,
-      // follow to tiling
-      //
+  function cleanup (stageEnv) {
+    if (stageEnv.srcImageBitmap) {
+      if (!stageEnv.isImageBitmapReused) stageEnv.srcImageBitmap.close()
+      stageEnv.srcImageBitmap = null
+    }
+  }
 
-      const regions = createRegions({
-        width: opts.width,
-        height: opts.height,
-        srcTileSize: this.options.tile,
-        toWidth: opts.toWidth,
-        toHeight: opts.toHeight,
-        destTileBorder: opts.__destTileBorder
-      })
+  this.debug('Process tiles')
 
-      const jobs = regions.map(tile => processTile(tile))
-
-      function cleanup (stageEnv) {
-        if (stageEnv.srcImageBitmap) {
-          if (!stageEnv.isImageBitmapReused) stageEnv.srcImageBitmap.close()
-          stageEnv.srcImageBitmap = null
-        }
-      }
-
-      this.debug('Process tiles')
-
-      return Promise.all(jobs).then(
-        () => {
-          this.debug('Finished!')
-          cleanup(stageEnv); return to
-        },
-        err => { cleanup(stageEnv); throw err }
-      )
-    })
+  try {
+    await Promise.all(jobs)
+    this.debug('Finished!')
+    cleanup(stageEnv)
+    return to
+  } catch (err) {
+    cleanup(stageEnv)
+    throw err
+  }
 }
 
 
-Pica.prototype.__processStages = function (stages, from, to, opts) {
+Pica.prototype.__processStages = async function (stages, from, to, opts) {
   if (opts.canceled) return opts.cancelToken
 
   const [toWidth, toHeight] = stages.shift()
@@ -530,88 +513,83 @@ Pica.prototype.__processStages = function (stages, from, to, opts) {
     tmpCanvas = this.__createCanvas(toWidth, toHeight, { preferOffscreen: true })
   }
 
-  return this.__tileAndResize(from, (isLastStage ? to : tmpCanvas), opts)
-    .then(() => {
-      if (isLastStage) return to
+  try {
+    await this.__tileAndResize(from, (isLastStage ? to : tmpCanvas), opts)
 
-      opts.width = toWidth
-      opts.height = toHeight
-      return this.__processStages(stages, tmpCanvas, to, opts)
-    })
-    .then(res => {
-      if (tmpCanvas) {
-        // Safari 12 workaround
-        // https://github.com/nodeca/pica/issues/199
-        tmpCanvas.width = tmpCanvas.height = 0
-      }
+    if (isLastStage) return to
 
-      return res
-    })
+    opts.width = toWidth
+    opts.height = toHeight
+    return await this.__processStages(stages, tmpCanvas, to, opts)
+  } finally {
+    if (tmpCanvas) {
+      // Safari 12 workaround
+      // https://github.com/nodeca/pica/issues/199
+      tmpCanvas.width = tmpCanvas.height = 0
+    }
+  }
 }
 
 
-Pica.prototype.__resizeViaCreateImageBitmap = function (from, to, opts) {
+Pica.prototype.__resizeViaCreateImageBitmap = async function (from, to, opts) {
   let toCtx = to.getContext('2d')
 
   this.debug('Resize via createImageBitmap()')
 
-  return createImageBitmap(from, {
+  const imageBitmap = await createImageBitmap(from, {
     resizeWidth: opts.toWidth,
     resizeHeight: opts.toHeight,
     resizeQuality: utils.cib_quality_name(filter_info.f2q[opts.filter])
   })
-    .then(imageBitmap => {
-      if (opts.canceled) return opts.cancelToken
+  if (opts.canceled) return opts.cancelToken
 
-      // if no unsharp - draw directly to output canvas
-      if (!opts.unsharpAmount) {
-        toCtx.drawImage(imageBitmap, 0, 0)
-        imageBitmap.close()
-        toCtx = null
+  // if no unsharp - draw directly to output canvas
+  if (!opts.unsharpAmount) {
+    toCtx.drawImage(imageBitmap, 0, 0)
+    imageBitmap.close()
+    toCtx = null
 
-        this.debug('Finished!')
+    this.debug('Finished!')
 
-        return to
-      }
+    return to
+  }
 
-      this.debug('Unsharp result')
+  this.debug('Unsharp result')
 
-      let tmpCanvas = this.options.createCanvas(opts.toWidth, opts.toHeight)
+  let tmpCanvas = this.options.createCanvas(opts.toWidth, opts.toHeight)
 
-      let tmpCtx = tmpCanvas.getContext('2d')
+  let tmpCtx = tmpCanvas.getContext('2d')
 
-      tmpCtx.drawImage(imageBitmap, 0, 0)
-      imageBitmap.close()
+  tmpCtx.drawImage(imageBitmap, 0, 0)
+  imageBitmap.close()
 
-      let iData = tmpCtx.getImageData(0, 0, opts.toWidth, opts.toHeight)
+  let iData = tmpCtx.getImageData(0, 0, opts.toWidth, opts.toHeight)
 
-      this.__mathlib.unsharp_mask(
-        iData.data,
-        opts.toWidth,
-        opts.toHeight,
-        opts.unsharpAmount,
-        opts.unsharpRadius,
-        opts.unsharpThreshold
-      )
+  this.__mathlib.unsharp_mask(
+    iData.data,
+    opts.toWidth,
+    opts.toHeight,
+    opts.unsharpAmount,
+    opts.unsharpRadius,
+    opts.unsharpThreshold
+  )
 
-      toCtx.putImageData(iData, 0, 0)
+  toCtx.putImageData(iData, 0, 0)
 
-      // Safari 12 workaround
-      // https://github.com/nodeca/pica/issues/199
-      tmpCanvas.width = tmpCanvas.height = 0
+  // Safari 12 workaround
+  // https://github.com/nodeca/pica/issues/199
+  tmpCanvas.width = tmpCanvas.height = 0
 
-      iData = tmpCtx = tmpCanvas = toCtx = null
+  iData = tmpCtx = tmpCanvas = toCtx = null
 
-      this.debug('Finished!')
+  this.debug('Finished!')
 
-      return to
-    })
+  return to
 }
 
 
-Pica.prototype.resize = function (from, to, options) {
+Pica.prototype.resize = async function (from, to, options) {
   this.debug('Start resize...')
-
 
   let opts = assign({}, DEFAULT_RESIZE_OPTS)
 
@@ -654,56 +632,56 @@ Pica.prototype.resize = function (from, to, options) {
   const DEST_TILE_BORDER = 3 // Max possible filter window size
   opts.__destTileBorder = Math.ceil(Math.max(DEST_TILE_BORDER, 2.5 * opts.unsharpRadius|0))
 
-  return this.init().then(() => {
-    if (opts.canceled) return opts.cancelToken
+  await this.init()
 
-    // createImageBitmap doesn't work for images (Image, ImageBitmap) with
-    // Exif orientation in Chrome. Enforce canvas use for such inputs.
-    // see https://bugs.chromium.org/p/chromium/issues/detail?id=1220671
-    if (this.capabilities.bug_image_bitmap_orientation_region &&
-        (utils.isImage(from) || (utils.isImageBitmap(from)))) {
-      const tmpCanvas = this.options.createCanvas(opts.width, opts.height)
-      const tmpCtx = tmpCanvas.getContext('2d')
-      tmpCtx.drawImage(from, 0, 0)
-      from = tmpCanvas
+  if (opts.canceled) return opts.cancelToken
+
+  // createImageBitmap doesn't work for images (Image, ImageBitmap) with
+  // Exif orientation in Chrome. Enforce canvas use for such inputs.
+  // see https://bugs.chromium.org/p/chromium/issues/detail?id=1220671
+  if (this.capabilities.bug_image_bitmap_orientation_region &&
+      (utils.isImage(from) || (utils.isImageBitmap(from)))) {
+    const tmpCanvas = this.options.createCanvas(opts.width, opts.height)
+    const tmpCtx = tmpCanvas.getContext('2d')
+    tmpCtx.drawImage(from, 0, 0)
+    from = tmpCanvas
+  }
+
+  // if createImageBitmap supports resize, just do it and return
+  if (this.resize_features.cib) {
+    if (filter_info.q2f.indexOf(opts.filter) >= 0) {
+      return this.__resizeViaCreateImageBitmap(from, to, opts)
     }
 
-    // if createImageBitmap supports resize, just do it and return
-    if (this.resize_features.cib) {
-      if (filter_info.q2f.indexOf(opts.filter) >= 0) {
-        return this.__resizeViaCreateImageBitmap(from, to, opts)
-      }
+    this.debug('cib is enabled, but not supports provided filter, fallback to manual math')
+  }
 
-      this.debug('cib is enabled, but not supports provided filter, fallback to manual math')
-    }
+  if (!this.capabilities.canvas) {
+    const err = new Error('Pica: cannot use getImageData on canvas, ' +
+                        "make sure fingerprinting protection isn't enabled")
+    err.code = 'ERR_GET_IMAGE_DATA'
+    throw err
+  }
 
-    if (!this.capabilities.canvas) {
-      const err = new Error('Pica: cannot use getImageData on canvas, ' +
-                          "make sure fingerprinting protection isn't enabled")
-      err.code = 'ERR_GET_IMAGE_DATA'
-      throw err
-    }
+  //
+  // No easy way, let's resize manually via arrays
+  //
 
-    //
-    // No easy way, let's resize manually via arrays
-    //
+  const stages = createStages(
+    opts.width,
+    opts.height,
+    opts.toWidth,
+    opts.toHeight,
+    this.options.tile,
+    opts.__destTileBorder
+  )
 
-    const stages = createStages(
-      opts.width,
-      opts.height,
-      opts.toWidth,
-      opts.toHeight,
-      this.options.tile,
-      opts.__destTileBorder
-    )
-
-    return this.__processStages(stages, from, to, opts)
-  })
+  return this.__processStages(stages, from, to, opts)
 }
 
 // RGBA buffer resize
 //
-Pica.prototype.resizeBuffer = function (options) {
+Pica.prototype.resizeBuffer = async function (options) {
   const opts = assign({}, DEFAULT_RESIZE_OPTS, options)
 
   // Legacy `.quality` option
@@ -714,39 +692,37 @@ Pica.prototype.resizeBuffer = function (options) {
     opts.filter = filter_info.q2f[opts.quality]
   }
 
-  return this.init()
-    .then(() => this.__mathlib.resizeAndUnsharp(opts))
+  await this.init()
+  return this.__mathlib.resizeAndUnsharp(opts)
 }
 
 
-Pica.prototype.toBlob = function (canvas, mimeType, quality) {
+Pica.prototype.toBlob = async function (canvas, mimeType, quality) {
   mimeType = mimeType || 'image/png'
 
-  return new Promise(resolve => {
-    if (canvas.toBlob) {
+  if (canvas.toBlob) {
+    return new Promise(resolve => {
       canvas.toBlob(blob => resolve(blob), mimeType, quality)
-      return
-    }
+    })
+  }
 
-    if (canvas.convertToBlob) {
-      resolve(canvas.convertToBlob({
-        type: mimeType,
-        quality
-      }))
-      return
-    }
+  if (canvas.convertToBlob) {
+    return canvas.convertToBlob({
+      type: mimeType,
+      quality
+    })
+  }
 
-    // Fallback for old browsers
-    const asString = atob(canvas.toDataURL(mimeType, quality).split(',')[1])
-    const len = asString.length
-    const asBuffer = new Uint8Array(len)
+  // Fallback for old browsers
+  const asString = atob(canvas.toDataURL(mimeType, quality).split(',')[1])
+  const len = asString.length
+  const asBuffer = new Uint8Array(len)
 
-    for (let i = 0; i < len; i++) {
-      asBuffer[i] = asString.charCodeAt(i)
-    }
+  for (let i = 0; i < len; i++) {
+    asBuffer[i] = asString.charCodeAt(i)
+  }
 
-    resolve(new Blob([asBuffer], { type: mimeType }))
-  })
+  return new Blob([asBuffer], { type: mimeType })
 }
 
 
