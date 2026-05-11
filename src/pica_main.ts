@@ -209,7 +209,7 @@ Pica.prototype.__init = async function () {
 }
 
 
-Pica.prototype.__createCanvas = function (width, height, preferOffscreen) {
+Pica.prototype.createCanvas = function (width, height, preferOffscreen) {
   if (preferOffscreen && this.capabilities.offscreen_canvas) {
     return new OffscreenCanvas(width, height)
   }
@@ -225,7 +225,7 @@ Pica.prototype.__createCanvas = function (width, height, preferOffscreen) {
     return new OffscreenCanvas(width, height)
   }
 
-  return null
+  throw new Error('Pica: cannot create canvas')
 }
 
 
@@ -288,7 +288,7 @@ Pica.prototype.__extractTileData = function (tile, from, opts, stageEnv, extract
   if (this.resize_features.ww && this.capabilities.ww_offscreen_canvas) {
     this.debug('Create tile imageBitmap')
 
-    const tileCanvas = this.__createCanvas(tile.width, tile.height, { preferOffscreen: true })
+    const tileCanvas = this.createCanvas(tile.width, tile.height, { preferOffscreen: true })
     const tileCtx = tileCanvas.getContext('2d')
 
     tileCtx.drawImage(stageEnv.srcImageBitmap || from,
@@ -325,7 +325,7 @@ Pica.prototype.__extractTileData = function (tile, from, opts, stageEnv, extract
   //
   this.debug('Draw tile imageBitmap/image to temporary canvas')
 
-  const tmpCanvas = this.__createCanvas(tile.width, tile.height, { preferOffscreen: true })
+  const tmpCanvas = this.createCanvas(tile.width, tile.height, { preferOffscreen: true })
 
   const tmpCtx = tmpCanvas.getContext('2d')
   tmpCtx.globalCompositeOperation = 'copy'
@@ -509,7 +509,7 @@ Pica.prototype.__processStages = async function (stages, from, to, opts) {
 
   if (!isLastStage) {
     // create temporary canvas
-    tmpCanvas = this.__createCanvas(toWidth, toHeight, { preferOffscreen: true })
+    tmpCanvas = this.createCanvas(toWidth, toHeight, { preferOffscreen: true })
   }
 
   try {

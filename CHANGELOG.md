@@ -16,8 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Removed ancient browsers support (IE < Edge and so on).
-- Simplified pipeline.
-- Moved bundling to Vite.
+- Moved to Typescript and modern tooling.
+- Removed `createCanvas` option. Expose `OffscreenCanvas` to global instead,
+  if required.
+- Bundle webworker as string in combined builds. Shoud fix side effects in
+  external bundlers
 
 
 ## [9.0.1] - 2021-12-14
@@ -47,12 +50,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [7.1.0] - 2021-06-21
 ### Changed
-- In FireFox experimental resist fingerprinting mode `pica.resize()` now returns an error
-  instead of returning random data, nodeca/image-blob-reduce#28.
+- In FireFox experimental resist fingerprinting mode `pica.resize()` now returns
+  an error instead of returning random data, nodeca/image-blob-reduce#28.
 
 ### Fixed
-- Images with Exif orientation are now resized correctly in Chromium-based browsers
-  (it was previously broken in pica 7.0.0), #211.
+- Images with Exif orientation are now resized correctly in Chromium-based
+  browsers (it was previously broken in pica 7.0.0), #211.
 
 
 ## [7.0.0] - 2021-05-23

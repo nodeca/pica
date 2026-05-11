@@ -21,21 +21,21 @@ describe('Fixture resize canvas', () => {
     await resizer.init()
 
     const srcImage = await loadImage(originalURL)
-    const srcCanvas = resizer.__createCanvas(srcImage.width, srcImage.height)
+    const srcCanvas = resizer.createCanvas(srcImage.width, srcImage.height)
     const srcCtx = srcCanvas.getContext('2d')
 
     srcCtx.drawImage(srcImage, 0, 0)
 
     const fixtureImage = await loadImage(resizedURL)
-    const fixtureCanvas = resizer.__createCanvas(fixtureImage.width, fixtureImage.height)
+    const fixtureCanvas = resizer.createCanvas(fixtureImage.width, fixtureImage.height)
     const fixtureCtx = fixtureCanvas.getContext('2d')
 
     fixtureCtx.drawImage(fixtureImage, 0, 0)
 
     const fixtureImageData = fixtureCtx.getImageData(0, 0, fixtureCanvas.width, fixtureCanvas.height)
-    const destCanvas = resizer.__createCanvas(fixtureImage.width, fixtureImage.height)
+    const destCanvas = resizer.createCanvas(fixtureImage.width, fixtureImage.height)
     const destCtx = destCanvas.getContext('2d')
-    const diffCanvas = resizer.__createCanvas(fixtureImage.width, fixtureImage.height)
+    const diffCanvas = resizer.createCanvas(fixtureImage.width, fixtureImage.height)
     const diffCtx = diffCanvas.getContext('2d')
     const diffImageData = diffCtx.createImageData(diffCanvas.width, diffCanvas.height)
 

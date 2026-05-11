@@ -32,17 +32,17 @@ async function assertResizeViaWorker (p) {
   const sourceImage = await loadImage(originalURL)
   const expectedImage = await loadImage(resizedURL)
 
-  const srcCanvas = p.__createCanvas(sourceImage.width, sourceImage.height)
+  const srcCanvas = p.createCanvas(sourceImage.width, sourceImage.height)
   const srcCtx = srcCanvas.getContext('2d')
 
   srcCtx.drawImage(sourceImage, 0, 0)
 
-  const expectedCanvas = p.__createCanvas(expectedImage.width, expectedImage.height)
+  const expectedCanvas = p.createCanvas(expectedImage.width, expectedImage.height)
   const expectedCtx = expectedCanvas.getContext('2d')
 
   expectedCtx.drawImage(expectedImage, 0, 0)
 
-  const destCanvas = p.__createCanvas(expectedImage.width, expectedImage.height)
+  const destCanvas = p.createCanvas(expectedImage.width, expectedImage.height)
   const destCtx = destCanvas.getContext('2d')
   const diffImageData = destCtx.createImageData(destCanvas.width, destCanvas.height)
 

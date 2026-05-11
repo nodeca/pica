@@ -6,8 +6,8 @@ describe('API canvas', () => {
     const p = picaFactory({ features: ['js', 'wasm'] })
     await p.init()
 
-    const src = p.__createCanvas(1000, 1000)
-    const to = p.__createCanvas(100, 100)
+    const src = p.createCanvas(1000, 1000)
+    const to = p.createCanvas(100, 100)
 
     const result = await p.resize(src, to)
     expect(result).toBe(to)
@@ -18,8 +18,8 @@ describe('API canvas', () => {
     const p = picaFactory({ features: ['js', 'wasm'] })
     await p.init()
 
-    const src = p.__createCanvas(1000, 1000)
-    const to = p.__createCanvas(0, 0)
+    const src = p.createCanvas(1000, 1000)
+    const to = p.createCanvas(0, 0)
 
     await expect(p.resize(src, to)).rejects.toThrow('Invalid output size: 0x0')
   })
