@@ -21,7 +21,6 @@ import type {
   ResizeStage,
   TileResizeJob,
   ResizeOptions,
-  CibResizeQuality,
   ResizeResult,
   ResolvedPicaOptions,
   StageEnv,
@@ -647,15 +646,13 @@ export class Pica {
   async resize<TCanvas extends PicaCanvas> (
     from: PicaSource,
     to: TCanvas,
-    options?: ResizeOptions | CibResizeQuality
+    options?: ResizeOptions
   ): Promise<TCanvas> {
     this.debug('Start resize...')
 
     const requested: ResizeOptions = {}
 
-    if (typeof options === 'number' && !isNaN(options)) {
-      Object.assign(requested, { quality: options })
-    } else if (options) {
+    if (options) {
       Object.assign(requested, options)
     }
 

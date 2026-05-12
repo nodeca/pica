@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   if required.
 - Bundle webworker as string in combined builds. Shoud fix side effects in
   external bundlers
+- Removed deprecated numeric `quality` argument from `resize(from, to, quality)`.
+  Use `resize(from, to, { quality })` or `filter` option instead.
 
 
 ## [9.0.1] - 2021-12-14

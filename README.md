@@ -135,7 +135,7 @@ taken from source and destination objects.
 
 - __from__ - source, can be `Canvas`, `Image` or `ImageBitmap`.
 - __to__ - destination canvas, its size is supposed to be non-zero.
-- __options__ - quality (number) or object:
+- __options__ - object:
   - __quality__ (deprecated, use `.filter` instead) - 0..3.
   - __filter__ - filter name (Default - `mks2013`). See [resize_filter_info.ts](https://github.com/nodeca/pica/blob/master/src/mm_resize/resize_filter_info.ts) for details. `mks2013` does both resize and sharpening, it's optimal and not recommended to change.
   - __unsharpAmount__ - >=0. Default = `0` (off). Usually
