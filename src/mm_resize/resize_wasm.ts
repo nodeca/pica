@@ -1,5 +1,5 @@
 import createFilters from './resize_filter_gen'
-import type { ResizeMathOptions, WasmMathContext } from '../types'
+import type { MathResizeOptions, MathWasmContext } from '../mathlib'
 
 function hasAlpha (src: Uint8Array | Uint8ClampedArray, width: number, height: number): boolean {
   let ptr = 3
@@ -40,7 +40,7 @@ function copyInt16asLE (src: Int16Array, target: Uint8Array, target_offset: numb
   }
 }
 
-export default function resize_wasm (this: WasmMathContext, options: ResizeMathOptions): Uint8Array {
+export default function resize_wasm (this: MathWasmContext, options: MathResizeOptions): Uint8Array {
   const src = options.src
   const srcW = options.width
   const srcH = options.height
@@ -87,7 +87,7 @@ export default function resize_wasm (this: WasmMathContext, options: ResizeMathO
 
   // Now call webassembly method
   // emsdk does method names with '_'
-  const fn = instance.exports.convolveHV || instance.exports._convolveHV
+  const fn = (instance.exports.convolveHV || instance.exports._convolveHV) as Function | undefined
   if (!fn) throw new Error('WASM resize function is not available')
 
   if (hasAlpha(src, srcW, srcH)) {

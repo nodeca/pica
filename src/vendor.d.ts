@@ -8,47 +8,74 @@ declare module 'glur/mono16' {
 }
 
 declare module 'multimath' {
-  export interface MultimathPlugin {
-    name: string
-    fn: Function
-    wasm_fn?: Function
-    wasm_src?: string
+  export interface MmFeaturesMap {
+    js: boolean
+    wasm: boolean
   }
 
-  export interface Multimath {
-    features: import('./types').MathFeaturesMap
+  export interface MmOptions extends Partial<MmFeaturesMap> {
+    modules?: Record<string, MmPlugin>
+  }
+
+  export interface MmJsPlugin {
+    name: string
+    fn: Function
+  }
+
+  export interface MmWasmPlugin extends MmJsPlugin {
+    wasm_fn: Function
+    wasm_src: string
+  }
+
+  export type MmPlugin = MmJsPlugin | MmWasmPlugin
+
+  export interface MmWasmContext {
     __memory: WebAssembly.Memory
-    __?: unknown
+    __align: (offset: number, base?: number) => number
+    __instance: (name: string, bytes: number, imports?: Record<string, unknown>) => WebAssembly.Instance
+  }
+
+  export interface MmInstance {
+    options: MmFeaturesMap
+    __memory: WebAssembly.Memory | null
 
     has_wasm(): boolean
     init(): Promise<this>
-    use(plugin: MultimathPlugin): this
-    resize(
-      options: import('./types').ResizeMathOptions,
-      cache?: Record<string, unknown>
-    ): Uint8Array
-    unsharp_mask(
-      img: Uint8Array | Uint8ClampedArray | number[],
-      width: number,
-      height: number,
-      amount: number,
-      radius: number,
-      threshold: number
-    ): void
-    __align(offset: number): number
-    __instance(
-      name: string,
-      bytes: number,
-      imports?: Record<string, unknown>
-    ): import('./types').WasmInstance
+    use(plugin: MmPlugin): this
+    __base64decode(data: string): Uint8Array
+    __reallocate(bytes: number): WebAssembly.Memory
+    __align(offset: number, base?: number): number
+    __instance(name: string, bytes: number, imports?: Record<string, unknown>): WebAssembly.Instance
   }
 
-  export interface MultimathConstructor {
-    new(features?: Partial<import('./types').MathFeaturesMap>): Multimath
-    (features?: Partial<import('./types').MathFeaturesMap>): Multimath
-    prototype: Multimath
+  export type MmUnsharpImage = Uint8Array | Uint8ClampedArray | number[]
+
+  export type MmUnsharpMask = (
+    img: MmUnsharpImage,
+    width: number,
+    height: number,
+    amount: number,
+    radius: number,
+    threshold: number
+  ) => void
+
+  export interface MmUnsharpMaskInstance extends MmInstance {
+    unsharp_mask: MmUnsharpMask
   }
 
-  const Multimath: MultimathConstructor
+  export interface MmConstructor {
+    new(options?: MmOptions): MmInstance
+    (options?: MmOptions): MmInstance
+    prototype: MmInstance
+  }
+
+  const Multimath: MmConstructor
   export default Multimath
+}
+
+declare module 'multimath/lib/unsharp_mask' {
+  import type { MmPlugin } from 'multimath'
+
+  const plugin: MmPlugin
+  export = plugin
 }

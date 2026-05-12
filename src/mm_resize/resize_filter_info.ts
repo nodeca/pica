@@ -1,4 +1,4 @@
-import type { Filter, CibResizeQuality } from '../types'
+import type { MathResizeFilter } from '../mathlib'
 
 // Filter definitions to build tables for
 // resizing convolvers.
@@ -10,7 +10,7 @@ export interface FilterInfo {
   fn: (x: number) => number
 }
 
-const filter: Record<Filter, FilterInfo> = {
+const filter: Record<MathResizeFilter, FilterInfo> = {
   // Nearest neibor
   box: {
     win: 0.5,
@@ -67,8 +67,5 @@ const filter: Record<Filter, FilterInfo> = {
 }
 
 export default {
-  filter,
-  // Legacy mapping
-  f2q: { box: 0, hamming: 1, lanczos2: 2, lanczos3: 3 } as Partial<Record<Filter, CibResizeQuality>>,
-  q2f: ['box', 'hamming', 'lanczos2', 'lanczos3'] as Filter[]
+  filter
 }

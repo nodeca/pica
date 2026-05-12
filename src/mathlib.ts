@@ -7,12 +7,50 @@ import Multimath from 'multimath'
 
 import mm_unsharp_mask from './mm_unsharp_mask'
 import mm_resize from './mm_resize'
-import type { PicaFeaturesFlat, MathCache, MathFeaturesMap, ResizeMathOptions } from './types'
+import type {
+  MmFeaturesMap,
+  MmPlugin,
+  MmUnsharpImage,
+  MmUnsharpMask,
+  MmWasmContext
+} from 'multimath'
+
+export type MathFeaturesMap = MmFeaturesMap
+export type MathCache = Record<string, unknown>
+export type MathResizeFilter = 'box' | 'hamming' | 'lanczos2' | 'lanczos3' | 'mks2013'
+export type MathResizeImage = Uint8Array | Uint8ClampedArray
+
+export interface MathResizeOptions {
+  src: MathResizeImage
+  width: number
+  height: number
+  toWidth: number
+  toHeight: number
+  dest?: Uint8Array
+  scaleX: number
+  scaleY: number
+  offsetX: number
+  offsetY: number
+  filter: MathResizeFilter
+}
+
+export interface MathResizeAndUnsharpOptions extends MathResizeOptions {
+  unsharpAmount: number
+  unsharpRadius: number
+  unsharpThreshold: number
+}
+
+export type MathUnsharpImage = MmUnsharpImage
+export type MathUnsharpMask = MmUnsharpMask
+export type MathWasmContext = MmWasmContext
+export type MathPlugin = MmPlugin
 
 export default class MathLib extends Multimath {
   declare features: MathFeaturesMap
+  declare resize: (options: MathResizeOptions, cache?: MathCache) => Uint8Array
+  declare unsharp_mask: MathUnsharpMask
 
-  constructor (requested_features?: PicaFeaturesFlat) {
+  constructor (requested_features?: readonly string[]) {
     const __requested_features = requested_features || []
 
     const features = {
@@ -31,7 +69,7 @@ export default class MathLib extends Multimath {
     this.use(mm_resize)
   }
 
-  resizeAndUnsharp (options: ResizeMathOptions, cache?: MathCache): Uint8Array {
+  resizeAndUnsharp (options: MathResizeAndUnsharpOptions, cache?: MathCache): Uint8Array {
     const result = this.resize(options, cache)
 
     if (options.unsharpAmount) {

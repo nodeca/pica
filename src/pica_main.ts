@@ -1,9 +1,8 @@
-import MathLib from './mathlib'
+import MathLib, { type MathResizeAndUnsharpOptions } from './mathlib'
 import Pool from './pool'
 import * as utils from './utils'
 import createStages, { type Stage } from './stepper'
 import createRegions, { type Tile } from './tiler'
-import filter_info from './mm_resize/resize_filter_info'
 import * as supported_features from './supported_features'
 import type {
   Capabilities,
@@ -18,7 +17,7 @@ import type {
   PicaSource,
   ResizeBufferOptions,
   ResizeFeaturesMap,
-  ResizeMathOptions,
+  TileResizeJob,
   ResizeOptions,
   CibResizeQuality,
   ResizeResult,
@@ -270,7 +269,7 @@ export class Pica {
     })
   }
 
-  private async __invokeResize (tileOpts: ResizeMathOptions, opts: NormalizedResizeOptions): Promise<ResizeResult> {
+  private async __invokeResize (tileJob: TileResizeJob, opts: NormalizedResizeOptions): Promise<ResizeResult> {
   // Share cache between calls:
   //
   // - wasm instance
@@ -282,22 +281,19 @@ export class Pica {
 
     if (!this.resize_features.ww) {
     // not possible to have ImageBitmap here if user disabled WW
-      return { data: this.__mathlib!.resizeAndUnsharp(tileOpts, opts.__mathCache) }
+      return { data: this.__mathlib!.resizeAndUnsharp(tileJob as MathResizeAndUnsharpOptions, opts.__mathCache) }
     }
 
     const transfer = []
 
-    if (tileOpts.src) transfer.push(tileOpts.src.buffer)
-    if (tileOpts.srcBitmap) transfer.push(tileOpts.srcBitmap)
+    if (tileJob.src) transfer.push(tileJob.src.buffer)
+    if (tileJob.srcBitmap) transfer.push(tileJob.srcBitmap)
 
     return this.__invokeWorker(
-      tileOpts.srcBitmap ? 'resize_bitmap' : 'resize',
+      tileJob.srcBitmap ? 'resize_bitmap' : 'resize',
       {
-        opts: tileOpts,
-        features: this.__requested_features,
-        preload: {
-          wasm_nodule: this.__mathlib!.__
-        }
+        opts: tileJob,
+        features: this.__requested_features
       },
       transfer,
       opts
@@ -310,8 +306,8 @@ export class Pica {
     from: PicaSource,
     opts: NormalizedResizeOptions,
     stageEnv: StageEnv,
-    extractTo: ResizeMathOptions
-  ): ResizeMathOptions {
+    extractTo: TileResizeJob
+  ): TileResizeJob {
     if (this.resize_features.ww && this.capabilities.ww_offscreen_canvas) {
       this.debug('Create tile imageBitmap')
 
@@ -416,7 +412,7 @@ export class Pica {
     const processTile = (tile: Tile) => this.__limit(async () => {
       if (opts.canceled) return opts.cancelToken
 
-      const tileOpts = {
+      const tileJob = {
         width: tile.width,
         height: tile.height,
         toWidth: tile.toWidth,
@@ -429,14 +425,14 @@ export class Pica {
         unsharpAmount: opts.unsharpAmount,
         unsharpRadius: opts.unsharpRadius,
         unsharpThreshold: opts.unsharpThreshold
-      } as ResizeMathOptions
+      } as TileResizeJob
 
       this.debug('Invoke resize math')
 
-      const extractedTileOpts = await this.__extractTileData(tile, from, opts, stageEnv, tileOpts)
+      const extractedTileJob = await this.__extractTileData(tile, from, opts, stageEnv, tileJob)
 
       this.debug('Invoke resize math')
-      const result = await this.__invokeResize(extractedTileOpts, opts)
+      const result = await this.__invokeResize(extractedTileJob, opts)
 
       if (opts.canceled) return opts.cancelToken
       return this.__landTileData(tile, result, stageEnv)
@@ -530,7 +526,7 @@ export class Pica {
     // because need to apply sharpening every time
     let filter: Filter
 
-    if (isLastStage || filter_info.q2f.indexOf(opts.filter) < 0) filter = opts.filter
+    if (isLastStage || !utils.is_cib_filter(opts.filter)) filter = opts.filter
     else if (opts.filter === 'box') filter = 'box'
     else filter = 'hamming'
 
@@ -576,7 +572,7 @@ export class Pica {
     const imageBitmap = await createImageBitmap(from, {
       resizeWidth: opts.toWidth,
       resizeHeight: opts.toHeight,
-      resizeQuality: utils.cib_quality_name(filter_info.f2q[opts.filter] ?? 3)
+      resizeQuality: utils.cib_quality_name(utils.filter_to_cib_quality(opts.filter) ?? 3)
     })
     if (opts.canceled) return opts.cancelToken as Promise<TCanvas>
 
@@ -650,7 +646,7 @@ export class Pica {
       if (typeof quality !== 'number' || quality < 0 || quality > 3) {
         throw new Error(`Pica: .quality should be [0..3], got ${quality}`)
       }
-      opts.filter = filter_info.q2f[quality]
+      opts.filter = utils.cib_quality_filter(quality)
     }
 
     // Prevent stepper from infinite loop
@@ -690,7 +686,7 @@ export class Pica {
 
     // if createImageBitmap supports resize, just do it and return
     if (this.resize_features.cib) {
-      if (filter_info.q2f.indexOf(opts.filter) >= 0) {
+      if (utils.is_cib_filter(opts.filter)) {
         return this.__resizeViaCreateImageBitmap(from, to, opts)
       }
 
@@ -724,7 +720,7 @@ export class Pica {
   // RGBA buffer resize
   //
   async resizeBuffer (options: ResizeBufferOptions): Promise<Uint8Array> {
-    const opts = Object.assign({}, DEFAULT_RESIZE_OPTS, options) as ResizeMathOptions
+    const opts = Object.assign({}, DEFAULT_RESIZE_OPTS, options)
 
     // Legacy `.quality` option
     if (Object.prototype.hasOwnProperty.call(opts, 'quality')) {
@@ -732,12 +728,30 @@ export class Pica {
       if (typeof quality !== 'number' || quality < 0 || quality > 3) {
         throw new Error(`Pica: .quality should be [0..3], got ${quality}`)
       }
-      opts.filter = filter_info.q2f[quality]
+      opts.filter = utils.cib_quality_filter(quality)
     }
 
     await this.init()
     if (!this.__mathlib) throw new Error('Pica: math library is not initialized')
-    return this.__mathlib.resizeAndUnsharp(opts)
+
+    const mathOpts: MathResizeAndUnsharpOptions = {
+      src: opts.src,
+      width: opts.width,
+      height: opts.height,
+      toWidth: opts.toWidth,
+      toHeight: opts.toHeight,
+      dest: opts.dest,
+      scaleX: opts.scaleX || opts.toWidth / opts.width,
+      scaleY: opts.scaleY || opts.toHeight / opts.height,
+      offsetX: opts.offsetX || 0,
+      offsetY: opts.offsetY || 0,
+      filter: opts.filter,
+      unsharpAmount: opts.unsharpAmount,
+      unsharpRadius: opts.unsharpRadius,
+      unsharpThreshold: opts.unsharpThreshold
+    }
+
+    return this.__mathlib.resizeAndUnsharp(mathOpts)
   }
 
   async toBlob (canvas: HTMLCanvasElement | OffscreenCanvas, mimeType?: string, quality?: number): Promise<Blob> {

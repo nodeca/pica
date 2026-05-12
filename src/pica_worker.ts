@@ -2,43 +2,44 @@
 
 import MathLib from './mathlib'
 import * as supported_features from './supported_features'
-import type { PicaFeaturesFlat, ResizeMathOptions, WorkerPayload } from './types'
+import type { MathResizeAndUnsharpOptions } from './mathlib'
+import type { PicaFeaturesFlat, TileResizeJob, WorkerPayload } from './types'
 
 const workerScope = self as unknown as DedicatedWorkerGlobalScope
 
 let mathLib: MathLib | null = null
 
-function resize_math (data: { features: PicaFeaturesFlat }, tileOpts: ResizeMathOptions): Uint8Array {
+function resize_math (data: { features: PicaFeaturesFlat }, tileJob: MathResizeAndUnsharpOptions): Uint8Array {
   if (!mathLib) mathLib = new MathLib(data.features)
 
   // Use multimath's sync auto-init. Avoid Promise use in old browsers,
   // because polyfills are not propagated to webworker.
-  return mathLib.resizeAndUnsharp(tileOpts)
+  return mathLib.resizeAndUnsharp(tileJob)
 }
 
 function resize (data: Extract<WorkerPayload, { method: 'resize' }>): void {
-  const result = resize_math(data, data.opts)
+  const result = resize_math(data, data.opts as MathResizeAndUnsharpOptions)
 
   workerScope.postMessage({ data: result }, [result.buffer])
 }
 
 function resize_bitmap (data: Extract<WorkerPayload, { method: 'resize_bitmap' }>): void {
-  const tileOpts = data.opts
-  let srcCanvas: OffscreenCanvas | null = new OffscreenCanvas(tileOpts.width, tileOpts.height)
+  const tileJob: TileResizeJob = data.opts
+  let srcCanvas: OffscreenCanvas | null = new OffscreenCanvas(tileJob.width, tileJob.height)
   const srcCtx = srcCanvas.getContext('2d')!
 
-  srcCtx.drawImage(tileOpts.srcBitmap!, 0, 0)
-  tileOpts.src = srcCtx.getImageData(0, 0, tileOpts.width, tileOpts.height).data
+  srcCtx.drawImage(tileJob.srcBitmap!, 0, 0)
+  tileJob.src = srcCtx.getImageData(0, 0, tileJob.width, tileJob.height).data
   srcCanvas.width = srcCanvas.height = 0
   srcCanvas = null
-  tileOpts.srcBitmap!.close()
-  tileOpts.srcBitmap = null
+  tileJob.srcBitmap!.close()
+  tileJob.srcBitmap = null
 
-  const result = resize_math(data, tileOpts)
-  const canvas = new OffscreenCanvas(tileOpts.toWidth, tileOpts.toHeight)
+  const result = resize_math(data, tileJob as MathResizeAndUnsharpOptions)
+  const canvas = new OffscreenCanvas(tileJob.toWidth, tileJob.toHeight)
   const ctx = canvas.getContext('2d')!
 
-  const toImageData = ctx.createImageData(tileOpts.toWidth, tileOpts.toHeight)
+  const toImageData = ctx.createImageData(tileJob.toWidth, tileJob.toHeight)
   toImageData.data.set(result)
   ctx.putImageData(toImageData, 0, 0)
 

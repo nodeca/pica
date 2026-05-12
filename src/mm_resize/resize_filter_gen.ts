@@ -8,7 +8,7 @@
 // - data - filter values sequence
 //
 import FILTER_INFO from './resize_filter_info'
-import type { Filter } from '../types'
+import type { MathResizeFilter } from '../mathlib'
 
 // Precision of fixed FP values
 const FIXED_FRAC_BITS = 14
@@ -18,7 +18,7 @@ function toFixedPoint (num: number): number {
 }
 
 export default function resizeFilterGen (
-  filter: Filter,
+  filter: MathResizeFilter,
   srcSize: number,
   destSize: number,
   scale: number,

@@ -1,6 +1,9 @@
+import type { MathCache, MathResizeAndUnsharpOptions, MathResizeFilter, MathResizeImage } from './mathlib'
+import type { SupportedFeatures } from './supported_features'
+
 export type PicaFeaturesFlat = ('js' | 'wasm' | 'ww' | 'cib' | 'all')[]
 
-export type Filter = 'box' | 'hamming' | 'lanczos2' | 'lanczos3' | 'mks2013'
+export type Filter = MathResizeFilter
 
 export type CibResizeQuality = 0 | 1 | 2 | 3
 
@@ -61,14 +64,11 @@ export interface NormalizedResizeOptions extends Required<Omit<ResizeOptions, 'c
   __mathCache?: MathCache
 }
 
-export interface ResizeMathOptions extends Required<Omit<ResizeBufferOptions, 'dest' | 'cancelToken' | 'quality'>> {
-  quality?: CibResizeQuality
-  cancelToken?: Promise<unknown>
+export interface TileResizeJob extends Omit<MathResizeAndUnsharpOptions, 'src'> {
+  src?: MathResizeImage
   dest?: Uint8Array
   srcBitmap?: ImageBitmap | null
 }
-
-import type { SupportedFeatures } from './supported_features'
 
 export interface Capabilities extends SupportedFeatures {
   worker: boolean
@@ -82,13 +82,6 @@ export interface ResizeFeaturesMap {
   ww: boolean
 }
 
-export interface MathFeaturesMap {
-  js: boolean
-  wasm: boolean
-}
-
-export type MathCache = Record<string, unknown>
-
 export interface StageEnv {
   srcCtx: PicaCanvasCtx | null
   srcImageBitmap: ImageBitmap | null
@@ -100,20 +93,14 @@ export type WorkerMethod = 'resize' | 'resize_bitmap' | 'get_supported_features'
 
 export interface WorkerArrayResizePayload {
   method: 'resize'
-  opts: ResizeMathOptions
+  opts: TileResizeJob
   features: PicaFeaturesFlat
-  preload: {
-    wasm_nodule?: unknown
-  }
 }
 
 export interface WorkerBitmapResizePayload {
   method: 'resize_bitmap'
-  opts: ResizeMathOptions
+  opts: TileResizeJob
   features: PicaFeaturesFlat
-  preload: {
-    wasm_nodule?: unknown
-  }
 }
 
 export interface WorkerFeaturesPayload {
@@ -143,17 +130,3 @@ export interface PoolResource<T> {
 }
 
 export type Limiter = <T>(fn: () => Promise<T>) => Promise<T>
-
-export interface WasmExports {
-  [name: string]: Function | undefined
-}
-
-export interface WasmInstance {
-  exports: WasmExports
-}
-
-export interface WasmMathContext {
-  __memory: WebAssembly.Memory
-  __align: (offset: number) => number
-  __instance: (name: string, bytes: number, imports?: Record<string, unknown>) => WasmInstance
-}

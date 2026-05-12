@@ -1,6 +1,6 @@
 import createFilters from './resize_filter_gen'
 import { convolveHor, convolveVert, convolveHorWithPre, convolveVertWithPre } from './convolve'
-import type { ResizeMathOptions } from '../types'
+import type { MathResizeOptions } from '../mathlib'
 
 function hasAlpha (src: Uint8Array | Uint8ClampedArray, width: number, height: number): boolean {
   let ptr = 3
@@ -18,7 +18,7 @@ function resetAlpha (dst: Uint8Array, width: number, height: number): void {
   while (ptr < len) { dst[ptr] = 0xFF; ptr = (ptr + 4)|0 }
 }
 
-export default function resize (options: ResizeMathOptions): Uint8Array {
+export default function resize (options: MathResizeOptions): Uint8Array {
   const src = options.src
   const srcW = options.width
   const srcH = options.height
