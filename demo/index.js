@@ -19,9 +19,6 @@
 
 // //////////////////////////////////////////////////////////////////////////////
 
-window.pica.prototype.debug = console.log.bind(console)
-
-
 const filterInfo = {
   box: 'Box (win 0.5px)',
   hamming: 'Hamming (win 1px)',
@@ -58,6 +55,7 @@ function create_resizer () {
   })
 
   resizer = window.pica({ features: opts })
+  resizer.debug = console.log.bind(console)
 }
 
 
