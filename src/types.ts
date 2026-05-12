@@ -71,7 +71,7 @@ export interface ResizeContext {
   canceled: boolean
 }
 
-export interface TileResizeJob extends ResizeSettings {
+export interface TileResizeJobBase extends ResizeSettings {
   width: number
   height: number
   toWidth: number
@@ -80,9 +80,19 @@ export interface TileResizeJob extends ResizeSettings {
   scaleY: number
   offsetX: number
   offsetY: number
-  src?: MathResizeImage
-  srcBitmap?: ImageBitmap | null
 }
+
+export interface TileResizeArrayJob extends TileResizeJobBase {
+  kind: 'array'
+  src: MathResizeImage
+}
+
+export interface TileResizeBitmapJob extends TileResizeJobBase {
+  kind: 'bitmap'
+  src: ImageBitmap
+}
+
+export type TileResizeJob = TileResizeArrayJob | TileResizeBitmapJob
 
 export interface Capabilities extends SupportedFeatures {
   worker: boolean
@@ -103,17 +113,11 @@ export interface StageEnv {
   toCtx: PicaCanvasCtx | null
 }
 
-export type WorkerMethod = 'resize' | 'resize_bitmap' | 'get_supported_features'
+export type WorkerMethod = 'resize' | 'get_supported_features'
 
-export interface WorkerArrayResizePayload {
+export interface WorkerResizePayload {
   method: 'resize'
-  opts: TileResizeJob
-  features: PicaFeaturesFlat
-}
-
-export interface WorkerBitmapResizePayload {
-  method: 'resize_bitmap'
-  opts: TileResizeJob
+  job: TileResizeJob
   features: PicaFeaturesFlat
 }
 
@@ -121,15 +125,13 @@ export interface WorkerFeaturesPayload {
   method: 'get_supported_features'
 }
 
-export type WorkerPayload = WorkerArrayResizePayload | WorkerBitmapResizePayload | WorkerFeaturesPayload
+export type WorkerPayload = WorkerResizePayload | WorkerFeaturesPayload
 
-export type WorkerResult =
-  | { data: Uint8Array }
-  | { bitmap: ImageBitmap }
-  | { data: Capabilities }
-  | { err: unknown }
+export type ResizeResult =
+  | { kind: 'array', data: Uint8Array }
+  | { kind: 'bitmap', data: ImageBitmap }
 
-export type ResizeResult = { data: Uint8Array } | { bitmap: ImageBitmap }
+export type WorkerFeaturesResult = { data: Capabilities }
 
 export interface WorkerWithObjectURL extends Worker {
   objectURL?: string

@@ -3,7 +3,7 @@
 import MathLib from './mathlib'
 import * as supported_features from './supported_features'
 import type { MathResizeAndUnsharpOptions } from './mathlib'
-import type { PicaFeaturesFlat, TileResizeJob, WorkerPayload } from './types'
+import type { PicaFeaturesFlat, TileResizeBitmapJob, WorkerPayload, WorkerResizePayload } from './types'
 
 const workerScope = self as unknown as DedicatedWorkerGlobalScope
 
@@ -17,25 +17,33 @@ function resize_math (data: { features: PicaFeaturesFlat }, tileJob: MathResizeA
   return mathLib.resizeAndUnsharp(tileJob)
 }
 
-function resize (data: Extract<WorkerPayload, { method: 'resize' }>): void {
-  const result = resize_math(data, data.opts as MathResizeAndUnsharpOptions)
-
-  workerScope.postMessage({ data: result }, [result.buffer])
-}
-
-function resize_bitmap (data: Extract<WorkerPayload, { method: 'resize_bitmap' }>): void {
-  const tileJob: TileResizeJob = data.opts
+function resizeBitmap (data: WorkerResizePayload, tileJob: TileResizeBitmapJob): void {
   let srcCanvas: OffscreenCanvas | null = new OffscreenCanvas(tileJob.width, tileJob.height)
   const srcCtx = srcCanvas.getContext('2d')!
 
-  srcCtx.drawImage(tileJob.srcBitmap!, 0, 0)
-  tileJob.src = srcCtx.getImageData(0, 0, tileJob.width, tileJob.height).data
+  srcCtx.drawImage(tileJob.src, 0, 0)
+  const src = srcCtx.getImageData(0, 0, tileJob.width, tileJob.height).data
   srcCanvas.width = srcCanvas.height = 0
   srcCanvas = null
-  tileJob.srcBitmap!.close()
-  tileJob.srcBitmap = null
+  tileJob.src.close()
 
-  const result = resize_math(data, tileJob as MathResizeAndUnsharpOptions)
+  const mathOpts: MathResizeAndUnsharpOptions = {
+    src,
+    width: tileJob.width,
+    height: tileJob.height,
+    toWidth: tileJob.toWidth,
+    toHeight: tileJob.toHeight,
+    scaleX: tileJob.scaleX,
+    scaleY: tileJob.scaleY,
+    offsetX: tileJob.offsetX,
+    offsetY: tileJob.offsetY,
+    filter: tileJob.filter,
+    unsharpAmount: tileJob.unsharpAmount,
+    unsharpRadius: tileJob.unsharpRadius,
+    unsharpThreshold: tileJob.unsharpThreshold
+  }
+
+  const result = resize_math(data, mathOpts)
   const canvas = new OffscreenCanvas(tileJob.toWidth, tileJob.toHeight)
   const ctx = canvas.getContext('2d')!
 
@@ -45,34 +53,37 @@ function resize_bitmap (data: Extract<WorkerPayload, { method: 'resize_bitmap' }
 
   const bitmap = canvas.transferToImageBitmap()
 
-  workerScope.postMessage({ bitmap }, [bitmap])
+  workerScope.postMessage({ kind: 'bitmap', data: bitmap }, [bitmap])
 }
 
-const methods = {
-  resize,
-  resize_bitmap,
-  get_supported_features: supported_features.get_supported_features
-}
-
-workerScope.onmessage = function (ev) {
-  const data = ev.data as WorkerPayload
-  const method = data.method
-
-  if (!method || !methods[method]) {
-    workerScope.postMessage({ err: `Unknown worker method: ${method}` })
+function resize (data: WorkerResizePayload): void {
+  if (data.job.kind === 'bitmap') {
+    resizeBitmap(data, data.job)
     return
   }
 
+  const result = resize_math(data, data.job)
+
+  workerScope.postMessage({ kind: 'array', data: result }, [result.buffer])
+}
+
+function handleMessage (data: WorkerPayload): Promise<void> {
+  switch (data.method) {
+    case 'get_supported_features':
+      return supported_features.get_supported_features()
+        .then(result => { workerScope.postMessage({ data: result }) })
+
+    case 'resize':
+      resize(data)
+      return Promise.resolve()
+
+    default:
+      return Promise.reject(new Error(`Unknown worker method: ${(data as { method?: unknown }).method}`))
+  }
+}
+
+workerScope.onmessage = function (ev) {
   Promise.resolve()
-    .then((): unknown => {
-      if (method === 'get_supported_features') return methods.get_supported_features()
-      if (method === 'resize') return methods.resize(data as Extract<WorkerPayload, { method: 'resize' }>)
-      return methods.resize_bitmap(data as Extract<WorkerPayload, { method: 'resize_bitmap' }>)
-    })
-    .then(
-      result => {
-        if (method === 'get_supported_features') workerScope.postMessage({ data: result })
-      },
-      err => { workerScope.postMessage({ err }) }
-    )
+    .then(() => handleMessage(ev.data as WorkerPayload))
+    .catch(err => { workerScope.postMessage({ err }) })
 }

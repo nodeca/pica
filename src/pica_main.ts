@@ -20,11 +20,14 @@ import type {
   ResizeSettings,
   ResizeStage,
   TileResizeJob,
+  TileResizeJobBase,
   ResizeOptions,
   ResizeResult,
   ResolvedPicaOptions,
   StageEnv,
-  WorkerResult,
+  WorkerFeaturesResult,
+  WorkerMethod,
+  WorkerResizePayload,
   WorkerWithObjectURL
 } from './types'
 
@@ -211,8 +214,8 @@ export class Pica {
 
     if (this.__workersPool) {
       try {
-        const result = await this.__invokeWorker('get_supported_features')
-        const resultData = result && (result as { data?: Capabilities }).data
+        const result = await this.__invokeWorker<WorkerFeaturesResult>('get_supported_features')
+        const resultData = result && result.data
         if (resultData) {
           this.capabilities.worker = true
           this.resize_features.ww = true
@@ -248,12 +251,12 @@ export class Pica {
   }
 
   // Call resizer in webworker or locally, depending on config
-  private __invokeWorker (
-    method: 'resize' | 'resize_bitmap' | 'get_supported_features',
+  private __invokeWorker<TResult> (
+    method: WorkerMethod,
     payload?: Record<string, unknown>,
     transfer?: Transferable[],
     opts?: { cancelToken?: Promise<unknown> }
-  ): Promise<WorkerResult> {
+  ): Promise<TResult> {
     return new Promise((resolve, reject) => {
       const w = this.__workersPool!.acquire()
 
@@ -275,7 +278,7 @@ export class Pica {
 
     if (!this.resize_features.ww) {
     // not possible to have ImageBitmap here if user disabled WW
-      if (!tileJob.src) throw new Error('Pica: resize tile data is missing')
+      if (tileJob.kind !== 'array') throw new Error('Pica: resize tile data is missing')
 
       const mathOpts: MathResizeAndUnsharpOptions = {
         src: tileJob.src,
@@ -293,23 +296,23 @@ export class Pica {
         unsharpThreshold: tileJob.unsharpThreshold
       }
 
-      return { data: this.__mathlib!.resizeAndUnsharp(mathOpts) }
+      return { kind: 'array', data: this.__mathlib!.resizeAndUnsharp(mathOpts) }
     }
 
     const transfer = []
 
-    if (tileJob.src) transfer.push(tileJob.src.buffer)
-    if (tileJob.srcBitmap) transfer.push(tileJob.srcBitmap)
+    if (tileJob.kind === 'array') transfer.push(tileJob.src.buffer)
+    else transfer.push(tileJob.src)
 
-    return this.__invokeWorker(
-      tileJob.srcBitmap ? 'resize_bitmap' : 'resize',
+    return this.__invokeWorker<ResizeResult>(
+      'resize',
       {
-        opts: tileJob,
+        job: tileJob,
         features: this.__requested_features
-      },
+      } satisfies Omit<WorkerResizePayload, 'method'>,
       transfer,
       ctx
-    ) as Promise<ResizeResult>
+    )
   }
 
   // this function can return promise if createImageBitmap is used
@@ -317,7 +320,7 @@ export class Pica {
     tile: Tile,
     from: PicaSource,
     stageEnv: StageEnv,
-    extractTo: TileResizeJob
+    extractTo: TileResizeJobBase
   ): TileResizeJob {
     if (this.resize_features.ww && this.capabilities.ww_offscreen_canvas) {
       this.debug('Create tile imageBitmap')
@@ -333,15 +336,17 @@ export class Pica {
         throw new Error('Pica: offscreen canvas is not available for worker transfer')
       }
 
-      extractTo.srcBitmap = tileCanvas.transferToImageBitmap()
-      return extractTo
+      return Object.assign({}, extractTo, {
+        kind: 'bitmap' as const,
+        src: tileCanvas.transferToImageBitmap()
+      })
 
     // Direct region extraction, intentionally disabled. This can be faster,
     // but has known EXIF orientation bugs in some browsers.
     //
     // return createImageBitmap(stageEnv.srcImageBitmap || from, tile.x, tile.y, tile.width, tile.height)
     //   .then(bitmap => {
-    //     extractTo.srcBitmap = bitmap;
+    //     extractTo.src = bitmap;
     //     return extractTo;
     //   });
     }
@@ -352,8 +357,10 @@ export class Pica {
 
       // If input is Canvas - extract region data directly
       this.debug('Get tile pixel data')
-      extractTo.src = stageEnv.srcCtx.getImageData(tile.x, tile.y, tile.width, tile.height).data
-      return extractTo
+      return Object.assign({}, extractTo, {
+        kind: 'array' as const,
+        src: stageEnv.srcCtx.getImageData(tile.x, tile.y, tile.width, tile.height).data
+      })
     }
 
     // If input is Image or decoded to ImageBitmap,
@@ -373,19 +380,22 @@ export class Pica {
 
     this.debug('Get tile pixel data')
 
-    extractTo.src = tmpCtx.getImageData(0, 0, tile.width, tile.height).data
+    const src = tmpCtx.getImageData(0, 0, tile.width, tile.height).data
 
     // Safari 12 workaround
     // https://github.com/nodeca/pica/issues/199
     tmpCanvas.width = tmpCanvas.height = 0
 
-    return extractTo
+    return Object.assign({}, extractTo, {
+      kind: 'array' as const,
+      src
+    })
   }
 
   private __landTileData (tile: Tile, result: ResizeResult, stageEnv: StageEnv): null {
-    if ('bitmap' in result) {
-      stageEnv.toCtx!.drawImage(result.bitmap, tile.toX, tile.toY)
-      result.bitmap.close()
+    if (result.kind === 'bitmap') {
+      stageEnv.toCtx!.drawImage(result.data, tile.toX, tile.toY)
+      result.data.close()
       return null
     }
 
@@ -425,7 +435,7 @@ export class Pica {
     const processTile = (tile: Tile) => this.__limit(async () => {
       if (ctx.canceled) return ctx.cancelToken
 
-      const tileJob = {
+      const tileJob: TileResizeJobBase = {
         width: tile.width,
         height: tile.height,
         toWidth: tile.toWidth,
@@ -438,7 +448,7 @@ export class Pica {
         unsharpAmount: settings.unsharpAmount,
         unsharpRadius: settings.unsharpRadius,
         unsharpThreshold: settings.unsharpThreshold
-      } as TileResizeJob
+      }
 
       this.debug('Invoke resize math')
 
