@@ -16,7 +16,6 @@ import type {
 } from 'multimath'
 
 export type MathFeaturesMap = MmFeaturesMap
-export type MathCache = Record<string, unknown>
 export type MathResizeFilter = 'box' | 'hamming' | 'lanczos2' | 'lanczos3' | 'mks2013'
 export type MathResizeImage = Uint8Array | Uint8ClampedArray
 
@@ -47,7 +46,7 @@ export type MathPlugin = MmPlugin
 
 export default class MathLib extends Multimath {
   declare features: MathFeaturesMap
-  declare resize: (options: MathResizeOptions, cache?: MathCache) => Uint8Array
+  declare resize: (options: MathResizeOptions) => Uint8Array
   declare unsharp_mask: MathUnsharpMask
 
   constructor (requested_features?: readonly string[]) {
@@ -69,8 +68,8 @@ export default class MathLib extends Multimath {
     this.use(mm_resize)
   }
 
-  resizeAndUnsharp (options: MathResizeAndUnsharpOptions, cache?: MathCache): Uint8Array {
-    const result = this.resize(options, cache)
+  resizeAndUnsharp (options: MathResizeAndUnsharpOptions): Uint8Array {
+    const result = this.resize(options)
 
     if (options.unsharpAmount) {
       this.unsharp_mask(

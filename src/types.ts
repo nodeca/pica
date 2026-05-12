@@ -1,4 +1,4 @@
-import type { MathCache, MathResizeAndUnsharpOptions, MathResizeFilter, MathResizeImage } from './mathlib'
+import type { MathResizeFilter, MathResizeImage } from './mathlib'
 import type { SupportedFeatures } from './supported_features'
 
 export type PicaFeaturesFlat = ('js' | 'wasm' | 'ww' | 'cib' | 'all')[]
@@ -30,43 +30,57 @@ export interface ResolvedPicaOptions {
   workerURL?: string | URL
 }
 
-export interface ResizeOptions {
+export interface _ResizeOptionsCommon {
   quality?: CibResizeQuality
   filter?: Filter
   unsharpAmount?: number
   unsharpRadius?: number
   unsharpThreshold?: number
+}
+
+export interface ResizeOptions extends _ResizeOptionsCommon {
   cancelToken?: Promise<unknown>
 }
 
-export interface ResizeBufferOptions extends ResizeOptions {
+export interface ResizeBufferOptions extends _ResizeOptionsCommon {
   src: Uint8Array | Uint8ClampedArray
   width: number
   height: number
   toWidth: number
   toHeight: number
   dest?: Uint8Array
-  scaleX?: number
-  scaleY?: number
-  offsetX?: number
-  offsetY?: number
 }
 
-export interface NormalizedResizeOptions extends Required<Omit<ResizeOptions, 'cancelToken' | 'quality'>> {
-  quality?: CibResizeQuality
-  cancelToken?: Promise<unknown>
+export interface ResizeSettings {
+  filter: Filter
+  unsharpAmount: number
+  unsharpRadius: number
+  unsharpThreshold: number
+}
+
+export interface ResizeStage {
   width: number
   height: number
   toWidth: number
   toHeight: number
-  canceled: boolean
-  __destTileBorder: number
-  __mathCache?: MathCache
+  destTileBorder: number
 }
 
-export interface TileResizeJob extends Omit<MathResizeAndUnsharpOptions, 'src'> {
+export interface ResizeContext {
+  cancelToken?: Promise<unknown>
+  canceled: boolean
+}
+
+export interface TileResizeJob extends ResizeSettings {
+  width: number
+  height: number
+  toWidth: number
+  toHeight: number
+  scaleX: number
+  scaleY: number
+  offsetX: number
+  offsetY: number
   src?: MathResizeImage
-  dest?: Uint8Array
   srcBitmap?: ImageBitmap | null
 }
 
