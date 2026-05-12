@@ -1,7 +1,7 @@
-// @ts-nocheck
 import createFilters from './resize_filter_gen'
+import type { ResizeMathOptions, WasmMathContext } from '../types'
 
-function hasAlpha (src, width, height) {
+function hasAlpha (src: Uint8Array | Uint8ClampedArray, width: number, height: number): boolean {
   let ptr = 3
   const len = (width * height * 4)|0
   while (ptr < len) {
@@ -11,13 +11,13 @@ function hasAlpha (src, width, height) {
   return false
 }
 
-function resetAlpha (dst, width, height) {
+function resetAlpha (dst: Uint8Array, width: number, height: number): void {
   let ptr = 3
   const len = (width * height * 4)|0
   while (ptr < len) { dst[ptr] = 0xFF; ptr = (ptr + 4)|0 }
 }
 
-function asUint8Array (src) {
+function asUint8Array (src: Int16Array): Uint8Array {
   return new Uint8Array(src.buffer, 0, src.byteLength)
 }
 
@@ -27,7 +27,7 @@ try {
   IS_LE = ((new Uint32Array((new Uint8Array([1, 0, 0, 0])).buffer))[0] === 1)
 } catch (__) {}
 
-function copyInt16asLE (src, target, target_offset) {
+function copyInt16asLE (src: Int16Array, target: Uint8Array, target_offset: number): void {
   if (IS_LE) {
     target.set(asUint8Array(src), target_offset)
     return
@@ -40,7 +40,7 @@ function copyInt16asLE (src, target, target_offset) {
   }
 }
 
-export default function resize_wasm (options) {
+export default function resize_wasm (this: WasmMathContext, options: ResizeMathOptions): Uint8Array {
   const src = options.src
   const srcW = options.width
   const srcH = options.height
@@ -88,6 +88,7 @@ export default function resize_wasm (options) {
   // Now call webassembly method
   // emsdk does method names with '_'
   const fn = instance.exports.convolveHV || instance.exports._convolveHV
+  if (!fn) throw new Error('WASM resize function is not available')
 
   if (hasAlpha(src, srcW, srcH)) {
     fn(filtersX_offset, filtersY_offset, tmp_offset, srcW, srcH, destW, destH, 1)

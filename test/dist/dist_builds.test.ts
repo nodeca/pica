@@ -1,10 +1,11 @@
 import pixelmatch from 'pixelmatch'
 import { expect } from 'vitest'
+import type { Pica } from '../../src/pica_main'
 
 import originalURL from '../fixtures/original.jpg?url'
 import resizedURL from '../fixtures/resized.png?url'
 
-async function loadScript (url) {
+async function loadScript (url: string): Promise<void> {
   await new Promise((resolve, reject) => {
     const script = document.createElement('script')
 
@@ -15,7 +16,7 @@ async function loadScript (url) {
   })
 }
 
-async function loadImage (url) {
+async function loadImage (url: string): Promise<HTMLImageElement> {
   const image = new Image()
 
   image.src = url
@@ -24,26 +25,27 @@ async function loadImage (url) {
   return image
 }
 
-async function assertResizeViaWorker (p) {
+async function assertResizeViaWorker (p: Pica): Promise<void> {
   await p.init()
 
+  // @ts-ignore
   expect(p.resize_features.ww).toBe(true)
 
   const sourceImage = await loadImage(originalURL)
   const expectedImage = await loadImage(resizedURL)
 
-  const srcCanvas = p.createCanvas(sourceImage.width, sourceImage.height)
-  const srcCtx = srcCanvas.getContext('2d')
+  const srcCanvas = new OffscreenCanvas(sourceImage.width, sourceImage.height)
+  const srcCtx = srcCanvas.getContext('2d')!
 
   srcCtx.drawImage(sourceImage, 0, 0)
 
-  const expectedCanvas = p.createCanvas(expectedImage.width, expectedImage.height)
-  const expectedCtx = expectedCanvas.getContext('2d')
+  const expectedCanvas = new OffscreenCanvas(expectedImage.width, expectedImage.height)
+  const expectedCtx = expectedCanvas.getContext('2d')!
 
   expectedCtx.drawImage(expectedImage, 0, 0)
 
-  const destCanvas = p.createCanvas(expectedImage.width, expectedImage.height)
-  const destCtx = destCanvas.getContext('2d')
+  const destCanvas = new OffscreenCanvas(expectedImage.width, expectedImage.height)
+  const destCtx = destCanvas.getContext('2d')!
   const diffImageData = destCtx.createImageData(destCanvas.width, destCanvas.height)
 
   await p.resize(srcCanvas, destCanvas, { filter: 'lanczos3', unsharpAmount: 0 })
@@ -89,7 +91,7 @@ describe('dist builds', () => {
 
   it('split .mjs build should resize via explicit workerURL', async () => {
     const pica = (await import('/dist/pica_main.mjs')).default
-    const p = pica({ features: ['js', 'ww'], workerURL: '/dist/pica_worker.mjs' })
+    const p = pica({ features: ['js', 'ww'], workerURL: '/dist/pica_worker.js' })
 
     await assertResizeViaWorker(p)
   })

@@ -1,8 +1,8 @@
-// @ts-nocheck
 import createFilters from './resize_filter_gen'
 import { convolveHor, convolveVert, convolveHorWithPre, convolveVertWithPre } from './convolve'
+import type { ResizeMathOptions } from '../types'
 
-function hasAlpha (src, width, height) {
+function hasAlpha (src: Uint8Array | Uint8ClampedArray, width: number, height: number): boolean {
   let ptr = 3
   const len = (width * height * 4)|0
   while (ptr < len) {
@@ -12,13 +12,13 @@ function hasAlpha (src, width, height) {
   return false
 }
 
-function resetAlpha (dst, width, height) {
+function resetAlpha (dst: Uint8Array, width: number, height: number): void {
   let ptr = 3
   const len = (width * height * 4)|0
   while (ptr < len) { dst[ptr] = 0xFF; ptr = (ptr + 4)|0 }
 }
 
-export default function resize (options) {
+export default function resize (options: ResizeMathOptions): Uint8Array {
   const src = options.src
   const srcW = options.width
   const srcH = options.height

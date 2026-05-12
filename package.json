@@ -11,18 +11,17 @@
   ],
   "main": "dist/pica.js",
   "module": "dist/pica.mjs",
+  "types": "dist/pica.cjs.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/pica.mjs",
-      "require": "./dist/pica.js"
-    },
-    "./pica_main": {
-      "import": "./dist/pica_main.mjs",
-      "require": "./dist/pica_main.js"
-    },
-    "./pica_worker": {
-      "import": "./dist/pica_worker.mjs",
-      "default": "./dist/pica_worker.js"
+      "import": {
+        "types": "./dist/pica.es.d.ts",
+        "default": "./dist/pica.mjs"
+      },
+      "require": {
+        "types": "./dist/pica.cjs.d.ts",
+        "default": "./dist/pica.js"
+      }
     },
     "./dist/*": "./dist/*",
     "./package.json": "./package.json"
@@ -61,6 +60,7 @@
     "neostandard": "^0.13.0",
     "pixelmatch": "^7.2.0",
     "playwright": "^1.59.1",
+    "rollup-plugin-dts": "^6.4.1",
     "terser": "^5.10.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.11",

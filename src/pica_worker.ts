@@ -1,14 +1,14 @@
-// @ts-nocheck
 // Web Worker wrapper for image resize function
 
 import MathLib from './mathlib'
 import * as supported_features from './supported_features'
+import type { PicaFeaturesFlat, ResizeMathOptions, WorkerPayload } from './types'
 
-const workerScope = self
+const workerScope = self as unknown as DedicatedWorkerGlobalScope
 
-let mathLib
+let mathLib: MathLib | null = null
 
-function resize_math (data, tileOpts) {
+function resize_math (data: { features: PicaFeaturesFlat }, tileOpts: ResizeMathOptions): Uint8Array {
   if (!mathLib) mathLib = new MathLib(data.features)
 
   // Use multimath's sync auto-init. Avoid Promise use in old browsers,
@@ -16,27 +16,27 @@ function resize_math (data, tileOpts) {
   return mathLib.resizeAndUnsharp(tileOpts)
 }
 
-function resize (data) {
+function resize (data: Extract<WorkerPayload, { method: 'resize' }>): void {
   const result = resize_math(data, data.opts)
 
   workerScope.postMessage({ data: result }, [result.buffer])
 }
 
-function resize_bitmap (data) {
+function resize_bitmap (data: Extract<WorkerPayload, { method: 'resize_bitmap' }>): void {
   const tileOpts = data.opts
-  let srcCanvas = new OffscreenCanvas(tileOpts.width, tileOpts.height)
-  const srcCtx = srcCanvas.getContext('2d')
+  let srcCanvas: OffscreenCanvas | null = new OffscreenCanvas(tileOpts.width, tileOpts.height)
+  const srcCtx = srcCanvas.getContext('2d')!
 
-  srcCtx.drawImage(tileOpts.srcBitmap, 0, 0)
+  srcCtx.drawImage(tileOpts.srcBitmap!, 0, 0)
   tileOpts.src = srcCtx.getImageData(0, 0, tileOpts.width, tileOpts.height).data
   srcCanvas.width = srcCanvas.height = 0
   srcCanvas = null
-  tileOpts.srcBitmap.close()
+  tileOpts.srcBitmap!.close()
   tileOpts.srcBitmap = null
 
   const result = resize_math(data, tileOpts)
   const canvas = new OffscreenCanvas(tileOpts.toWidth, tileOpts.toHeight)
-  const ctx = canvas.getContext('2d')
+  const ctx = canvas.getContext('2d')!
 
   const toImageData = ctx.createImageData(tileOpts.toWidth, tileOpts.toHeight)
   toImageData.data.set(result)
@@ -54,15 +54,20 @@ const methods = {
 }
 
 workerScope.onmessage = function (ev) {
-  const method = ev.data.method || 'resize'
+  const data = ev.data as WorkerPayload
+  const method = data.method
 
-  if (!methods[method]) {
+  if (!method || !methods[method]) {
     workerScope.postMessage({ err: `Unknown worker method: ${method}` })
     return
   }
 
   Promise.resolve()
-    .then(() => methods[method](ev.data))
+    .then((): unknown => {
+      if (method === 'get_supported_features') return methods.get_supported_features()
+      if (method === 'resize') return methods.resize(data as Extract<WorkerPayload, { method: 'resize' }>)
+      return methods.resize_bitmap(data as Extract<WorkerPayload, { method: 'resize_bitmap' }>)
+    })
     .then(
       result => {
         if (method === 'get_supported_features') workerScope.postMessage({ data: result })

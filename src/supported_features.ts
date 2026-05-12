@@ -1,4 +1,16 @@
-// @ts-nocheck
+import type { PicaCanvas, PicaCanvasCtx } from './types'
+
+export interface SupportedFeatures {
+  canvas: boolean
+  offscreen_canvas: boolean
+  may_be_worker: boolean
+  create_image_bitmap: boolean
+  safari_put_image_data_fix: boolean
+  bug_canvas_orientation_region: boolean
+  bug_image_bitmap_orientation_region: boolean
+  cib_resize: boolean
+}
+
 // 3x2 JPEG with EXIF orientation 6 (rotate 90deg clockwise when decoded).
 //
 // Stored pixels, before orientation (Black, White):
@@ -16,13 +28,13 @@
 // returns black instead. The checks below use this to detect region/orientation
 // bugs in canvas drawImage() and createImageBitmap().
 const ORIENTED_JPEG_BASE64 =
-  '/9j/4QAiRXhpZgAATU0AKgAAAAgAAQESAAMAAAABAAYAAAAAAAD/4AAQSkZJRgABAQAAA' +
+  '/9j/4QAiRXhpZgAATU0AKgAAAAgAAQESAAMAAAABAAYAAAAAAAD/4AAQskZJRgABAQAAA' +
   'QABAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCw' +
   'kJDRENDg8QEBEQCgwSExIQEw8QEBD/wAALCAACAAMBAREA/8QAFAABAAAAAAAAAAAAAAAA' +
   'AAAACf/EABsQAAMBAQADAAAAAAAAAAAAAAECAwQFABEx/9oACAEBAAA/AC06fW6va0ps' +
   '7PT179E88MiV02arrCEkjGQZiSEnKc5ovxURVHoADz//2Q=='
 
-const features = {
+const features: SupportedFeatures = {
   canvas: false,
   offscreen_canvas: false,
   may_be_worker: false,
@@ -34,9 +46,9 @@ const features = {
 }
 
 let checked = false
-let checking = null
+let checking: Promise<SupportedFeatures> | null = null
 
-function check_canvas () {
+function check_canvas (): boolean {
   if (typeof document === 'undefined' || !document.createElement) return false
 
   try {
@@ -44,7 +56,7 @@ function check_canvas () {
     canvas.width = 2
     canvas.height = 1
 
-    const ctx = canvas.getContext('2d')
+    const ctx = canvas.getContext('2d')!
 
     // Fingerprinting protection can randomize readback.
     // In that case we can not rely on canvas pixel data.
@@ -62,12 +74,12 @@ function check_canvas () {
   }
 }
 
-function check_offscreen_canvas () {
+function check_offscreen_canvas (): boolean {
   if (typeof OffscreenCanvas === 'undefined') return false
 
   try {
     const canvas = new OffscreenCanvas(2, 1)
-    const ctx = canvas.getContext('2d')
+    const ctx = canvas.getContext('2d')!
 
     // Fingerprinting protection can randomize readback.
     // In that case we can not rely on canvas pixel data.
@@ -85,28 +97,28 @@ function check_offscreen_canvas () {
   }
 }
 
-function check_create_image_bitmap () {
+function check_create_image_bitmap (): boolean {
   return typeof createImageBitmap !== 'undefined'
 }
 
-function check_may_be_worker () {
+function check_may_be_worker (): boolean {
   return typeof Worker !== 'undefined' &&
     // Filter out IE <= 11 for sure
     (typeof URL !== 'undefined' && !!URL.createObjectURL)
 }
 
-function check_safari_put_image_data_fix () {
+function check_safari_put_image_data_fix (): boolean {
   try {
-    return typeof navigator !== 'undefined' &&
+    return !!(typeof navigator !== 'undefined' &&
            navigator.userAgent &&
            navigator.userAgent.indexOf('Safari') >= 0 &&
-           navigator.userAgent.indexOf('Chrome') < 0
+           navigator.userAgent.indexOf('Chrome') < 0)
   } catch (__) {
     return false
   }
 }
 
-function check_bug_canvas_orientation_region_async () {
+function check_bug_canvas_orientation_region_async (): Promise<boolean> {
   return Promise.resolve().then(() => {
     const canOffscreenCanvas = check_offscreen_canvas() &&
                              check_create_image_bitmap() &&
@@ -126,7 +138,7 @@ function check_bug_canvas_orientation_region_async () {
           const canvas = new OffscreenCanvas(1, 1)
 
           try {
-            const ctx = canvas.getContext('2d')
+            const ctx = canvas.getContext('2d')!
             ctx.drawImage(bitmap, 1, 1, 1, 1, 0, 0, 1, 1)
 
             return ctx.getImageData(0, 0, 1, 1).data[0] < 240
@@ -137,7 +149,7 @@ function check_bug_canvas_orientation_region_async () {
     }
 
     if (check_canvas() && typeof Image !== 'undefined') {
-      return new Promise(resolve => {
+      return new Promise<boolean>(resolve => {
         const image = new Image()
 
         image.onload = () => {
@@ -146,7 +158,7 @@ function check_bug_canvas_orientation_region_async () {
             canvas.width = 1
             canvas.height = 1
 
-            const ctx = canvas.getContext('2d')
+            const ctx = canvas.getContext('2d')!
             ctx.drawImage(image, 1, 1, 1, 1, 0, 0, 1, 1)
 
             resolve(ctx.getImageData(0, 0, 1, 1).data[0] < 240)
@@ -165,7 +177,7 @@ function check_bug_canvas_orientation_region_async () {
     .catch(() => true)
 }
 
-function check_bug_image_bitmap_orientation_region_async () {
+function check_bug_image_bitmap_orientation_region_async (): Promise<boolean> {
   return Promise.resolve().then(() => {
     if (!features.create_image_bitmap && !check_create_image_bitmap()) return true
     if (typeof Blob === 'undefined' || typeof atob === 'undefined') return true
@@ -185,7 +197,7 @@ function check_bug_image_bitmap_orientation_region_async () {
     return createImageBitmap(new Blob([bytes], { type: 'image/jpeg' }))
       .then(imageBitmap => createImageBitmap(imageBitmap, 1, 1, 1, 1)
         .then(bitmap => {
-          let canvas
+          let canvas: PicaCanvas
 
           if (canOffscreenCanvas) {
             canvas = new OffscreenCanvas(1, 1)
@@ -196,7 +208,7 @@ function check_bug_image_bitmap_orientation_region_async () {
           }
 
           try {
-            const ctx = canvas.getContext('2d')
+            const ctx = canvas.getContext('2d') as PicaCanvasCtx
             ctx.drawImage(bitmap, 0, 0)
 
             return bitmap.width !== 1 || bitmap.height !== 1 ||
@@ -213,14 +225,14 @@ function check_bug_image_bitmap_orientation_region_async () {
     .catch(() => true)
 }
 
-function check_cib_resize_async () {
+function check_cib_resize_async (): Promise<boolean> {
   return Promise.resolve().then(() => {
     if (!check_create_image_bitmap()) return false
 
     const SRC_SIZE = 20
     const DST_SIZE = 5
 
-    let canvas
+    let canvas: PicaCanvas | null
 
     if (features.canvas || check_canvas()) {
       canvas = document.createElement('canvas')
@@ -230,7 +242,7 @@ function check_cib_resize_async () {
       canvas = new OffscreenCanvas(SRC_SIZE, SRC_SIZE)
       // Crome fails to createImageBitmap() from canvas without drawing
       // anything on it.
-      const ctx = canvas.getContext('2d')
+      const ctx = canvas.getContext('2d')!
       ctx.clearRect(0, 0, SRC_SIZE, SRC_SIZE)
     } else {
       return false
@@ -252,7 +264,7 @@ function check_cib_resize_async () {
     .catch(() => false)
 }
 
-export function get_supported_features () {
+export function get_supported_features (): Promise<SupportedFeatures> {
   if (checked) return Promise.resolve(Object.assign({}, features))
   if (checking) return checking.then(() => Object.assign({}, features))
 

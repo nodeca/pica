@@ -1,4 +1,6 @@
 import { build, mergeConfig } from 'vite'
+import { rollup } from 'rollup'
+import dts from 'rollup-plugin-dts'
 import { rm } from 'node:fs/promises'
 
 const TARGET = 'es2015'
@@ -122,6 +124,19 @@ async function buildWorker (fileName) {
   }))
 }
 
+async function buildDts (input, output) {
+  const bundle = await rollup({
+    input,
+    plugins: [dts({ tsconfig: './tsconfig.json' })]
+  })
+  await bundle.write({ file: output, format: 'es' })
+}
+
+async function buildDeclarations () {
+  await buildDts('src/pica_main.ts', 'dist/pica.es.d.ts')
+  await buildDts('src/pica_main_cjs_proxy.ts', 'dist/pica.cjs.d.ts')
+}
+
 const inlineWorker = await buildInlineWorker({ minify: false })
 const inlineWorkerMin = await buildInlineWorker({ minify: 'terser' })
 
@@ -131,36 +146,28 @@ await buildMainUmd({
   name: 'pica',
   jsFile: 'pica.js',
   minify: false,
-  define: {
-    __PICA_WORKER_SRC__: JSON.stringify(inlineWorker)
-  }
+  define: { __PICA_WORKER_SRC__: JSON.stringify(inlineWorker) }
 })
 
 await buildMainEsm({
   entry: 'src/pica_main.ts',
   mjsFile: 'pica.mjs',
   minify: false,
-  define: {
-    __PICA_WORKER_SRC__: JSON.stringify(inlineWorker)
-  }
+  define: { __PICA_WORKER_SRC__: JSON.stringify(inlineWorker) }
 })
 
 await buildMainUmd({
   name: 'pica',
   jsFile: 'pica.min.js',
   minify: 'terser',
-  define: {
-    __PICA_WORKER_SRC__: JSON.stringify(inlineWorkerMin)
-  }
+  define: { __PICA_WORKER_SRC__: JSON.stringify(inlineWorkerMin) }
 })
 
 await buildMainEsm({
   entry: 'src/pica_main.ts',
   mjsFile: 'pica.min.mjs',
   minify: 'terser',
-  define: {
-    __PICA_WORKER_SRC__: JSON.stringify(inlineWorkerMin)
-  }
+  define: { __PICA_WORKER_SRC__: JSON.stringify(inlineWorkerMin) }
 })
 
 await buildMainUmd({
@@ -176,4 +183,4 @@ await buildMainEsm({
 })
 
 await buildWorker('pica_worker.js')
-await buildWorker('pica_worker.mjs')
+await buildDeclarations()

@@ -3,11 +3,12 @@ import glur_js from 'glur/mono16'
 import mathlib_raw from 'multimath'
 
 import mm_unsharp_mask from '../../src/mm_unsharp_mask'
+import type { WasmMathContext } from '../../src/types'
 
-function fill (target, arr) {
-  if (!Array.isArray(arr)) arr = [arr]
+function fill (target: Uint16Array, arr: number | number[]): void {
+  const values = Array.isArray(arr) ? arr : [arr]
 
-  for (let i = 0; i < target.length; i++) target[i] = arr[i % arr.length]
+  for (let i = 0; i < target.length; i++) target[i] = values[i % values.length]
 }
 
 describe('unsharp_mask', () => {
@@ -29,7 +30,13 @@ describe('unsharp_mask', () => {
 
       // unsharp_mask wasm module does not provide API for direct glur16 call
       // Here is simple wrapper for testing
-      function glur16_wasm_invoke (thisobj, src, width, height, radius) {
+      function glur16_wasm_invoke (
+        thisobj: WasmMathContext,
+        src: Uint16Array,
+        width: number,
+        height: number,
+        radius: number
+      ): Uint16Array {
         // src = grayscale, 16 bits
         const pixels = width * height
 
@@ -56,6 +63,7 @@ describe('unsharp_mask', () => {
         mem32.set(src)
 
         const fn = instance.exports.blurMono16 || instance.exports._blurMono16
+        if (!fn) throw new Error('WASM blurMono16 function is not available')
 
         fn(src_offset, out_offset, tmp_offset, line_offset, coeffs_offset, width, height, radius)
 
@@ -76,7 +84,7 @@ describe('unsharp_mask', () => {
   })
 
   describe('unsharp_mask', () => {
-    function createSample (width, height) {
+    function createSample (width: number, height: number): Uint8Array {
       const result = new Uint8Array(width * height * 4)
 
       for (let i = 0; i < result.length; i++) result[i] = 20 + i

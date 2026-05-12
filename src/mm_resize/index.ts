@@ -1,4 +1,3 @@
-// @ts-nocheck
 import fn from './resize'
 import wasm_fn from './resize_wasm'
 import wasm_src from './convolve_wasm_base64'

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Collection of math functions
 //
 // 1. Combine components together
@@ -8,9 +7,12 @@ import Multimath from 'multimath'
 
 import mm_unsharp_mask from './mm_unsharp_mask'
 import mm_resize from './mm_resize'
+import type { PicaFeaturesFlat, MathCache, MathFeaturesMap, ResizeMathOptions } from './types'
 
 export default class MathLib extends Multimath {
-  constructor (requested_features) {
+  declare features: MathFeaturesMap
+
+  constructor (requested_features?: PicaFeaturesFlat) {
     const __requested_features = requested_features || []
 
     const features = {
@@ -29,7 +31,7 @@ export default class MathLib extends Multimath {
     this.use(mm_resize)
   }
 
-  resizeAndUnsharp (options, cache) {
+  resizeAndUnsharp (options: ResizeMathOptions, cache?: MathCache): Uint8Array {
     const result = this.resize(options, cache)
 
     if (options.unsharpAmount) {

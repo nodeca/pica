@@ -1,5 +1,14 @@
-// @ts-nocheck
-export default function unsharp (img, width, height, amount, radius, threshold) {
+import type { WasmMathContext } from '../types'
+
+export default function unsharp (
+  this: WasmMathContext,
+  img: Uint8Array | Uint8ClampedArray,
+  width: number,
+  height: number,
+  amount: number,
+  radius: number,
+  threshold: number
+): void {
   if (amount === 0 || radius < 0.5) {
     return
   }
@@ -36,15 +45,18 @@ export default function unsharp (img, width, height, amount, radius, threshold) 
 
   // HSL
   let fn = instance.exports.hsv_v16 || instance.exports._hsv_v16
+  if (!fn) throw new Error('WASM hsv_v16 function is not available')
   fn(img_offset, hsv_offset, width, height)
 
   // BLUR
   fn = instance.exports.blurMono16 || instance.exports._blurMono16
+  if (!fn) throw new Error('WASM blurMono16 function is not available')
   fn(hsv_offset, blur_offset, blur_tmp_offset,
     blur_line_offset, blur_coeffs_offset, width, height, radius)
 
   // UNSHARP
   fn = instance.exports.unsharp || instance.exports._unsharp
+  if (!fn) throw new Error('WASM unsharp function is not available')
   fn(img_offset, img_offset, hsv_offset,
     blur_offset, width, height, amount, threshold)
 

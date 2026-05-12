@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Unsharp mask filter
 //
 // http://stackoverflow.com/a/23322820/1031804
@@ -10,7 +9,7 @@
 //
 import glur_mono16 from 'glur/mono16'
 
-function hsv_v16 (img, width, height) {
+function hsv_v16 (img: Uint8Array | Uint8ClampedArray, width: number, height: number): Uint16Array {
   const size = width * height
   const out = new Uint16Array(size)
   let r, g, b, max
@@ -24,7 +23,14 @@ function hsv_v16 (img, width, height) {
   return out
 }
 
-export default function unsharp (img, width, height, amount, radius, threshold) {
+export default function unsharp (
+  img: Uint8Array | Uint8ClampedArray,
+  width: number,
+  height: number,
+  amount: number,
+  radius: number,
+  threshold: number
+): void {
   let v1, v2, vmul
   let diff, iTimes4
 

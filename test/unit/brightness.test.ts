@@ -5,7 +5,7 @@ import picaFactory from '../../src/pica_main'
 
 const pica = picaFactory({ features: ['js', 'wasm'] })
 
-function fill (arr, val) {
+function fill (arr: Uint8Array, val: number): void {
   for (let i = 0; i < arr.length; i++) { arr[i] = val }
 }
 
@@ -14,7 +14,7 @@ const SRC_W = 1000,
   DEST_W = 140,
   DEST_H = 108
 
-function createTest (color) {
+function createTest (color: number): void {
   const srcSize = 4 * SRC_W * SRC_H,
     resultSize = 4 * DEST_W * DEST_H,
     hexColor = color.toString(16),

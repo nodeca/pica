@@ -1,47 +1,74 @@
-// @ts-nocheck
 import MathLib from './mathlib'
 import Pool from './pool'
 import * as utils from './utils'
-import createStages from './stepper'
-import createRegions from './tiler'
+import createStages, { type Stage } from './stepper'
+import createRegions, { type Tile } from './tiler'
 import filter_info from './mm_resize/resize_filter_info'
 import * as supported_features from './supported_features'
+import type {
+  Capabilities,
+  CreateCanvasPreference,
+  PicaFeaturesFlat,
+  Filter,
+  Limiter,
+  NormalizedResizeOptions,
+  PicaCanvas,
+  PicaCanvasCtx,
+  PicaOptions,
+  PicaSource,
+  ResizeBufferOptions,
+  ResizeFeaturesMap,
+  ResizeMathOptions,
+  ResizeOptions,
+  CibResizeQuality,
+  ResizeResult,
+  ResolvedPicaOptions,
+  StageEnv,
+  WorkerResult,
+  WorkerWithObjectURL
+} from './types'
 
-/* global __PICA_WORKER_SRC__ */
+export type {
+  PicaFeaturesFlat,
+  Filter,
+  PicaCanvas,
+  PicaOptions,
+  PicaSource,
+  ResizeBufferOptions,
+  ResizeOptions,
+  CibResizeQuality
+} from './types'
+
+declare const __PICA_WORKER_SRC__: string | undefined
 
 const WORKER_SRC = typeof __PICA_WORKER_SRC__ !== 'undefined' ? __PICA_WORKER_SRC__ : ''
 
 // Deduplicate pools & limiters with the same configs
 // when user creates multiple pica instances.
-const singletones = {}
+type Singleton = Limiter | Pool<WorkerWithObjectURL>
+
+const singletones: Record<string, Singleton> = {}
 
 let concurrency = 1
 if (typeof navigator !== 'undefined') {
   concurrency = Math.min(navigator.hardwareConcurrency || 1, 4)
 }
 
-const DEFAULT_PICA_OPTS = {
+const DEFAULT_PICA_OPTS: ResolvedPicaOptions = {
   tile: 1024,
   concurrency,
   features: ['js', 'wasm', 'ww'],
   idle: 2000,
-  workerURL: null,
-  createCanvas (width, height) {
-    const tmpCanvas = document.createElement('canvas')
-    tmpCanvas.width = width
-    tmpCanvas.height = height
-    return tmpCanvas
-  }
 }
 
-const DEFAULT_RESIZE_OPTS = {
+const DEFAULT_RESIZE_OPTS: Required<Omit<ResizeOptions, 'cancelToken' | 'quality'>> = {
   filter: 'mks2013',
   unsharpAmount: 0,
   unsharpRadius: 0.0,
   unsharpThreshold: 0
 }
 
-function createWorkerFabric (createWorker) {
+function createWorkerFabric (createWorker: () => WorkerWithObjectURL) {
   return function workerFabric () {
     return {
       value: createWorker(),
@@ -49,7 +76,7 @@ function createWorkerFabric (createWorker) {
         this.value.terminate()
 
         if (typeof window !== 'undefined') {
-          const url = window.URL || window.webkitURL || window.mozURL || window.msURL
+          const url = window.URL
           if (url && url.revokeObjectURL && this.value.objectURL) {
             url.revokeObjectURL(this.value.objectURL)
           }
@@ -59,14 +86,14 @@ function createWorkerFabric (createWorker) {
   }
 }
 
-function workerFactory (options) {
+function workerFactory (options: ResolvedPicaOptions): (() => WorkerWithObjectURL) | null {
   if (Pica.__workerFactory) return Pica.__workerFactory
 
   if (WORKER_SRC) {
     return function () {
-      const url = window.URL || window.webkitURL || window.mozURL || window.msURL
+      const url = window.URL
       const objectURL = url.createObjectURL(new Blob([WORKER_SRC], { type: 'text/javascript' }))
-      const worker = new Worker(objectURL)
+      const worker = new Worker(objectURL) as WorkerWithObjectURL
 
       worker.objectURL = objectURL
 
@@ -85,9 +112,18 @@ function workerFactory (options) {
 // API methods
 
 export class Pica {
-  static __workerFactory = null
+  static __workerFactory: (() => WorkerWithObjectURL) | null = null
 
-  constructor (options) {
+  private options: ResolvedPicaOptions
+  private __limit: Limiter
+  private resize_features: ResizeFeaturesMap
+  private __workersPool: Pool<WorkerWithObjectURL> | null
+  private capabilities: Capabilities
+  private __requested_features: PicaFeaturesFlat
+  private __mathlib: MathLib | null
+  private __initPromise?: Promise<this>
+
+  constructor (options?: PicaOptions) {
     this.options = Object.assign({}, DEFAULT_PICA_OPTS, options || {})
 
     const workerRequested = this.options.features.indexOf('ww') >= 0 || this.options.features.indexOf('all') >= 0
@@ -100,7 +136,7 @@ export class Pica {
 
     // Share limiters to avoid multiple parallel workers when user creates
     // multiple pica instances.
-    this.__limit = singletones[limiter_key] || utils.limiter(this.options.concurrency)
+    this.__limit = singletones[limiter_key] as Limiter || utils.limiter(this.options.concurrency)
 
     if (!singletones[limiter_key]) singletones[limiter_key] = this.__limit
 
@@ -132,7 +168,7 @@ export class Pica {
     this.__mathlib = null
   }
 
-  init () {
+  init (): Promise<this> {
     if (this.__initPromise) return this.__initPromise
 
     this.__initPromise = this.__init()
@@ -140,7 +176,7 @@ export class Pica {
     return this.__initPromise
   }
 
-  async __init () {
+  private async __init (): Promise<this> {
     let features = this.options.features.slice()
 
     if (features.indexOf('all') >= 0) {
@@ -166,7 +202,7 @@ export class Pica {
       const wpool_key = `wp_${JSON.stringify(this.options)}`
 
       if (singletones[wpool_key]) {
-        this.__workersPool = singletones[wpool_key]
+        this.__workersPool = singletones[wpool_key] as Pool<WorkerWithObjectURL>
       } else {
         this.__workersPool = new Pool(createWorkerFabric(createWorker), this.options.idle)
         singletones[wpool_key] = this.__workersPool
@@ -176,10 +212,11 @@ export class Pica {
     if (this.__workersPool) {
       try {
         const result = await this.__invokeWorker('get_supported_features')
-        if (result && result.data) {
+        const resultData = result && (result as { data?: Capabilities }).data
+        if (resultData) {
           this.capabilities.worker = true
           this.resize_features.ww = true
-          this.capabilities.ww_offscreen_canvas = !!result.data.offscreen_canvas
+          this.capabilities.ww_offscreen_canvas = !!resultData.offscreen_canvas
         }
       } catch (__) {}
     }
@@ -191,7 +228,7 @@ export class Pica {
     return this
   }
 
-  createCanvas (width, height, preferOffscreen) {
+  createCanvas (width: number, height: number, preferOffscreen?: CreateCanvasPreference): PicaCanvas {
     if (preferOffscreen && this.capabilities.offscreen_canvas) {
       return new OffscreenCanvas(width, height)
     }
@@ -211,9 +248,14 @@ export class Pica {
   }
 
   // Call resizer in webworker or locally, depending on config
-  __invokeWorker (method, payload, transfer, opts) {
+  private __invokeWorker (
+    method: 'resize' | 'resize_bitmap' | 'get_supported_features',
+    payload?: Record<string, unknown>,
+    transfer?: Transferable[],
+    opts?: { cancelToken?: Promise<unknown> }
+  ): Promise<WorkerResult> {
     return new Promise((resolve, reject) => {
-      const w = this.__workersPool.acquire()
+      const w = this.__workersPool!.acquire()
 
       if (opts && opts.cancelToken) opts.cancelToken.catch(err => reject(err))
 
@@ -228,7 +270,7 @@ export class Pica {
     })
   }
 
-  async __invokeResize (tileOpts, opts) {
+  private async __invokeResize (tileOpts: ResizeMathOptions, opts: NormalizedResizeOptions): Promise<ResizeResult> {
   // Share cache between calls:
   //
   // - wasm instance
@@ -240,7 +282,7 @@ export class Pica {
 
     if (!this.resize_features.ww) {
     // not possible to have ImageBitmap here if user disabled WW
-      return { data: this.__mathlib.resizeAndUnsharp(tileOpts, opts.__mathCache) }
+      return { data: this.__mathlib!.resizeAndUnsharp(tileOpts, opts.__mathCache) }
     }
 
     const transfer = []
@@ -254,25 +296,35 @@ export class Pica {
         opts: tileOpts,
         features: this.__requested_features,
         preload: {
-          wasm_nodule: this.__mathlib.__
+          wasm_nodule: this.__mathlib!.__
         }
       },
       transfer,
       opts
-    )
+    ) as Promise<ResizeResult>
   }
 
   // this function can return promise if createImageBitmap is used
-  __extractTileData (tile, from, opts, stageEnv, extractTo) {
+  private __extractTileData (
+    tile: Tile,
+    from: PicaSource,
+    opts: NormalizedResizeOptions,
+    stageEnv: StageEnv,
+    extractTo: ResizeMathOptions
+  ): ResizeMathOptions {
     if (this.resize_features.ww && this.capabilities.ww_offscreen_canvas) {
       this.debug('Create tile imageBitmap')
 
       const tileCanvas = this.createCanvas(tile.width, tile.height, { preferOffscreen: true })
-      const tileCtx = tileCanvas.getContext('2d')
+      const tileCtx = tileCanvas.getContext('2d') as PicaCanvasCtx
 
       tileCtx.drawImage(stageEnv.srcImageBitmap || from,
         tile.x, tile.y, tile.width, tile.height,
         0, 0, tile.width, tile.height)
+
+      if (!('transferToImageBitmap' in tileCanvas)) {
+        throw new Error('Pica: offscreen canvas is not available for worker transfer')
+      }
 
       extractTo.srcBitmap = tileCanvas.transferToImageBitmap()
       return extractTo
@@ -289,7 +341,7 @@ export class Pica {
 
     // Extract tile RGBA buffer, depending on input type
     if (utils.isCanvas(from)) {
-      if (!stageEnv.srcCtx) stageEnv.srcCtx = from.getContext('2d')
+      if (!stageEnv.srcCtx) stageEnv.srcCtx = from.getContext('2d') as PicaCanvasCtx
 
       // If input is Canvas - extract region data directly
       this.debug('Get tile pixel data')
@@ -306,7 +358,7 @@ export class Pica {
 
     const tmpCanvas = this.createCanvas(tile.width, tile.height, { preferOffscreen: true })
 
-    const tmpCtx = tmpCanvas.getContext('2d')
+    const tmpCtx = tmpCanvas.getContext('2d') as PicaCanvasCtx
     tmpCtx.globalCompositeOperation = 'copy'
     tmpCtx.drawImage(stageEnv.srcImageBitmap || from,
       tile.x, tile.y, tile.width, tile.height,
@@ -323,25 +375,25 @@ export class Pica {
     return extractTo
   }
 
-  __landTileData (tile, result, stageEnv) {
-    if (result.bitmap) {
-      stageEnv.toCtx.drawImage(result.bitmap, tile.toX, tile.toY)
+  private __landTileData (tile: Tile, result: ResizeResult, stageEnv: StageEnv): null {
+    if ('bitmap' in result) {
+      stageEnv.toCtx!.drawImage(result.bitmap, tile.toX, tile.toY)
       result.bitmap.close()
       return null
     }
 
     this.debug('Draw tile')
 
-    const toImageData = stageEnv.toCtx.createImageData(tile.toWidth, tile.toHeight)
+    const toImageData = stageEnv.toCtx!.createImageData(tile.toWidth, tile.toHeight)
     toImageData.data.set(result.data)
 
     if (this.capabilities.safari_put_image_data_fix) {
     // Safari draws thin white stripes between tiles without this fix
-      stageEnv.toCtx.putImageData(toImageData, tile.toX, tile.toY,
+      stageEnv.toCtx!.putImageData(toImageData, tile.toX, tile.toY,
         tile.toInnerX - tile.toX, tile.toInnerY - tile.toY,
         tile.toInnerWidth + 1e-5, tile.toInnerHeight + 1e-5)
     } else {
-      stageEnv.toCtx.putImageData(toImageData, tile.toX, tile.toY,
+      stageEnv.toCtx!.putImageData(toImageData, tile.toX, tile.toY,
         tile.toInnerX - tile.toX, tile.toInnerY - tile.toY,
         tile.toInnerWidth, tile.toInnerHeight)
     }
@@ -349,15 +401,19 @@ export class Pica {
     return null
   }
 
-  async __tileAndResize (from, to, opts) {
-    const stageEnv = {
+  private async __tileAndResize<TCanvas extends PicaCanvas> (
+    from: PicaSource,
+    to: TCanvas,
+    opts: NormalizedResizeOptions
+  ): Promise<TCanvas> {
+    const stageEnv: StageEnv = {
       srcCtx: null,
       srcImageBitmap: null,
       isImageBitmapReused: false,
       toCtx: null
     }
 
-    const processTile = tile => this.__limit(async () => {
+    const processTile = (tile: Tile) => this.__limit(async () => {
       if (opts.canceled) return opts.cancelToken
 
       const tileOpts = {
@@ -373,7 +429,7 @@ export class Pica {
         unsharpAmount: opts.unsharpAmount,
         unsharpRadius: opts.unsharpRadius,
         unsharpThreshold: opts.unsharpThreshold
-      }
+      } as ResizeMathOptions
 
       this.debug('Invoke resize math')
 
@@ -383,7 +439,6 @@ export class Pica {
       const result = await this.__invokeResize(extractedTileOpts, opts)
 
       if (opts.canceled) return opts.cancelToken
-      stageEnv.srcImageData = null
       return this.__landTileData(tile, result, stageEnv)
     })
 
@@ -391,7 +446,7 @@ export class Pica {
     // If image - try to decode in background if possible
     await Promise.resolve()
 
-    stageEnv.toCtx = to.getContext('2d')
+    stageEnv.toCtx = to.getContext('2d') as PicaCanvasCtx
 
     if (utils.isCanvas(from)) {
     // Source is ready as-is.
@@ -414,7 +469,7 @@ export class Pica {
       throw new Error('Pica: ".from" should be Image, Canvas or ImageBitmap')
     }
 
-    if (opts.canceled) return opts.cancelToken
+    if (opts.canceled) return opts.cancelToken as Promise<TCanvas>
 
     this.debug('Calculate tiles')
 
@@ -434,7 +489,7 @@ export class Pica {
 
     const jobs = regions.map(tile => processTile(tile))
 
-    function cleanup (stageEnv) {
+    function cleanup (stageEnv: StageEnv) {
       if (stageEnv.srcImageBitmap) {
         if (!stageEnv.isImageBitmapReused) stageEnv.srcImageBitmap.close()
         stageEnv.srcImageBitmap = null
@@ -454,10 +509,15 @@ export class Pica {
     }
   }
 
-  async __processStages (stages, from, to, opts) {
-    if (opts.canceled) return opts.cancelToken
+  private async __processStages<TCanvas extends PicaCanvas> (
+    stages: Stage[],
+    from: PicaSource,
+    to: TCanvas,
+    opts: NormalizedResizeOptions
+  ): Promise<TCanvas> {
+    if (opts.canceled) return opts.cancelToken as Promise<TCanvas>
 
-    const [toWidth, toHeight] = stages.shift()
+    const [toWidth, toHeight] = stages.shift()!
 
     const isLastStage = (stages.length === 0)
 
@@ -468,7 +528,7 @@ export class Pica {
     //
     // For advanced filters (mks2013 and custom) - skip optimization,
     // because need to apply sharpening every time
-    let filter
+    let filter: Filter
 
     if (isLastStage || filter_info.q2f.indexOf(opts.filter) < 0) filter = opts.filter
     else if (opts.filter === 'box') filter = 'box'
@@ -480,7 +540,7 @@ export class Pica {
       filter
     })
 
-    let tmpCanvas
+    let tmpCanvas: PicaCanvas | undefined
 
     if (!isLastStage) {
     // create temporary canvas
@@ -488,13 +548,13 @@ export class Pica {
     }
 
     try {
-      await this.__tileAndResize(from, (isLastStage ? to : tmpCanvas), opts)
+      await this.__tileAndResize(from, (isLastStage ? to : tmpCanvas)!, opts)
 
       if (isLastStage) return to
 
       opts.width = toWidth
       opts.height = toHeight
-      return await this.__processStages(stages, tmpCanvas, to, opts)
+      return await this.__processStages(stages, tmpCanvas!, to, opts)
     } finally {
       if (tmpCanvas) {
       // Safari 12 workaround
@@ -504,17 +564,21 @@ export class Pica {
     }
   }
 
-  async __resizeViaCreateImageBitmap (from, to, opts) {
-    let toCtx = to.getContext('2d')
+  private async __resizeViaCreateImageBitmap<TCanvas extends PicaCanvas> (
+    from: PicaSource,
+    to: TCanvas,
+    opts: NormalizedResizeOptions
+  ): Promise<TCanvas> {
+    let toCtx: PicaCanvasCtx | null = to.getContext('2d') as PicaCanvasCtx
 
     this.debug('Resize via createImageBitmap()')
 
     const imageBitmap = await createImageBitmap(from, {
       resizeWidth: opts.toWidth,
       resizeHeight: opts.toHeight,
-      resizeQuality: utils.cib_quality_name(filter_info.f2q[opts.filter])
+      resizeQuality: utils.cib_quality_name(filter_info.f2q[opts.filter] ?? 3)
     })
-    if (opts.canceled) return opts.cancelToken
+    if (opts.canceled) return opts.cancelToken as Promise<TCanvas>
 
     // if no unsharp - draw directly to output canvas
     if (!opts.unsharpAmount) {
@@ -529,16 +593,16 @@ export class Pica {
 
     this.debug('Unsharp result')
 
-    let tmpCanvas = this.options.createCanvas(opts.toWidth, opts.toHeight)
+    let tmpCanvas: PicaCanvas | null = this.createCanvas(opts.toWidth, opts.toHeight)
 
-    let tmpCtx = tmpCanvas.getContext('2d')
+    let tmpCtx: PicaCanvasCtx | null = tmpCanvas.getContext('2d') as PicaCanvasCtx
 
     tmpCtx.drawImage(imageBitmap, 0, 0)
     imageBitmap.close()
 
-    let iData = tmpCtx.getImageData(0, 0, opts.toWidth, opts.toHeight)
+    let iData: ImageData | null = tmpCtx.getImageData(0, 0, opts.toWidth, opts.toHeight)
 
-    this.__mathlib.unsharp_mask(
+    this.__mathlib!.unsharp_mask(
       iData.data,
       opts.toWidth,
       opts.toHeight,
@@ -560,28 +624,33 @@ export class Pica {
     return to
   }
 
-  async resize (from, to, options) {
+  async resize<TCanvas extends PicaCanvas> (
+    from: PicaSource,
+    to: TCanvas,
+    options?: ResizeOptions | CibResizeQuality
+  ): Promise<TCanvas> {
     this.debug('Start resize...')
 
-    let opts = Object.assign({}, DEFAULT_RESIZE_OPTS)
+    const opts = Object.assign({}, DEFAULT_RESIZE_OPTS) as NormalizedResizeOptions
 
-    if (!isNaN(options)) {
-      opts = Object.assign(opts, { quality: options })
+    if (typeof options === 'number' && !isNaN(options)) {
+      Object.assign(opts, { quality: options })
     } else if (options) {
-      opts = Object.assign(opts, options)
+      Object.assign(opts, options)
     }
 
     opts.toWidth = to.width
     opts.toHeight = to.height
-    opts.width = from.naturalWidth || from.width
-    opts.height = from.naturalHeight || from.height
+    opts.width = utils.isImage(from) ? from.naturalWidth : from.width
+    opts.height = utils.isImage(from) ? from.naturalHeight : from.height
 
     // Legacy `.quality` option
     if (Object.prototype.hasOwnProperty.call(opts, 'quality')) {
-      if (opts.quality < 0 || opts.quality > 3) {
-        throw new Error(`Pica: .quality should be [0..3], got ${opts.quality}`)
+      const quality = opts.quality
+      if (typeof quality !== 'number' || quality < 0 || quality > 3) {
+        throw new Error(`Pica: .quality should be [0..3], got ${quality}`)
       }
-      opts.filter = filter_info.q2f[opts.quality]
+      opts.filter = filter_info.q2f[quality]
     }
 
     // Prevent stepper from infinite loop
@@ -606,15 +675,15 @@ export class Pica {
 
     await this.init()
 
-    if (opts.canceled) return opts.cancelToken
+    if (opts.canceled) return opts.cancelToken as Promise<TCanvas>
 
     // createImageBitmap doesn't work for images (Image, ImageBitmap) with
     // Exif orientation in Chrome. Enforce canvas use for such inputs.
     // see https://bugs.chromium.org/p/chromium/issues/detail?id=1220671
     if (this.capabilities.bug_image_bitmap_orientation_region &&
       (utils.isImage(from) || (utils.isImageBitmap(from)))) {
-      const tmpCanvas = this.options.createCanvas(opts.width, opts.height)
-      const tmpCtx = tmpCanvas.getContext('2d')
+      const tmpCanvas = this.createCanvas(opts.width, opts.height)
+      const tmpCtx = tmpCanvas.getContext('2d') as PicaCanvasCtx
       tmpCtx.drawImage(from, 0, 0)
       from = tmpCanvas
     }
@@ -631,6 +700,7 @@ export class Pica {
     if (!this.capabilities.canvas) {
       const err = new Error('Pica: cannot use getImageData on canvas, ' +
                         "make sure fingerprinting protection isn't enabled")
+      // @ts-ignore
       err.code = 'ERR_GET_IMAGE_DATA'
       throw err
     }
@@ -653,33 +723,35 @@ export class Pica {
 
   // RGBA buffer resize
   //
-  async resizeBuffer (options) {
-    const opts = Object.assign({}, DEFAULT_RESIZE_OPTS, options)
+  async resizeBuffer (options: ResizeBufferOptions): Promise<Uint8Array> {
+    const opts = Object.assign({}, DEFAULT_RESIZE_OPTS, options) as ResizeMathOptions
 
     // Legacy `.quality` option
     if (Object.prototype.hasOwnProperty.call(opts, 'quality')) {
-      if (opts.quality < 0 || opts.quality > 3) {
-        throw new Error(`Pica: .quality should be [0..3], got ${opts.quality}`)
+      const quality = opts.quality
+      if (typeof quality !== 'number' || quality < 0 || quality > 3) {
+        throw new Error(`Pica: .quality should be [0..3], got ${quality}`)
       }
-      opts.filter = filter_info.q2f[opts.quality]
+      opts.filter = filter_info.q2f[quality]
     }
 
     await this.init()
+    if (!this.__mathlib) throw new Error('Pica: math library is not initialized')
     return this.__mathlib.resizeAndUnsharp(opts)
   }
 
-  async toBlob (canvas, mimeType, quality) {
+  async toBlob (canvas: HTMLCanvasElement | OffscreenCanvas, mimeType?: string, quality?: number): Promise<Blob> {
     mimeType = mimeType || 'image/png'
 
     // Ordinary Canvas
-    if (canvas.toBlob) {
+    if ('toBlob' in canvas && canvas.toBlob) {
       return new Promise(resolve => {
-        canvas.toBlob(blob => resolve(blob), mimeType, quality)
+        canvas.toBlob(blob => resolve(blob as Blob), mimeType, quality)
       })
     }
 
     // OffscreenCanvas
-    if (canvas.convertToBlob) {
+    if ('convertToBlob' in canvas && canvas.convertToBlob) {
       return canvas.convertToBlob({
         type: mimeType,
         quality
@@ -687,7 +759,7 @@ export class Pica {
     }
 
     // Fallback for old browsers
-    const asString = atob(canvas.toDataURL(mimeType, quality).split(',')[1])
+    const asString = atob((canvas as HTMLCanvasElement).toDataURL(mimeType, quality).split(',')[1])
     const len = asString.length
     const asBuffer = new Uint8Array(len)
 
@@ -698,9 +770,9 @@ export class Pica {
     return new Blob([asBuffer], { type: mimeType })
   }
 
-  debug () {}
+  debug (..._args: unknown[]): void {}
 }
 
-export default function pica (options): any {
+export default function pica (options?: PicaOptions): Pica {
   return new Pica(options)
 }

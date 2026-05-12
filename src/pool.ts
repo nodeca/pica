@@ -1,8 +1,16 @@
-// @ts-nocheck
+import type { PoolResource } from './types'
+
 const GC_INTERVAL = 100
 
-export default class Pool {
-  constructor (create, idle) {
+export default class Pool<T> {
+  create: () => Omit<PoolResource<T>, 'id' | 'lastUsed' | 'release'>
+  available: Array<PoolResource<T>>
+  acquired: Record<number, PoolResource<T>>
+  lastId: number
+  timeoutId: ReturnType<typeof setTimeout> | 0
+  idle: number
+
+  constructor (create: () => Omit<PoolResource<T>, 'id' | 'lastUsed' | 'release'>, idle?: number) {
     this.create = create
 
     this.available = []
@@ -13,13 +21,13 @@ export default class Pool {
     this.idle = idle || 2000
   }
 
-  acquire () {
-    let resource
+  acquire (): PoolResource<T> {
+    let resource: PoolResource<T>
 
     if (this.available.length !== 0) {
-      resource = this.available.pop()
+      resource = this.available.pop() as PoolResource<T>
     } else {
-      resource = this.create()
+      resource = this.create() as PoolResource<T>
       resource.id = this.lastId++
       resource.release = () => this.release(resource)
     }
@@ -27,7 +35,7 @@ export default class Pool {
     return resource
   }
 
-  release (resource) {
+  release (resource: PoolResource<T>): void {
     delete this.acquired[resource.id]
 
     resource.lastUsed = Date.now()
@@ -38,11 +46,11 @@ export default class Pool {
     }
   }
 
-  gc () {
+  gc (): void {
     const now = Date.now()
 
     this.available = this.available.filter(resource => {
-      if (now - resource.lastUsed > this.idle) {
+      if (now - (resource.lastUsed || 0) > this.idle) {
         resource.destroy()
         return false
       }

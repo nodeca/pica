@@ -1,11 +1,12 @@
-// @ts-nocheck
 // Resize convolvers, pure JS implementation
 //
 // Precision of fixed FP values
 // var FIXED_FRAC_BITS = 14;
 
-function clampTo8 (i) { return i < 0 ? 0 : (i > 255 ? 255 : i) }
-function clampNegative (i) { return i >= 0 ? i : 0 }
+function clampTo8 (i: number): number { return i < 0 ? 0 : (i > 255 ? 255 : i) }
+function clampNegative (i: number): number { return i >= 0 ? i : 0 }
+
+type SrcImage = Uint8Array | Uint8ClampedArray
 
 // Convolve image data in horizontal direction. Can be used for:
 //
@@ -17,7 +18,14 @@ function clampNegative (i) { return i >= 0 ? i : 0 }
 // - output is transposed
 // - output resolution is ~15 bits per channel(for better precision).
 //
-function convolveHor (src, dest, srcW, srcH, destW, filters) {
+function convolveHor (
+  src: SrcImage,
+  dest: Uint16Array,
+  srcW: number,
+  srcH: number,
+  destW: number,
+  filters: Int16Array
+): void {
   let r, g, b, a
   let filterPtr, filterShift, filterSize
   let srcPtr, srcY, destX, filterVal
@@ -67,7 +75,14 @@ function convolveHor (src, dest, srcW, srcH, destW, filters) {
 
 // Supplementary method for `convolveHor()`
 //
-function convolveVert (src, dest, srcW, srcH, destW, filters) {
+function convolveVert (
+  src: Uint16Array,
+  dest: Uint8Array,
+  srcW: number,
+  srcH: number,
+  destW: number,
+  filters: Int16Array
+): void {
   let r, g, b, a
   let filterPtr, filterShift, filterSize
   let srcPtr, srcY, destX, filterVal
@@ -127,7 +142,14 @@ function convolveVert (src, dest, srcW, srcH, destW, filters) {
 //
 // For images without alpha channel this method is slower than `convolveHor()`
 //
-function convolveHorWithPre (src, dest, srcW, srcH, destW, filters) {
+function convolveHorWithPre (
+  src: SrcImage,
+  dest: Uint16Array,
+  srcW: number,
+  srcH: number,
+  destW: number,
+  filters: Int16Array
+): void {
   let r, g, b, a, alpha
   let filterPtr, filterShift, filterSize
   let srcPtr, srcY, destX, filterVal
@@ -184,7 +206,14 @@ function convolveHorWithPre (src, dest, srcW, srcH, destW, filters) {
 
 // Supplementary method for `convolveHorWithPre()`
 //
-function convolveVertWithPre (src, dest, srcW, srcH, destW, filters) {
+function convolveVertWithPre (
+  src: Uint16Array,
+  dest: Uint8Array,
+  srcW: number,
+  srcH: number,
+  destW: number,
+  filters: Int16Array
+): void {
   let r, g, b, a
   let filterPtr, filterShift, filterSize
   let srcPtr, srcY, destX, filterVal

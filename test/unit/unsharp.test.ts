@@ -16,6 +16,7 @@ describe('Unsharp mask', () => {
     }
 
     await pica.init()
+    // @ts-ignore
     pica.__mathlib.unsharp_mask(image, width, height, 1e-4, 0, 0)
 
     for (let i = 0; i < size; i++) {
@@ -28,6 +29,7 @@ describe('Unsharp mask', () => {
     const image = [255, 255, 255, 255]
 
     await pica.init()
+    // @ts-ignore
     pica.__mathlib.unsharp_mask(image, 1, 1, 0, 0, 0)
 
     for (let i = 0; i < image.length; i++) {
@@ -40,6 +42,7 @@ describe('Unsharp mask', () => {
     const image = [0, 0, 0, 0]
 
     await pica.init()
+    // @ts-ignore
     pica.__mathlib.unsharp_mask(image, 1, 1, 0, 0, 0)
 
     for (let i = 0; i < image.length; i++) {
@@ -52,6 +55,7 @@ describe('Unsharp mask', () => {
     const image = [255, 0, 0, 0]
 
     await pica.init()
+    // @ts-ignore
     pica.__mathlib.unsharp_mask(image, 1, 1, 0, 0, 0)
 
     for (let i = 0; i < image.length; i++) {

@@ -1,4 +1,31 @@
-// @ts-nocheck
+export interface Tile {
+  toX: number
+  toY: number
+  toWidth: number
+  toHeight: number
+  toInnerX: number
+  toInnerY: number
+  toInnerWidth: number
+  toInnerHeight: number
+  offsetX: number
+  offsetY: number
+  scaleX: number
+  scaleY: number
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface TilerOptions {
+  width: number
+  height: number
+  srcTileSize: number
+  toWidth: number
+  toHeight: number
+  destTileBorder: number
+}
+
 // Split original image into multiple 1024x1024 chunks to reduce memory usage
 // (images have to be unpacked into typed arrays for resizing) and allow
 // parallel processing of multiple tiles at a time.
@@ -14,21 +41,21 @@
 
 const PIXEL_EPSILON = 1e-5
 
-function pixelFloor (x) {
+function pixelFloor (x: number): number {
   const nearest = Math.round(x)
 
   if (Math.abs(x - nearest) < PIXEL_EPSILON) { return nearest }
   return Math.floor(x)
 }
 
-function pixelCeil (x) {
+function pixelCeil (x: number): number {
   const nearest = Math.round(x)
 
   if (Math.abs(x - nearest) < PIXEL_EPSILON) { return nearest }
   return Math.ceil(x)
 }
 
-export default function createRegions (options) {
+export default function createRegions (options: TilerOptions): Tile[] {
   const scaleX = options.toWidth / options.width
   const scaleY = options.toHeight / options.height
 
@@ -42,8 +69,8 @@ export default function createRegions (options) {
 
   let x, y
   let innerX, innerY, toTileWidth, toTileHeight
-  const tiles = []
-  let tile
+  const tiles: Tile[] = []
+  let tile: Tile
 
   // we go top-to-down instead of left-to-right to make image displayed from top to
   // doesn in the browser

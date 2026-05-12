@@ -1,6 +1,6 @@
-// @ts-nocheck
 import pica, { Pica } from './pica_main'
 
-pica.Pica = Pica
+const picaWithClass = pica as typeof pica & { Pica: typeof Pica }
+picaWithClass.Pica = Pica
 
-export default pica
+export default picaWithClass

@@ -6,7 +6,7 @@ import { expect } from 'vitest'
 import originalURL from '../fixtures/original.jpg?url'
 import resizedURL from '../fixtures/resized.png?url'
 
-async function loadImage (url) {
+async function loadImage (url: string): Promise<HTMLImageElement> {
   const image = new Image()
   image.src = url
   await new Promise(resolve => { image.onload = resolve })

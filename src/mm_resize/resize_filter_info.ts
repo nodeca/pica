@@ -1,14 +1,20 @@
-// @ts-nocheck
+import type { Filter, CibResizeQuality } from '../types'
+
 // Filter definitions to build tables for
 // resizing convolvers.
 //
 // Presets for quality 0..3. Filter functions + window size
 //
-const filter = {
+export interface FilterInfo {
+  win: number
+  fn: (x: number) => number
+}
+
+const filter: Record<Filter, FilterInfo> = {
   // Nearest neibor
   box: {
     win: 0.5,
-    fn (x) {
+    fn (x: number) {
       if (x < 0) x = -x
       return (x < 0.5) ? 1.0 : 0.0
     }
@@ -16,7 +22,7 @@ const filter = {
   // // Hamming
   hamming: {
     win: 1.0,
-    fn (x) {
+    fn (x: number) {
       if (x < 0) x = -x
       if (x >= 1.0) { return 0.0 }
       if (x < 1.19209290E-07) { return 1.0 }
@@ -27,7 +33,7 @@ const filter = {
   // Lanczos, win = 2
   lanczos2: {
     win: 2.0,
-    fn (x) {
+    fn (x: number) {
       if (x < 0) x = -x
       if (x >= 2.0) { return 0.0 }
       if (x < 1.19209290E-07) { return 1.0 }
@@ -38,7 +44,7 @@ const filter = {
   // Lanczos, win = 3
   lanczos3: {
     win: 3.0,
-    fn (x) {
+    fn (x: number) {
       if (x < 0) x = -x
       if (x >= 3.0) { return 0.0 }
       if (x < 1.19209290E-07) { return 1.0 }
@@ -50,7 +56,7 @@ const filter = {
   // http://johncostella.com/magic/
   mks2013: {
     win: 2.5,
-    fn (x) {
+    fn (x: number) {
       if (x < 0) x = -x
       if (x >= 2.5) { return 0.0 }
       if (x >= 1.5) { return -0.125 * (x - 2.5) * (x - 2.5) }
@@ -63,6 +69,6 @@ const filter = {
 export default {
   filter,
   // Legacy mapping
-  f2q: { box: 0, hamming: 1, lanczos2: 2, lanczos3: 3 },
-  q2f: ['box', 'hamming', 'lanczos2', 'lanczos3']
+  f2q: { box: 0, hamming: 1, lanczos2: 2, lanczos3: 3 } as Partial<Record<Filter, CibResizeQuality>>,
+  q2f: ['box', 'hamming', 'lanczos2', 'lanczos3'] as Filter[]
 }

@@ -3,14 +3,20 @@
 //
 // Implementation is simplified, for test only.
 //
-function is_empty (ch) {
+export interface PpmImage {
+  width: number
+  height: number
+  buffer: Uint8Array
+}
+
+function is_empty (ch: number): boolean {
   return ch <= 0x20
 }
 
-function decode (src) {
+function decode (src: Uint8Array): PpmImage {
   let pos = 0
 
-  function peek_string (src) {
+  function peek_string (src: Uint8Array): string {
     let result = ''
 
     while (pos <= src.length && !is_empty(src[pos])) {
@@ -58,13 +64,7 @@ function decode (src) {
   }
 }
 
-function encode (buffer, width, height) {
-  if (arguments.length === 1) {
-    width = buffer.width
-    height = buffer.height
-    buffer = buffer.buffer
-  }
-
+function encode (buffer: Uint8Array, width: number, height: number): Uint8Array {
   const header = 'P6\n' + width + ' ' + height + '\n255\n'
 
   let pixels = width * height

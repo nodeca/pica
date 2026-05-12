@@ -91,7 +91,7 @@ the split build with `ww` enabled, `workerURL` is required:
 import createPica from 'pica/pica_main';
 
 const pica = createPica({
-  workerURL: new URL('pica/pica_worker', import.meta.url)
+  workerURL: new URL('pica/dist/pica_worker.js', import.meta.url)
 });
 ```
 

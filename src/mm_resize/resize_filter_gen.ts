@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Calculate convolution filters for each destination point,
 // and pack data to Int16Array:
 //
@@ -9,15 +8,22 @@
 // - data - filter values sequence
 //
 import FILTER_INFO from './resize_filter_info'
+import type { Filter } from '../types'
 
 // Precision of fixed FP values
 const FIXED_FRAC_BITS = 14
 
-function toFixedPoint (num) {
+function toFixedPoint (num: number): number {
   return Math.round(num * ((1 << FIXED_FRAC_BITS) - 1))
 }
 
-export default function resizeFilterGen (filter, srcSize, destSize, scale, offset) {
+export default function resizeFilterGen (
+  filter: Filter,
+  srcSize: number,
+  destSize: number,
+  scale: number,
+  offset: number
+): Int16Array {
   const filterFunction = FILTER_INFO.filter[filter].fn
 
   const scaleInverted = 1.0 / scale

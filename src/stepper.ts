@@ -1,4 +1,5 @@
-// @ts-nocheck
+export type Stage = [width: number, height: number]
+
 // Add intermediate resizing steps when scaling down by a very large factor.
 //
 // For example, when resizing 10000x10000 down to 10x10, it'll resize it to
@@ -16,7 +17,14 @@
 // min size = 1 can consume large amount of memory
 const MIN_INNER_TILE_SIZE = 2
 
-export default function createStages (fromWidth, fromHeight, toWidth, toHeight, srcTileSize, destTileBorder) {
+export default function createStages (
+  fromWidth: number,
+  fromHeight: number,
+  toWidth: number,
+  toHeight: number,
+  srcTileSize: number,
+  destTileBorder: number
+): Stage[] {
   const scaleX = toWidth / fromWidth
   const scaleY = toHeight / fromHeight
 
@@ -34,7 +42,7 @@ export default function createStages (fromWidth, fromHeight, toWidth, toHeight, 
   // stageCount can be zero or be negative when enlarging the image
   if (stageCount <= 1) return [[toWidth, toHeight]]
 
-  const result = []
+  const result: Stage[] = []
 
   for (let i = 0; i < stageCount; i++) {
     const width = Math.round(
