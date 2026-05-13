@@ -27,8 +27,7 @@ import type {
   StageEnv,
   WorkerFeaturesResult,
   WorkerMethod,
-  WorkerResizePayload,
-  WorkerWithObjectURL
+  WorkerResizePayload
 } from './types'
 
 export type {
@@ -48,7 +47,7 @@ const WORKER_SRC = typeof __PICA_WORKER_SRC__ !== 'undefined' ? __PICA_WORKER_SR
 
 // Deduplicate pools & limiters with the same configs
 // when user creates multiple pica instances.
-type Singleton = Limiter | Pool<WorkerWithObjectURL>
+type Singleton = Limiter | Pool<Worker>
 
 const singletones: Record<string, Singleton> = {}
 
@@ -71,56 +70,14 @@ const DEFAULT_RESIZE_OPTS: ResizeSettings = {
   unsharpThreshold: 0
 }
 
-function createWorkerFabric (createWorker: () => WorkerWithObjectURL) {
-  return function workerFabric () {
-    return {
-      value: createWorker(),
-      destroy () {
-        this.value.terminate()
-
-        if (typeof window !== 'undefined') {
-          const url = window.URL
-          if (url && url.revokeObjectURL && this.value.objectURL) {
-            url.revokeObjectURL(this.value.objectURL)
-          }
-        }
-      }
-    }
-  }
-}
-
-function workerFactory (options: ResolvedPicaOptions): (() => WorkerWithObjectURL) | null {
-  if (Pica.__workerFactory) return Pica.__workerFactory
-
-  if (WORKER_SRC) {
-    return function () {
-      const url = window.URL
-      const objectURL = url.createObjectURL(new Blob([WORKER_SRC], { type: 'text/javascript' }))
-      const worker = new Worker(objectURL) as WorkerWithObjectURL
-
-      worker.objectURL = objectURL
-
-      return worker
-    }
-  }
-
-  if (!options.workerURL) return null
-
-  return function () {
-    return new Worker(String(options.workerURL))
-  }
-}
-
 // //////////////////////////////////////////////////////////////////////////////
 // API methods
 
 export class Pica {
-  static __workerFactory: (() => WorkerWithObjectURL) | null = null
-
   private options: ResolvedPicaOptions
   private __limit: Limiter
   private resize_features: ResizeFeaturesMap
-  private __workersPool: Pool<WorkerWithObjectURL> | null
+  private __workersPool: Pool<Worker> | null
   private capabilities: Capabilities
   private __requested_features: PicaFeaturesFlat
   private __mathlib: MathLib | null
@@ -131,7 +88,7 @@ export class Pica {
 
     const workerRequested = this.options.features.indexOf('ww') >= 0 || this.options.features.indexOf('all') >= 0
 
-    if (workerRequested && !this.options.workerURL && !WORKER_SRC && !Pica.__workerFactory) {
+    if (workerRequested && !this.options.workerURL && !WORKER_SRC) {
       throw new Error('Pica: cannot use WebWorker without workerURL')
     }
 
@@ -198,16 +155,14 @@ export class Pica {
     }
 
     // Check WebWorker support if requested
-    const createWorker = workerFactory(this.options)
-
-    if (this.capabilities.may_be_worker && features.indexOf('ww') >= 0 && createWorker) {
+    if (this.capabilities.may_be_worker && features.indexOf('ww') >= 0 && (WORKER_SRC || this.options.workerURL)) {
     // pool uniqueness depends on pool config + webworker config
       const wpool_key = `wp_${JSON.stringify(this.options)}`
 
       if (singletones[wpool_key]) {
-        this.__workersPool = singletones[wpool_key] as Pool<WorkerWithObjectURL>
+        this.__workersPool = singletones[wpool_key] as Pool<Worker>
       } else {
-        this.__workersPool = new Pool(createWorkerFabric(createWorker), this.options.idle)
+        this.__workersPool = new Pool(() => this.__createWorkerSlot(), this.options.idle)
         singletones[wpool_key] = this.__workersPool
       }
     }
@@ -248,6 +203,29 @@ export class Pica {
     }
 
     throw new Error('Pica: cannot create canvas')
+  }
+
+  private __createWorkerSlot (): { value: Worker, destroy: () => void } {
+    if (this.options.workerURL) {
+      const worker = new Worker(String(this.options.workerURL))
+      return { value: worker, destroy () { worker.terminate() } }
+    }
+
+    if (WORKER_SRC) {
+      const objectURL = window.URL.createObjectURL(new Blob([WORKER_SRC], { type: 'text/javascript' }))
+      const worker = new Worker(objectURL)
+      return {
+        value: worker,
+        destroy () {
+          worker.terminate()
+          if (typeof window !== 'undefined') {
+            window.URL?.revokeObjectURL?.(objectURL)
+          }
+        }
+      }
+    }
+
+    throw new Error('Pica: no worker source available')
   }
 
   // Call resizer in webworker or locally, depending on config

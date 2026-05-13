@@ -1,16 +1,28 @@
-import type { PoolResource } from './types'
-
 const GC_INTERVAL = 100
 
+// Acquired items
+export interface PoolResource<T> {
+  value: T
+  release: () => void
+}
+
+// Internal storage format
+interface PoolResourceDescriptor<T> {
+  id: number
+  lastUsed: number
+  value: T
+  destroy: () => void
+}
+
 export default class Pool<T> {
-  create: () => Omit<PoolResource<T>, 'id' | 'lastUsed' | 'release'>
-  available: Array<PoolResource<T>>
-  acquired: Record<number, PoolResource<T>>
+  create: () => { value: T, destroy: () => void }
+  available: Array<PoolResourceDescriptor<T>>
+  acquired: Record<number, PoolResourceDescriptor<T>>
   lastId: number
   timeoutId: ReturnType<typeof setTimeout> | 0
   idle: number
 
-  constructor (create: () => Omit<PoolResource<T>, 'id' | 'lastUsed' | 'release'>, idle?: number) {
+  constructor (create: () => { value: T, destroy: () => void }, idle?: number) {
     this.create = create
 
     this.available = []
@@ -22,24 +34,23 @@ export default class Pool<T> {
   }
 
   acquire (): PoolResource<T> {
-    let resource: PoolResource<T>
+    let descriptor: PoolResourceDescriptor<T>
 
     if (this.available.length !== 0) {
-      resource = this.available.pop() as PoolResource<T>
+      descriptor = this.available.pop() as PoolResourceDescriptor<T>
     } else {
-      resource = this.create() as PoolResource<T>
-      resource.id = this.lastId++
-      resource.release = () => this.release(resource)
+      const init = this.create()
+      descriptor = { ...init, id: this.lastId++, lastUsed: 0 }
     }
-    this.acquired[resource.id] = resource
-    return resource
+    this.acquired[descriptor.id] = descriptor
+    return { value: descriptor.value, release: () => this.release(descriptor) }
   }
 
-  release (resource: PoolResource<T>): void {
-    delete this.acquired[resource.id]
+  release (descriptor: PoolResourceDescriptor<T>): void {
+    delete this.acquired[descriptor.id]
 
-    resource.lastUsed = Date.now()
-    this.available.push(resource)
+    descriptor.lastUsed = Date.now()
+    this.available.push(descriptor)
 
     if (this.timeoutId === 0) {
       this.timeoutId = setTimeout(() => this.gc(), GC_INTERVAL)
@@ -49,9 +60,9 @@ export default class Pool<T> {
   gc (): void {
     const now = Date.now()
 
-    this.available = this.available.filter(resource => {
-      if (now - (resource.lastUsed || 0) > this.idle) {
-        resource.destroy()
+    this.available = this.available.filter(descriptor => {
+      if (now - descriptor.lastUsed > this.idle) {
+        descriptor.destroy()
         return false
       }
       return true

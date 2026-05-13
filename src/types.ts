@@ -133,16 +133,4 @@ export type ResizeResult =
 
 export type WorkerFeaturesResult = { data: Capabilities }
 
-export interface WorkerWithObjectURL extends Worker {
-  objectURL?: string
-}
-
-export interface PoolResource<T> {
-  id: number
-  value: T
-  lastUsed?: number
-  release: () => void
-  destroy: () => void
-}
-
 export type Limiter = <T>(fn: () => Promise<T>) => Promise<T>
