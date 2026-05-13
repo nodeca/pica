@@ -51,19 +51,15 @@ export interface ResizeBufferOptions extends _ResizeOptionsCommon {
   dest?: Uint8Array
 }
 
-export interface ResizeSettings {
+export interface ResizeParams {
   filter: Filter
   unsharpAmount: number
   unsharpRadius: number
   unsharpThreshold: number
-}
-
-export interface ResizeStage {
   width: number
   height: number
   toWidth: number
   toHeight: number
-  destTileBorder: number
 }
 
 export interface ResizeContext {
@@ -71,11 +67,7 @@ export interface ResizeContext {
   canceled: boolean
 }
 
-export interface TileResizeJobBase extends ResizeSettings {
-  width: number
-  height: number
-  toWidth: number
-  toHeight: number
+export interface TileResizeJobBase extends ResizeParams {
   scaleX: number
   scaleY: number
   offsetX: number

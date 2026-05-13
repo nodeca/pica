@@ -17,20 +17,21 @@ export type Stage = [width: number, height: number]
 // min size = 1 can consume large amount of memory
 const MIN_INNER_TILE_SIZE = 2
 
+const DEST_TILE_BORDER = 3 // Max possible filter window size
+
 export default function createStages (
   fromWidth: number,
   fromHeight: number,
   toWidth: number,
   toHeight: number,
-  srcTileSize: number,
-  destTileBorder: number
+  srcTileSize: number
 ): Stage[] {
   const scaleX = toWidth / fromWidth
   const scaleY = toHeight / fromHeight
 
   // derived from createRegions equation:
   // innerTileWidth = pixelFloor(srcTileSize * scaleX) - 2 * destTileBorder;
-  const minScale = (2 * destTileBorder + MIN_INNER_TILE_SIZE + 1) / srcTileSize
+  const minScale = (2 * DEST_TILE_BORDER + MIN_INNER_TILE_SIZE + 1) / srcTileSize
 
   // refuse to scale image multiple times by less than twice each time,
   // it could only happen because of invalid options

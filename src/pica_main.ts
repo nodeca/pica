@@ -1,7 +1,7 @@
 import MathLib, { type MathResizeAndUnsharpOptions } from './mathlib'
 import Pool from './pool'
 import * as utils from './utils'
-import createStages, { type Stage } from './stepper'
+import createStages from './stepper'
 import createRegions, { type Tile } from './tiler'
 import * as supported_features from './supported_features'
 import type {
@@ -17,8 +17,7 @@ import type {
   ResizeBufferOptions,
   ResizeContext,
   ResizeFeaturesMap,
-  ResizeSettings,
-  ResizeStage,
+  ResizeParams,
   TileResizeJob,
   TileResizeJobBase,
   ResizeOptions,
@@ -57,7 +56,7 @@ const DEFAULT_PICA_OPTS: ResolvedPicaOptions = {
   idle: 2000,
 }
 
-const DEFAULT_RESIZE_OPTS: ResizeSettings = {
+const DEFAULT_RESIZE_OPTS = {
   filter: 'mks2013',
   unsharpAmount: 0,
   unsharpRadius: 0.0,
@@ -379,8 +378,7 @@ export class Pica {
   private async __tileAndResize (
     from: PicaSource,
     to: PicaCanvas,
-    settings: ResizeSettings,
-    stage: ResizeStage,
+    resizeParams: ResizeParams,
     ctx: ResizeContext
   ): Promise<PicaCanvas> {
     const stageEnv: StageEnv = {
@@ -402,10 +400,10 @@ export class Pica {
         scaleY: tile.scaleY,
         offsetX: tile.offsetX,
         offsetY: tile.offsetY,
-        filter: settings.filter,
-        unsharpAmount: settings.unsharpAmount,
-        unsharpRadius: settings.unsharpRadius,
-        unsharpThreshold: settings.unsharpThreshold
+        filter: resizeParams.filter,
+        unsharpAmount: resizeParams.unsharpAmount,
+        unsharpRadius: resizeParams.unsharpRadius,
+        unsharpThreshold: resizeParams.unsharpThreshold
       }
 
       this.debug('Invoke resize math')
@@ -456,12 +454,12 @@ export class Pica {
     //
 
     const regions = createRegions({
-      width: stage.width,
-      height: stage.height,
+      width: resizeParams.width,
+      height: resizeParams.height,
       srcTileSize: this.options.tile,
-      toWidth: stage.toWidth,
-      toHeight: stage.toHeight,
-      destTileBorder: stage.destTileBorder
+      toWidth: resizeParams.toWidth,
+      toHeight: resizeParams.toHeight,
+      destTileBorder: Math.ceil(Math.max(3, 2.5 * resizeParams.unsharpRadius | 0))
     })
 
     const jobs = regions.map(tile => processTile(tile))
@@ -487,15 +485,22 @@ export class Pica {
   }
 
   private async __processStages (
-    stages: Stage[],
     from: PicaSource,
     to: PicaCanvas,
-    settings: ResizeSettings,
-    stage: ResizeStage,
+    resizeParams: ResizeParams,
     ctx: ResizeContext
   ): Promise<PicaCanvas> {
-    let currentFrom: PicaSource = from
-    let currentStage: ResizeStage = stage
+    let src: PicaSource = from
+    let srcWidth = resizeParams.width
+    let srcHeight = resizeParams.height
+
+    const stages = createStages(
+      resizeParams.width,
+      resizeParams.height,
+      resizeParams.toWidth,
+      resizeParams.toHeight,
+      this.options.tile
+    )
 
     while (stages.length > 0) {
       if (ctx.canceled) return ctx.cancelToken as Promise<PicaCanvas>
@@ -511,26 +516,26 @@ export class Pica {
       // For advanced filters (mks2013 and custom) - skip optimization,
       // because need to apply sharpening every time
       let filter: Filter
-      if (isLastStage || !utils.is_cib_filter(settings.filter)) filter = settings.filter
-      else if (settings.filter === 'box') filter = 'box'
+      if (isLastStage || !utils.is_cib_filter(resizeParams.filter)) filter = resizeParams.filter
+      else if (resizeParams.filter === 'box') filter = 'box'
       else filter = 'hamming'
 
-      const stageSettings = Object.assign({}, settings, { filter })
-      const thisStage = Object.assign({}, currentStage, { toWidth, toHeight })
+      const stageParams: ResizeParams = { ...resizeParams, filter, width: srcWidth, height: srcHeight, toWidth, toHeight }
       const dest = isLastStage ? to : this.createCanvas(toWidth, toHeight, { preferOffscreen: true })
 
       // Previous intermediate canvas (not the original `from`) can be freed after use
-      const prevTmp = currentFrom !== from ? currentFrom as PicaCanvas : undefined
+      const prevTmp = src !== from ? src as PicaCanvas : undefined
 
       try {
-        await this.__tileAndResize(currentFrom, dest, stageSettings, thisStage, ctx)
+        await this.__tileAndResize(src, dest, stageParams, ctx)
       } finally {
         // Safari 12 workaround: https://github.com/nodeca/pica/issues/199
         if (prevTmp) prevTmp.width = prevTmp.height = 0
       }
 
-      currentFrom = dest
-      currentStage = Object.assign({}, thisStage, { width: toWidth, height: toHeight })
+      src = dest
+      srcWidth = toWidth
+      srcHeight = toHeight
     }
 
     return to
@@ -539,8 +544,7 @@ export class Pica {
   private async __resizeViaCreateImageBitmap (
     from: PicaSource,
     to: PicaCanvas,
-    settings: ResizeSettings,
-    stage: ResizeStage,
+    resizeParams: ResizeParams,
     ctx: ResizeContext
   ): Promise<PicaCanvas> {
     let toCtx: PicaCanvasCtx | null = to.getContext('2d') as PicaCanvasCtx
@@ -548,14 +552,14 @@ export class Pica {
     this.debug('Resize via createImageBitmap()')
 
     const imageBitmap = await createImageBitmap(from, {
-      resizeWidth: stage.toWidth,
-      resizeHeight: stage.toHeight,
-      resizeQuality: utils.cib_quality_name(utils.filter_to_cib_quality(settings.filter) ?? 3)
+      resizeWidth: resizeParams.toWidth,
+      resizeHeight: resizeParams.toHeight,
+      resizeQuality: utils.cib_quality_name(utils.filter_to_cib_quality(resizeParams.filter) ?? 3)
     })
     if (ctx.canceled) return ctx.cancelToken as Promise<PicaCanvas>
 
     // if no unsharp - draw directly to output canvas
-    if (!settings.unsharpAmount) {
+    if (!resizeParams.unsharpAmount) {
       toCtx.drawImage(imageBitmap, 0, 0)
       imageBitmap.close()
       toCtx = null
@@ -567,22 +571,22 @@ export class Pica {
 
     this.debug('Unsharp result')
 
-    let tmpCanvas: PicaCanvas | null = this.createCanvas(stage.toWidth, stage.toHeight)
+    let tmpCanvas: PicaCanvas | null = this.createCanvas(resizeParams.toWidth, resizeParams.toHeight)
 
     let tmpCtx: PicaCanvasCtx | null = tmpCanvas.getContext('2d') as PicaCanvasCtx
 
     tmpCtx.drawImage(imageBitmap, 0, 0)
     imageBitmap.close()
 
-    let iData: ImageData | null = tmpCtx.getImageData(0, 0, stage.toWidth, stage.toHeight)
+    let iData: ImageData | null = tmpCtx.getImageData(0, 0, resizeParams.toWidth, resizeParams.toHeight)
 
     this.__mathlib!.unsharp_mask(
       iData.data,
-      stage.toWidth,
-      stage.toHeight,
-      settings.unsharpAmount,
-      settings.unsharpRadius,
-      settings.unsharpThreshold
+      resizeParams.toWidth,
+      resizeParams.toHeight,
+      resizeParams.unsharpAmount,
+      resizeParams.unsharpRadius,
+      resizeParams.unsharpThreshold
     )
 
     toCtx.putImageData(iData, 0, 0)
@@ -611,12 +615,7 @@ export class Pica {
       Object.assign(requested, options)
     }
 
-    const settings: ResizeSettings = {
-      filter: requested.filter || DEFAULT_RESIZE_OPTS.filter,
-      unsharpAmount: requested.unsharpAmount || DEFAULT_RESIZE_OPTS.unsharpAmount,
-      unsharpRadius: requested.unsharpRadius || DEFAULT_RESIZE_OPTS.unsharpRadius,
-      unsharpThreshold: requested.unsharpThreshold || DEFAULT_RESIZE_OPTS.unsharpThreshold
-    }
+    let filter: Filter = (requested.filter || DEFAULT_RESIZE_OPTS.filter) as Filter
 
     // Legacy `.quality` option
     if (Object.prototype.hasOwnProperty.call(requested, 'quality')) {
@@ -624,23 +623,26 @@ export class Pica {
       if (typeof quality !== 'number' || quality < 0 || quality > 3) {
         throw new Error(`Pica: .quality should be [0..3], got ${quality}`)
       }
-      settings.filter = utils.cib_quality_filter(quality)
+      filter = utils.cib_quality_filter(quality)
     }
 
-    const stage: ResizeStage = {
+    const resizeParams: ResizeParams = {
+      filter,
+      unsharpAmount: requested.unsharpAmount || DEFAULT_RESIZE_OPTS.unsharpAmount,
+      unsharpRadius: requested.unsharpRadius || DEFAULT_RESIZE_OPTS.unsharpRadius,
+      unsharpThreshold: requested.unsharpThreshold || DEFAULT_RESIZE_OPTS.unsharpThreshold,
       width: utils.isImage(from) ? from.naturalWidth : from.width,
       height: utils.isImage(from) ? from.naturalHeight : from.height,
       toWidth: to.width,
-      toHeight: to.height,
-      destTileBorder: 0
+      toHeight: to.height
     }
+
+    if (resizeParams.unsharpRadius > 2) resizeParams.unsharpRadius = 2
 
     // Prevent stepper from infinite loop
     if (to.width === 0 || to.height === 0) {
       return Promise.reject(new Error(`Invalid output size: ${to.width}x${to.height}`))
     }
-
-    if (settings.unsharpRadius > 2) settings.unsharpRadius = 2
 
     const ctx: ResizeContext = {
       cancelToken: requested.cancelToken,
@@ -655,9 +657,6 @@ export class Pica {
       )
     }
 
-    const DEST_TILE_BORDER = 3 // Max possible filter window size
-    stage.destTileBorder = Math.ceil(Math.max(DEST_TILE_BORDER, 2.5 * settings.unsharpRadius|0))
-
     await this.init()
 
     if (ctx.canceled) return ctx.cancelToken as Promise<TCanvas>
@@ -666,8 +665,8 @@ export class Pica {
     // Exif orientation in Chrome. Enforce canvas use for such inputs.
     // see https://bugs.chromium.org/p/chromium/issues/detail?id=1220671
     if (this.capabilities.bug_image_bitmap_orientation_region &&
-      (utils.isImage(from) || (utils.isImageBitmap(from)))) {
-      const tmpCanvas = this.createCanvas(stage.width, stage.height)
+        (utils.isImage(from) || (utils.isImageBitmap(from)))) {
+      const tmpCanvas = this.createCanvas(resizeParams.width, resizeParams.height)
       const tmpCtx = tmpCanvas.getContext('2d') as PicaCanvasCtx
       tmpCtx.drawImage(from, 0, 0)
       from = tmpCanvas
@@ -675,8 +674,8 @@ export class Pica {
 
     // if createImageBitmap supports resize, just do it and return
     if (this.resize_features.cib) {
-      if (utils.is_cib_filter(settings.filter)) {
-        return this.__resizeViaCreateImageBitmap(from, to, settings, stage, ctx) as Promise<TCanvas>
+      if (utils.is_cib_filter(resizeParams.filter)) {
+        return this.__resizeViaCreateImageBitmap(from, to, resizeParams, ctx) as Promise<TCanvas>
       }
 
       this.debug('cib is enabled, but not supports provided filter, fallback to manual math')
@@ -694,16 +693,7 @@ export class Pica {
     // No easy way, let's resize manually via arrays
     //
 
-    const stages = createStages(
-      stage.width,
-      stage.height,
-      stage.toWidth,
-      stage.toHeight,
-      this.options.tile,
-      stage.destTileBorder
-    )
-
-    return this.__processStages(stages, from, to, settings, stage, ctx) as Promise<TCanvas>
+    return this.__processStages(from, to, resizeParams, ctx) as Promise<TCanvas>
   }
 
   // RGBA buffer resize
