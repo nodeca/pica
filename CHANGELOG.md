@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   external bundlers
 - Removed deprecated numeric `quality` argument from `resize(from, to, quality)`.
   Use `resize(from, to, { quality })` or `filter` option instead.
+- Removed implicit pool/limiter sharing between multiple `Pica` instances.
+  Create a single instance and reuse it.
 
 
 ## [9.0.1] - 2021-12-14

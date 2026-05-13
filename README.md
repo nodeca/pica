@@ -153,7 +153,8 @@ Result is Promise, resolved with `to` on success.
 
 __(!)__ If you need to process multiple images, do it
 sequentially to optimize CPU & memory use. Pica already knows
-how to use multiple cores (if browser allows).
+how to use multiple cores (if browser allows). Create a single
+`Pica` instance and reuse it across calls.
 
 
 ### .toBlob(canvas, mimeType [, quality]) -> Promise

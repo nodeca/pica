@@ -45,12 +45,6 @@ declare const __PICA_WORKER_SRC__: string | undefined
 
 const WORKER_SRC = typeof __PICA_WORKER_SRC__ !== 'undefined' ? __PICA_WORKER_SRC__ : ''
 
-// Deduplicate pools & limiters with the same configs
-// when user creates multiple pica instances.
-type Singleton = Limiter | Pool<Worker>
-
-const singletones: Record<string, Singleton> = {}
-
 let concurrency = 1
 if (typeof navigator !== 'undefined') {
   concurrency = Math.min(navigator.hardwareConcurrency || 1, 4)
@@ -92,13 +86,7 @@ export class Pica {
       throw new Error('Pica: cannot use WebWorker without workerURL')
     }
 
-    const limiter_key = `lk_${this.options.concurrency}`
-
-    // Share limiters to avoid multiple parallel workers when user creates
-    // multiple pica instances.
-    this.__limit = singletones[limiter_key] as Limiter || utils.limiter(this.options.concurrency)
-
-    if (!singletones[limiter_key]) singletones[limiter_key] = this.__limit
+    this.__limit = utils.limiter(this.options.concurrency)
 
     // List of enabled resize methods, according to options & browser/node.js
     this.resize_features = {
@@ -156,15 +144,7 @@ export class Pica {
 
     // Check WebWorker support if requested
     if (this.capabilities.may_be_worker && features.indexOf('ww') >= 0 && (WORKER_SRC || this.options.workerURL)) {
-    // pool uniqueness depends on pool config + webworker config
-      const wpool_key = `wp_${JSON.stringify(this.options)}`
-
-      if (singletones[wpool_key]) {
-        this.__workersPool = singletones[wpool_key] as Pool<Worker>
-      } else {
-        this.__workersPool = new Pool(() => this.__createWorkerSlot(), this.options.idle)
-        singletones[wpool_key] = this.__workersPool
-      }
+      this.__workersPool = new Pool(() => this.__createWorkerSlot(), this.options.idle)
     }
 
     if (this.__workersPool) {
