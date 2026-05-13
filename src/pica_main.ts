@@ -494,59 +494,46 @@ export class Pica {
     stage: ResizeStage,
     ctx: ResizeContext
   ): Promise<PicaCanvas> {
-    if (ctx.canceled) return ctx.cancelToken as Promise<PicaCanvas>
+    let currentFrom: PicaSource = from
+    let currentStage: ResizeStage = stage
 
-    const [toWidth, toHeight] = stages.shift()!
+    while (stages.length > 0) {
+      if (ctx.canceled) return ctx.cancelToken as Promise<PicaCanvas>
 
-    const isLastStage = (stages.length === 0)
+      const [toWidth, toHeight] = stages.shift()!
+      const isLastStage = stages.length === 0
 
-    // Optimization for legacy filters -
-    // only use user-defined quality for the last stage,
-    // use simpler (Hamming) filter for the first stages where
-    // scale factor is large enough (more than 2-3)
-    //
-    // For advanced filters (mks2013 and custom) - skip optimization,
-    // because need to apply sharpening every time
-    let filter: Filter
+      // Optimization for legacy filters -
+      // only use user-defined quality for the last stage,
+      // use simpler (Hamming) filter for the first stages where
+      // scale factor is large enough (more than 2-3)
+      //
+      // For advanced filters (mks2013 and custom) - skip optimization,
+      // because need to apply sharpening every time
+      let filter: Filter
+      if (isLastStage || !utils.is_cib_filter(settings.filter)) filter = settings.filter
+      else if (settings.filter === 'box') filter = 'box'
+      else filter = 'hamming'
 
-    if (isLastStage || !utils.is_cib_filter(settings.filter)) filter = settings.filter
-    else if (settings.filter === 'box') filter = 'box'
-    else filter = 'hamming'
+      const stageSettings = Object.assign({}, settings, { filter })
+      const thisStage = Object.assign({}, currentStage, { toWidth, toHeight })
+      const dest = isLastStage ? to : this.createCanvas(toWidth, toHeight, { preferOffscreen: true })
 
-    const stageSettings = Object.assign({}, settings, {
-      filter
-    })
+      // Previous intermediate canvas (not the original `from`) can be freed after use
+      const prevTmp = currentFrom !== from ? currentFrom as PicaCanvas : undefined
 
-    const currentStage = Object.assign({}, stage, {
-      toWidth,
-      toHeight
-    })
-
-    let tmpCanvas: PicaCanvas | undefined
-
-    if (!isLastStage) {
-    // create temporary canvas
-      tmpCanvas = this.createCanvas(toWidth, toHeight, { preferOffscreen: true })
-    }
-
-    try {
-      await this.__tileAndResize(from, (isLastStage ? to : tmpCanvas)!, stageSettings, currentStage, ctx)
-
-      if (isLastStage) return to
-
-      const nextStage = Object.assign({}, currentStage, {
-        width: toWidth,
-        height: toHeight
-      })
-
-      return await this.__processStages(stages, tmpCanvas!, to, stageSettings, nextStage, ctx)
-    } finally {
-      if (tmpCanvas) {
-      // Safari 12 workaround
-      // https://github.com/nodeca/pica/issues/199
-        tmpCanvas.width = tmpCanvas.height = 0
+      try {
+        await this.__tileAndResize(currentFrom, dest, stageSettings, thisStage, ctx)
+      } finally {
+        // Safari 12 workaround: https://github.com/nodeca/pica/issues/199
+        if (prevTmp) prevTmp.width = prevTmp.height = 0
       }
+
+      currentFrom = dest
+      currentStage = Object.assign({}, thisStage, { width: toWidth, height: toHeight })
     }
+
+    return to
   }
 
   private async __resizeViaCreateImageBitmap (
