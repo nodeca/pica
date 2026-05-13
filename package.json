@@ -29,6 +29,16 @@
   "homepage": "https://github.com/nodeca/pica",
   "license": "MIT",
   "repository": "nodeca/pica",
+  "funding": [
+    {
+      "type": "github",
+      "url": "https://github.com/sponsors/puzrin"
+    },
+    {
+      "type": "github",
+      "url": "https://github.com/sponsors/nodeca"
+    }
+  ],
   "scripts": {
     "test": "npm run lint && npm run type-check && npm run build && npm run test:unit && vitest run --project browser && vitest run --project dist",
     "test:unit": "vitest run --project unit",
