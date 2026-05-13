@@ -484,7 +484,7 @@ export class Pica {
     }
   }
 
-  private async __processStages (
+  private async __planStagesAndResize (
     from: PicaSource,
     to: PicaCanvas,
     resizeParams: ResizeParams,
@@ -693,7 +693,7 @@ export class Pica {
     // No easy way, let's resize manually via arrays
     //
 
-    return this.__processStages(from, to, resizeParams, ctx) as Promise<TCanvas>
+    return this.__planStagesAndResize(from, to, resizeParams, ctx) as Promise<TCanvas>
   }
 
   // RGBA buffer resize
