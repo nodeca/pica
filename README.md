@@ -259,9 +259,20 @@ We didn't have time to test all possible combinations, but in general:
 - If you plan to use only pure math core,
   then [typed arrays support](http://caniuse.com/#feat=typedarrays) will be enough.
 
-__Note.__ Though you can run this package on `node.js`, browsers
-are the main target platform. On the server side we recommend using
-[sharp](https://github.com/lovell/sharp).
+__Note.__ Browsers are the main target platform. For Node.js we strongly
+recommend [sharp](https://github.com/lovell/sharp) — it is faster and
+produces better quality. If you really need pica in Node.js anyway, it can
+run in a limited mode (no WebWorkers) by exposing an external canvas library
+as the global `OffscreenCanvas`. This is not recommended.
+
+```js
+import { Canvas } from '@napi-rs/canvas'; // or any other canvas library
+import pica from 'pica';
+
+global.OffscreenCanvas = Canvas;
+
+const resizer = pica(); // WebWorkers will not be used
+```
 
 
 References

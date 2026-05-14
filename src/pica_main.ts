@@ -681,7 +681,7 @@ export class Pica {
       this.debug('cib is enabled, but not supports provided filter, fallback to manual math')
     }
 
-    if (!this.capabilities.canvas) {
+    if (!this.capabilities.canvas && !this.capabilities.offscreen_canvas) {
       const err = new Error('Pica: cannot use getImageData on canvas, ' +
                         "make sure fingerprinting protection isn't enabled")
       // @ts-ignore
