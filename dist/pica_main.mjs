@@ -397,10 +397,13 @@ function unsharp(img, width, height, amount, radius, threshold) {
 	const img32 = new Uint32Array(img.buffer);
 	new Uint32Array(this.__memory.buffer).set(img32);
 	let fn = instance.exports.hsv_v16 || instance.exports._hsv_v16;
+	if (!fn) throw new Error("WASM hsv_v16 function is not available");
 	fn(img_offset, hsv_offset, width, height);
 	fn = instance.exports.blurMono16 || instance.exports._blurMono16;
+	if (!fn) throw new Error("WASM blurMono16 function is not available");
 	fn(hsv_offset, blur_offset, blur_tmp_offset, blur_line_offset, blur_coeffs_offset, width, height, radius);
 	fn = instance.exports.unsharp || instance.exports._unsharp;
+	if (!fn) throw new Error("WASM unsharp function is not available");
 	fn(img_offset, img_offset, hsv_offset, blur_offset, width, height, amount, threshold);
 	img32.set(new Uint32Array(this.__memory.buffer, 0, pixels));
 }
@@ -410,69 +413,55 @@ var mm_unsharp_mask_default = {
 	wasm_fn: unsharp,
 	wasm_src: "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"
 };
-var resize_filter_info_default = {
-	filter: {
-		box: {
-			win: .5,
-			fn(x) {
-				if (x < 0) x = -x;
-				return x < .5 ? 1 : 0;
-			}
-		},
-		hamming: {
-			win: 1,
-			fn(x) {
-				if (x < 0) x = -x;
-				if (x >= 1) return 0;
-				if (x < 1.1920929e-7) return 1;
-				const xpi = x * Math.PI;
-				return Math.sin(xpi) / xpi * (.54 + .46 * Math.cos(xpi / 1));
-			}
-		},
-		lanczos2: {
-			win: 2,
-			fn(x) {
-				if (x < 0) x = -x;
-				if (x >= 2) return 0;
-				if (x < 1.1920929e-7) return 1;
-				const xpi = x * Math.PI;
-				return Math.sin(xpi) / xpi * Math.sin(xpi / 2) / (xpi / 2);
-			}
-		},
-		lanczos3: {
-			win: 3,
-			fn(x) {
-				if (x < 0) x = -x;
-				if (x >= 3) return 0;
-				if (x < 1.1920929e-7) return 1;
-				const xpi = x * Math.PI;
-				return Math.sin(xpi) / xpi * Math.sin(xpi / 3) / (xpi / 3);
-			}
-		},
-		mks2013: {
-			win: 2.5,
-			fn(x) {
-				if (x < 0) x = -x;
-				if (x >= 2.5) return 0;
-				if (x >= 1.5) return -.125 * (x - 2.5) * (x - 2.5);
-				if (x >= .5) return .25 * (4 * x * x - 11 * x + 7);
-				return 1.0625 - 1.75 * x * x;
-			}
+var resize_filter_info_default = { filter: {
+	box: {
+		win: .5,
+		fn(x) {
+			if (x < 0) x = -x;
+			return x < .5 ? 1 : 0;
 		}
 	},
-	f2q: {
-		box: 0,
-		hamming: 1,
-		lanczos2: 2,
-		lanczos3: 3
+	hamming: {
+		win: 1,
+		fn(x) {
+			if (x < 0) x = -x;
+			if (x >= 1) return 0;
+			if (x < 1.1920929e-7) return 1;
+			const xpi = x * Math.PI;
+			return Math.sin(xpi) / xpi * (.54 + .46 * Math.cos(xpi / 1));
+		}
 	},
-	q2f: [
-		"box",
-		"hamming",
-		"lanczos2",
-		"lanczos3"
-	]
-};
+	lanczos2: {
+		win: 2,
+		fn(x) {
+			if (x < 0) x = -x;
+			if (x >= 2) return 0;
+			if (x < 1.1920929e-7) return 1;
+			const xpi = x * Math.PI;
+			return Math.sin(xpi) / xpi * Math.sin(xpi / 2) / (xpi / 2);
+		}
+	},
+	lanczos3: {
+		win: 3,
+		fn(x) {
+			if (x < 0) x = -x;
+			if (x >= 3) return 0;
+			if (x < 1.1920929e-7) return 1;
+			const xpi = x * Math.PI;
+			return Math.sin(xpi) / xpi * Math.sin(xpi / 3) / (xpi / 3);
+		}
+	},
+	mks2013: {
+		win: 2.5,
+		fn(x) {
+			if (x < 0) x = -x;
+			if (x >= 2.5) return 0;
+			if (x >= 1.5) return -.125 * (x - 2.5) * (x - 2.5);
+			if (x >= .5) return .25 * (4 * x * x - 11 * x + 7);
+			return 1.0625 - 1.75 * x * x;
+		}
+	}
+} };
 var FIXED_FRAC_BITS = 14;
 function toFixedPoint(num) {
 	return Math.round(num * ((1 << FIXED_FRAC_BITS) - 1));
@@ -781,6 +770,7 @@ function resize_wasm(options) {
 	copyInt16asLE(filtersX, mem, filtersX_offset);
 	copyInt16asLE(filtersY, mem, filtersY_offset);
 	const fn = instance.exports.convolveHV || instance.exports._convolveHV;
+	if (!fn) throw new Error("WASM resize function is not available");
 	if (hasAlpha(src, srcW, srcH)) fn(filtersX_offset, filtersY_offset, tmp_offset, srcW, srcH, destW, destH, 1);
 	else {
 		fn(filtersX_offset, filtersY_offset, tmp_offset, srcW, srcH, destW, destH, 0);
@@ -810,15 +800,72 @@ var MathLib = class extends import_multimath.default {
 		this.use(mm_unsharp_mask_default);
 		this.use(mm_resize_default);
 	}
-	resizeAndUnsharp(options, cache) {
-		const result = this.resize(options, cache);
+	resizeAndUnsharp(options) {
+		const result = this.resize(options);
 		if (options.unsharpAmount) this.unsharp_mask(result, options.toWidth, options.toHeight, options.unsharpAmount, options.unsharpRadius, options.unsharpThreshold);
 		return result;
 	}
 };
+function _typeof(o) {
+	"@babel/helpers - typeof";
+	return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function(o) {
+		return typeof o;
+	} : function(o) {
+		return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o;
+	}, _typeof(o);
+}
+function toPrimitive(t, r) {
+	if ("object" != _typeof(t) || !t) return t;
+	var e = t[Symbol.toPrimitive];
+	if (void 0 !== e) {
+		var i = e.call(t, r || "default");
+		if ("object" != _typeof(i)) return i;
+		throw new TypeError("@@toPrimitive must return a primitive value.");
+	}
+	return ("string" === r ? String : Number)(t);
+}
+function toPropertyKey(t) {
+	var i = toPrimitive(t, "string");
+	return "symbol" == _typeof(i) ? i : i + "";
+}
+function _defineProperty(e, r, t) {
+	return (r = toPropertyKey(r)) in e ? Object.defineProperty(e, r, {
+		value: t,
+		enumerable: !0,
+		configurable: !0,
+		writable: !0
+	}) : e[r] = t, e;
+}
+function ownKeys(e, r) {
+	var t = Object.keys(e);
+	if (Object.getOwnPropertySymbols) {
+		var o = Object.getOwnPropertySymbols(e);
+		r && (o = o.filter(function(r) {
+			return Object.getOwnPropertyDescriptor(e, r).enumerable;
+		})), t.push.apply(t, o);
+	}
+	return t;
+}
+function _objectSpread2(e) {
+	for (var r = 1; r < arguments.length; r++) {
+		var t = null != arguments[r] ? arguments[r] : {};
+		r % 2 ? ownKeys(Object(t), !0).forEach(function(r) {
+			_defineProperty(e, r, t[r]);
+		}) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function(r) {
+			Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r));
+		});
+	}
+	return e;
+}
 var GC_INTERVAL = 100;
 var Pool = class {
 	constructor(create, idle) {
+		_defineProperty(this, "create", void 0);
+		_defineProperty(this, "available", void 0);
+		_defineProperty(this, "acquired", void 0);
+		_defineProperty(this, "lastId", void 0);
+		_defineProperty(this, "timeoutId", void 0);
+		_defineProperty(this, "idle", void 0);
 		this.create = create;
 		this.available = [];
 		this.acquired = {};
@@ -827,27 +874,29 @@ var Pool = class {
 		this.idle = idle || 2e3;
 	}
 	acquire() {
-		let resource;
-		if (this.available.length !== 0) resource = this.available.pop();
-		else {
-			resource = this.create();
-			resource.id = this.lastId++;
-			resource.release = () => this.release(resource);
-		}
-		this.acquired[resource.id] = resource;
-		return resource;
+		let descriptor;
+		if (this.available.length !== 0) descriptor = this.available.pop();
+		else descriptor = _objectSpread2(_objectSpread2({}, this.create()), {}, {
+			id: this.lastId++,
+			lastUsed: 0
+		});
+		this.acquired[descriptor.id] = descriptor;
+		return {
+			value: descriptor.value,
+			release: () => this.release(descriptor)
+		};
 	}
-	release(resource) {
-		delete this.acquired[resource.id];
-		resource.lastUsed = Date.now();
-		this.available.push(resource);
+	release(descriptor) {
+		delete this.acquired[descriptor.id];
+		descriptor.lastUsed = Date.now();
+		this.available.push(descriptor);
 		if (this.timeoutId === 0) this.timeoutId = setTimeout(() => this.gc(), GC_INTERVAL);
 	}
 	gc() {
 		const now = Date.now();
-		this.available = this.available.filter((resource) => {
-			if (now - resource.lastUsed > this.idle) {
-				resource.destroy();
+		this.available = this.available.filter((descriptor) => {
+			if (now - descriptor.lastUsed > this.idle) {
+				descriptor.destroy();
 				return false;
 			}
 			return true;
@@ -857,25 +906,27 @@ var Pool = class {
 	}
 };
 function objClass(obj) {
-	return Object.prototype.toString.call(obj);
+	var _obj$constructor$name, _obj$constructor;
+	return (_obj$constructor$name = obj === null || obj === void 0 || (_obj$constructor = obj.constructor) === null || _obj$constructor === void 0 ? void 0 : _obj$constructor.name) !== null && _obj$constructor$name !== void 0 ? _obj$constructor$name : "";
 }
 function isCanvas(element) {
 	const cname = objClass(element);
-	return cname === "[object HTMLCanvasElement]" || cname === "[object OffscreenCanvas]" || cname === "[object Canvas]";
+	return cname === "HTMLCanvasElement" || cname === "OffscreenCanvas" || cname === "Canvas" || cname === "CanvasElement";
 }
 function isImage(element) {
-	return objClass(element) === "[object HTMLImageElement]";
+	return objClass(element) === "HTMLImageElement";
 }
 function isImageBitmap(element) {
-	return objClass(element) === "[object ImageBitmap]";
+	return objClass(element) === "ImageBitmap";
 }
 function limiter(concurrency) {
 	let active = 0;
 	const queue = [];
 	function roll() {
 		if (active < concurrency && queue.length) {
+			var _queue$shift;
 			active++;
-			queue.shift()();
+			(_queue$shift = queue.shift()) === null || _queue$shift === void 0 || _queue$shift();
 		}
 	}
 	return function limit(fn) {
@@ -903,11 +954,28 @@ function cib_quality_name(num) {
 	}
 	return "high";
 }
+var CIB_QUALITY_FILTERS = [
+	"box",
+	"hamming",
+	"lanczos2",
+	"lanczos3"
+];
+function cib_quality_filter(num) {
+	return CIB_QUALITY_FILTERS[num];
+}
+function is_cib_filter(filter) {
+	return CIB_QUALITY_FILTERS.indexOf(filter) >= 0;
+}
+function filter_to_cib_quality(filter) {
+	const index = CIB_QUALITY_FILTERS.indexOf(filter);
+	return index >= 0 ? index : void 0;
+}
 var MIN_INNER_TILE_SIZE = 2;
-function createStages(fromWidth, fromHeight, toWidth, toHeight, srcTileSize, destTileBorder) {
+var DEST_TILE_BORDER = 3;
+function createStages(fromWidth, fromHeight, toWidth, toHeight, srcTileSize) {
 	const scaleX = toWidth / fromWidth;
 	const scaleY = toHeight / fromHeight;
-	const minScale = (2 * destTileBorder + MIN_INNER_TILE_SIZE + 1) / srcTileSize;
+	const minScale = (2 * DEST_TILE_BORDER + MIN_INNER_TILE_SIZE + 1) / srcTileSize;
 	if (minScale > .5) return [[toWidth, toHeight]];
 	const stageCount = Math.ceil(Math.log(Math.min(scaleX, scaleY)) / Math.log(minScale));
 	if (stageCount <= 1) return [[toWidth, toHeight]];
@@ -971,7 +1039,7 @@ function createRegions(options) {
 	}
 	return tiles;
 }
-var ORIENTED_JPEG_BASE64 = "/9j/4QAiRXhpZgAATU0AKgAAAAgAAQESAAMAAAABAAYAAAAAAAD/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/wAALCAACAAMBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABsQAAMBAQADAAAAAAAAAAAAAAECAwQFABEx/9oACAEBAAA/AC06fW6va0ps7PT179E88MiV02arrCEkjGQZiSEnKc5ovxURVHoADz//2Q==";
+var ORIENTED_JPEG_BASE64 = "/9j/4QAiRXhpZgAATU0AKgAAAAgAAQESAAMAAAABAAYAAAAAAAD/4AAQskZJRgABAQAAAQABAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/wAALCAACAAMBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABsQAAMBAQADAAAAAAAAAAAAAAECAwQFABEx/9oACAEBAAA/AC06fW6va0ps7PT179E88MiV02arrCEkjGQZiSEnKc5ovxURVHoADz//2Q==";
 var features = {
 	canvas: false,
 	offscreen_canvas: false,
@@ -1035,7 +1103,7 @@ function check_may_be_worker() {
 }
 function check_safari_put_image_data_fix() {
 	try {
-		return typeof navigator !== "undefined" && navigator.userAgent && navigator.userAgent.indexOf("Safari") >= 0 && navigator.userAgent.indexOf("Chrome") < 0;
+		return !!(typeof navigator !== "undefined" && navigator.userAgent && navigator.userAgent.indexOf("Safari") >= 0 && navigator.userAgent.indexOf("Chrome") < 0);
 	} catch (__) {
 		return false;
 	}
@@ -1190,37 +1258,6 @@ function _asyncToGenerator(n) {
 		});
 	};
 }
-function _typeof(o) {
-	"@babel/helpers - typeof";
-	return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function(o) {
-		return typeof o;
-	} : function(o) {
-		return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o;
-	}, _typeof(o);
-}
-function toPrimitive(t, r) {
-	if ("object" != _typeof(t) || !t) return t;
-	var e = t[Symbol.toPrimitive];
-	if (void 0 !== e) {
-		var i = e.call(t, r || "default");
-		if ("object" != _typeof(i)) return i;
-		throw new TypeError("@@toPrimitive must return a primitive value.");
-	}
-	return ("string" === r ? String : Number)(t);
-}
-function toPropertyKey(t) {
-	var i = toPrimitive(t, "string");
-	return "symbol" == _typeof(i) ? i : i + "";
-}
-function _defineProperty(e, r, t) {
-	return (r = toPropertyKey(r)) in e ? Object.defineProperty(e, r, {
-		value: t,
-		enumerable: !0,
-		configurable: !0,
-		writable: !0
-	}) : e[r] = t, e;
-}
-var singletones = {};
 var concurrency = 1;
 if (typeof navigator !== "undefined") concurrency = Math.min(navigator.hardwareConcurrency || 1, 4);
 var DEFAULT_PICA_OPTS = {
@@ -1231,14 +1268,7 @@ var DEFAULT_PICA_OPTS = {
 		"wasm",
 		"ww"
 	],
-	idle: 2e3,
-	workerURL: null,
-	createCanvas(width, height) {
-		const tmpCanvas = document.createElement("canvas");
-		tmpCanvas.width = width;
-		tmpCanvas.height = height;
-		return tmpCanvas;
-	}
+	idle: 2e3
 };
 var DEFAULT_RESIZE_OPTS = {
 	filter: "mks2013",
@@ -1246,34 +1276,19 @@ var DEFAULT_RESIZE_OPTS = {
 	unsharpRadius: 0,
 	unsharpThreshold: 0
 };
-function createWorkerFabric(createWorker) {
-	return function workerFabric() {
-		return {
-			value: createWorker(),
-			destroy() {
-				this.value.terminate();
-				if (typeof window !== "undefined") {
-					const url = window.URL || window.webkitURL || window.mozURL || window.msURL;
-					if (url && url.revokeObjectURL && this.value.objectURL) url.revokeObjectURL(this.value.objectURL);
-				}
-			}
-		};
-	};
-}
-function workerFactory(options) {
-	if (Pica.__workerFactory) return Pica.__workerFactory;
-	if (!options.workerURL) return null;
-	return function() {
-		return new Worker(String(options.workerURL));
-	};
-}
-var Pica = class Pica {
+var Pica = class {
 	constructor(options) {
+		_defineProperty(this, "options", void 0);
+		_defineProperty(this, "__limit", void 0);
+		_defineProperty(this, "resize_features", void 0);
+		_defineProperty(this, "__workersPool", void 0);
+		_defineProperty(this, "capabilities", void 0);
+		_defineProperty(this, "__requested_features", void 0);
+		_defineProperty(this, "__mathlib", void 0);
+		_defineProperty(this, "__initPromise", void 0);
 		this.options = Object.assign({}, DEFAULT_PICA_OPTS, options || {});
-		if ((this.options.features.indexOf("ww") >= 0 || this.options.features.indexOf("all") >= 0) && !this.options.workerURL && !Pica.__workerFactory) throw new Error("Pica: cannot use WebWorker without workerURL");
-		const limiter_key = `lk_${this.options.concurrency}`;
-		this.__limit = singletones[limiter_key] || limiter(this.options.concurrency);
-		if (!singletones[limiter_key]) singletones[limiter_key] = this.__limit;
+		if ((this.options.features.indexOf("ww") >= 0 || this.options.features.indexOf("all") >= 0) && !this.options.workerURL && true) throw new Error("Pica: cannot use WebWorker without workerURL");
+		this.__limit = limiter(this.options.concurrency);
 		this.resize_features = {
 			js: false,
 			wasm: false,
@@ -1316,21 +1331,14 @@ var Pica = class Pica {
 			const result = yield get_supported_features();
 			Object.assign(_this.capabilities, result);
 			if (_this.capabilities.cib_resize && features.indexOf("cib") >= 0) _this.resize_features.cib = true;
-			const createWorker = workerFactory(_this.options);
-			if (_this.capabilities.may_be_worker && features.indexOf("ww") >= 0 && createWorker) {
-				const wpool_key = `wp_${JSON.stringify(_this.options)}`;
-				if (singletones[wpool_key]) _this.__workersPool = singletones[wpool_key];
-				else {
-					_this.__workersPool = new Pool(createWorkerFabric(createWorker), _this.options.idle);
-					singletones[wpool_key] = _this.__workersPool;
-				}
-			}
+			if (_this.capabilities.may_be_worker && features.indexOf("ww") >= 0 && _this.options.workerURL) _this.__workersPool = new Pool(() => _this.__createWorkerSlot(), _this.options.idle);
 			if (_this.__workersPool) try {
 				const result = yield _this.__invokeWorker("get_supported_features");
-				if (result && result.data) {
+				const resultData = result && result.data;
+				if (resultData) {
 					_this.capabilities.worker = true;
 					_this.resize_features.ww = true;
-					_this.capabilities.ww_offscreen_canvas = !!result.data.offscreen_canvas;
+					_this.capabilities.ww_offscreen_canvas = !!resultData.offscreen_canvas;
 				}
 			} catch (__) {}
 			const mathlib = yield _this.__mathlib.init();
@@ -1349,6 +1357,18 @@ var Pica = class Pica {
 		if (this.capabilities.ww_offscreen_canvas) return new OffscreenCanvas(width, height);
 		throw new Error("Pica: cannot create canvas");
 	}
+	__createWorkerSlot() {
+		if (this.options.workerURL) {
+			const worker = new Worker(String(this.options.workerURL));
+			return {
+				value: worker,
+				destroy() {
+					worker.terminate();
+				}
+			};
+		}
+		throw new Error("Pica: no worker source available");
+	}
 	__invokeWorker(method, payload, transfer, opts) {
 		return new Promise((resolve, reject) => {
 			const w = this.__workersPool.acquire();
@@ -1361,35 +1381,59 @@ var Pica = class Pica {
 			w.value.postMessage(Object.assign({ method }, payload || {}), transfer || []);
 		});
 	}
-	__invokeResize(tileOpts, opts) {
+	__invokeResize(tileJob, ctx) {
 		var _this2 = this;
 		return _asyncToGenerator(function* () {
-			opts.__mathCache = opts.__mathCache || {};
 			yield Promise.resolve();
-			if (!_this2.resize_features.ww) return { data: _this2.__mathlib.resizeAndUnsharp(tileOpts, opts.__mathCache) };
+			if (!_this2.resize_features.ww) {
+				if (tileJob.kind !== "array") throw new Error("Pica: resize tile data is missing");
+				const mathOpts = {
+					src: tileJob.src,
+					width: tileJob.width,
+					height: tileJob.height,
+					toWidth: tileJob.toWidth,
+					toHeight: tileJob.toHeight,
+					scaleX: tileJob.scaleX,
+					scaleY: tileJob.scaleY,
+					offsetX: tileJob.offsetX,
+					offsetY: tileJob.offsetY,
+					filter: tileJob.filter,
+					unsharpAmount: tileJob.unsharpAmount,
+					unsharpRadius: tileJob.unsharpRadius,
+					unsharpThreshold: tileJob.unsharpThreshold
+				};
+				return {
+					kind: "array",
+					data: _this2.__mathlib.resizeAndUnsharp(mathOpts)
+				};
+			}
 			const transfer = [];
-			if (tileOpts.src) transfer.push(tileOpts.src.buffer);
-			if (tileOpts.srcBitmap) transfer.push(tileOpts.srcBitmap);
-			return _this2.__invokeWorker(tileOpts.srcBitmap ? "resize_bitmap" : "resize", {
-				opts: tileOpts,
-				features: _this2.__requested_features,
-				preload: { wasm_nodule: _this2.__mathlib.__ }
-			}, transfer, opts);
+			if (tileJob.kind === "array") transfer.push(tileJob.src.buffer);
+			else transfer.push(tileJob.src);
+			return _this2.__invokeWorker("resize", {
+				job: tileJob,
+				features: _this2.__requested_features
+			}, transfer, ctx);
 		})();
 	}
-	__extractTileData(tile, from, opts, stageEnv, extractTo) {
+	__extractTileData(tile, from, stageEnv, extractTo) {
 		if (this.resize_features.ww && this.capabilities.ww_offscreen_canvas) {
 			this.debug("Create tile imageBitmap");
 			const tileCanvas = this.createCanvas(tile.width, tile.height, { preferOffscreen: true });
 			tileCanvas.getContext("2d").drawImage(stageEnv.srcImageBitmap || from, tile.x, tile.y, tile.width, tile.height, 0, 0, tile.width, tile.height);
-			extractTo.srcBitmap = tileCanvas.transferToImageBitmap();
-			return extractTo;
+			if (!("transferToImageBitmap" in tileCanvas)) throw new Error("Pica: offscreen canvas is not available for worker transfer");
+			return Object.assign({}, extractTo, {
+				kind: "bitmap",
+				src: tileCanvas.transferToImageBitmap()
+			});
 		}
 		if (isCanvas(from)) {
 			if (!stageEnv.srcCtx) stageEnv.srcCtx = from.getContext("2d");
 			this.debug("Get tile pixel data");
-			extractTo.src = stageEnv.srcCtx.getImageData(tile.x, tile.y, tile.width, tile.height).data;
-			return extractTo;
+			return Object.assign({}, extractTo, {
+				kind: "array",
+				src: stageEnv.srcCtx.getImageData(tile.x, tile.y, tile.width, tile.height).data
+			});
 		}
 		this.debug("Draw tile imageBitmap/image to temporary canvas");
 		const tmpCanvas = this.createCanvas(tile.width, tile.height, { preferOffscreen: true });
@@ -1397,14 +1441,17 @@ var Pica = class Pica {
 		tmpCtx.globalCompositeOperation = "copy";
 		tmpCtx.drawImage(stageEnv.srcImageBitmap || from, tile.x, tile.y, tile.width, tile.height, 0, 0, tile.width, tile.height);
 		this.debug("Get tile pixel data");
-		extractTo.src = tmpCtx.getImageData(0, 0, tile.width, tile.height).data;
+		const src = tmpCtx.getImageData(0, 0, tile.width, tile.height).data;
 		tmpCanvas.width = tmpCanvas.height = 0;
-		return extractTo;
+		return Object.assign({}, extractTo, {
+			kind: "array",
+			src
+		});
 	}
 	__landTileData(tile, result, stageEnv) {
-		if (result.bitmap) {
-			stageEnv.toCtx.drawImage(result.bitmap, tile.toX, tile.toY);
-			result.bitmap.close();
+		if (result.kind === "bitmap") {
+			stageEnv.toCtx.drawImage(result.data, tile.toX, tile.toY);
+			result.data.close();
 			return null;
 		}
 		this.debug("Draw tile");
@@ -1414,7 +1461,7 @@ var Pica = class Pica {
 		else stageEnv.toCtx.putImageData(toImageData, tile.toX, tile.toY, tile.toInnerX - tile.toX, tile.toInnerY - tile.toY, tile.toInnerWidth, tile.toInnerHeight);
 		return null;
 	}
-	__tileAndResize(from, to, opts) {
+	__tileAndResize(from, to, resizeParams, ctx) {
 		var _this3 = this;
 		return _asyncToGenerator(function* () {
 			const stageEnv = {
@@ -1424,8 +1471,8 @@ var Pica = class Pica {
 				toCtx: null
 			};
 			const processTile = (tile) => _this3.__limit(_asyncToGenerator(function* () {
-				if (opts.canceled) return opts.cancelToken;
-				const tileOpts = {
+				if (ctx.canceled) return ctx.cancelToken;
+				const tileJob = {
 					width: tile.width,
 					height: tile.height,
 					toWidth: tile.toWidth,
@@ -1434,17 +1481,16 @@ var Pica = class Pica {
 					scaleY: tile.scaleY,
 					offsetX: tile.offsetX,
 					offsetY: tile.offsetY,
-					filter: opts.filter,
-					unsharpAmount: opts.unsharpAmount,
-					unsharpRadius: opts.unsharpRadius,
-					unsharpThreshold: opts.unsharpThreshold
+					filter: resizeParams.filter,
+					unsharpAmount: resizeParams.unsharpAmount,
+					unsharpRadius: resizeParams.unsharpRadius,
+					unsharpThreshold: resizeParams.unsharpThreshold
 				};
 				_this3.debug("Invoke resize math");
-				const extractedTileOpts = yield _this3.__extractTileData(tile, from, opts, stageEnv, tileOpts);
+				const extractedTileJob = yield _this3.__extractTileData(tile, from, stageEnv, tileJob);
 				_this3.debug("Invoke resize math");
-				const result = yield _this3.__invokeResize(extractedTileOpts, opts);
-				if (opts.canceled) return opts.cancelToken;
-				stageEnv.srcImageData = null;
+				const result = yield _this3.__invokeResize(extractedTileJob, ctx);
+				if (ctx.canceled) return ctx.cancelToken;
 				return _this3.__landTileData(tile, result, stageEnv);
 			}));
 			yield Promise.resolve();
@@ -1460,15 +1506,15 @@ var Pica = class Pica {
 					} catch (__) {}
 				}
 			} else throw new Error("Pica: \".from\" should be Image, Canvas or ImageBitmap");
-			if (opts.canceled) return opts.cancelToken;
+			if (ctx.canceled) return ctx.cancelToken;
 			_this3.debug("Calculate tiles");
 			const jobs = createRegions({
-				width: opts.width,
-				height: opts.height,
+				width: resizeParams.width,
+				height: resizeParams.height,
 				srcTileSize: _this3.options.tile,
-				toWidth: opts.toWidth,
-				toHeight: opts.toHeight,
-				destTileBorder: opts.__destTileBorder
+				toWidth: resizeParams.toWidth,
+				toHeight: resizeParams.toHeight,
+				destTileBorder: Math.ceil(Math.max(3, 2.5 * resizeParams.unsharpRadius | 0))
 			}).map((tile) => processTile(tile));
 			function cleanup(stageEnv) {
 				if (stageEnv.srcImageBitmap) {
@@ -1488,46 +1534,55 @@ var Pica = class Pica {
 			}
 		})();
 	}
-	__processStages(stages, from, to, opts) {
+	__planStagesAndResize(from, to, resizeParams, ctx) {
 		var _this4 = this;
 		return _asyncToGenerator(function* () {
-			if (opts.canceled) return opts.cancelToken;
-			const [toWidth, toHeight] = stages.shift();
-			const isLastStage = stages.length === 0;
-			let filter;
-			if (isLastStage || resize_filter_info_default.q2f.indexOf(opts.filter) < 0) filter = opts.filter;
-			else if (opts.filter === "box") filter = "box";
-			else filter = "hamming";
-			opts = Object.assign({}, opts, {
-				toWidth,
-				toHeight,
-				filter
-			});
-			let tmpCanvas;
-			if (!isLastStage) tmpCanvas = _this4.createCanvas(toWidth, toHeight, { preferOffscreen: true });
-			try {
-				yield _this4.__tileAndResize(from, isLastStage ? to : tmpCanvas, opts);
-				if (isLastStage) return to;
-				opts.width = toWidth;
-				opts.height = toHeight;
-				return yield _this4.__processStages(stages, tmpCanvas, to, opts);
-			} finally {
-				if (tmpCanvas) tmpCanvas.width = tmpCanvas.height = 0;
+			let src = from;
+			let srcWidth = resizeParams.width;
+			let srcHeight = resizeParams.height;
+			const stages = createStages(resizeParams.width, resizeParams.height, resizeParams.toWidth, resizeParams.toHeight, _this4.options.tile);
+			while (stages.length > 0) {
+				if (ctx.canceled) return ctx.cancelToken;
+				const [toWidth, toHeight] = stages.shift();
+				const isLastStage = stages.length === 0;
+				let filter;
+				if (isLastStage || !is_cib_filter(resizeParams.filter)) filter = resizeParams.filter;
+				else if (resizeParams.filter === "box") filter = "box";
+				else filter = "hamming";
+				const stageParams = _objectSpread2(_objectSpread2({}, resizeParams), {}, {
+					filter,
+					width: srcWidth,
+					height: srcHeight,
+					toWidth,
+					toHeight
+				});
+				const dest = isLastStage ? to : _this4.createCanvas(toWidth, toHeight, { preferOffscreen: true });
+				const prevTmp = src !== from ? src : void 0;
+				try {
+					yield _this4.__tileAndResize(src, dest, stageParams, ctx);
+				} finally {
+					if (prevTmp) prevTmp.width = prevTmp.height = 0;
+				}
+				src = dest;
+				srcWidth = toWidth;
+				srcHeight = toHeight;
 			}
+			return to;
 		})();
 	}
-	__resizeViaCreateImageBitmap(from, to, opts) {
+	__resizeViaCreateImageBitmap(from, to, resizeParams, ctx) {
 		var _this5 = this;
 		return _asyncToGenerator(function* () {
+			var _utils$filter_to_cib_;
 			let toCtx = to.getContext("2d");
 			_this5.debug("Resize via createImageBitmap()");
 			const imageBitmap = yield createImageBitmap(from, {
-				resizeWidth: opts.toWidth,
-				resizeHeight: opts.toHeight,
-				resizeQuality: cib_quality_name(resize_filter_info_default.f2q[opts.filter])
+				resizeWidth: resizeParams.toWidth,
+				resizeHeight: resizeParams.toHeight,
+				resizeQuality: cib_quality_name((_utils$filter_to_cib_ = filter_to_cib_quality(resizeParams.filter)) !== null && _utils$filter_to_cib_ !== void 0 ? _utils$filter_to_cib_ : 3)
 			});
-			if (opts.canceled) return opts.cancelToken;
-			if (!opts.unsharpAmount) {
+			if (ctx.canceled) return ctx.cancelToken;
+			if (!resizeParams.unsharpAmount) {
 				toCtx.drawImage(imageBitmap, 0, 0);
 				imageBitmap.close();
 				toCtx = null;
@@ -1535,12 +1590,12 @@ var Pica = class Pica {
 				return to;
 			}
 			_this5.debug("Unsharp result");
-			let tmpCanvas = _this5.options.createCanvas(opts.toWidth, opts.toHeight);
+			let tmpCanvas = _this5.createCanvas(resizeParams.toWidth, resizeParams.toHeight);
 			let tmpCtx = tmpCanvas.getContext("2d");
 			tmpCtx.drawImage(imageBitmap, 0, 0);
 			imageBitmap.close();
-			let iData = tmpCtx.getImageData(0, 0, opts.toWidth, opts.toHeight);
-			_this5.__mathlib.unsharp_mask(iData.data, opts.toWidth, opts.toHeight, opts.unsharpAmount, opts.unsharpRadius, opts.unsharpThreshold);
+			let iData = tmpCtx.getImageData(0, 0, resizeParams.toWidth, resizeParams.toHeight);
+			_this5.__mathlib.unsharp_mask(iData.data, resizeParams.toWidth, resizeParams.toHeight, resizeParams.unsharpAmount, resizeParams.unsharpRadius, resizeParams.unsharpThreshold);
 			toCtx.putImageData(iData, 0, 0);
 			tmpCanvas.width = tmpCanvas.height = 0;
 			iData = tmpCtx = tmpCanvas = toCtx = null;
@@ -1552,46 +1607,54 @@ var Pica = class Pica {
 		var _this6 = this;
 		return _asyncToGenerator(function* () {
 			_this6.debug("Start resize...");
-			let opts = Object.assign({}, DEFAULT_RESIZE_OPTS);
-			if (!isNaN(options)) opts = Object.assign(opts, { quality: options });
-			else if (options) opts = Object.assign(opts, options);
-			opts.toWidth = to.width;
-			opts.toHeight = to.height;
-			opts.width = from.naturalWidth || from.width;
-			opts.height = from.naturalHeight || from.height;
-			if (Object.prototype.hasOwnProperty.call(opts, "quality")) {
-				if (opts.quality < 0 || opts.quality > 3) throw new Error(`Pica: .quality should be [0..3], got ${opts.quality}`);
-				opts.filter = resize_filter_info_default.q2f[opts.quality];
+			const requested = {};
+			if (options) Object.assign(requested, options);
+			let filter = requested.filter || DEFAULT_RESIZE_OPTS.filter;
+			if (Object.prototype.hasOwnProperty.call(requested, "quality")) {
+				const quality = requested.quality;
+				if (typeof quality !== "number" || quality < 0 || quality > 3) throw new Error(`Pica: .quality should be [0..3], got ${quality}`);
+				filter = cib_quality_filter(quality);
 			}
+			const resizeParams = {
+				filter,
+				unsharpAmount: requested.unsharpAmount || DEFAULT_RESIZE_OPTS.unsharpAmount,
+				unsharpRadius: requested.unsharpRadius || DEFAULT_RESIZE_OPTS.unsharpRadius,
+				unsharpThreshold: requested.unsharpThreshold || DEFAULT_RESIZE_OPTS.unsharpThreshold,
+				width: isImage(from) ? from.naturalWidth : from.width,
+				height: isImage(from) ? from.naturalHeight : from.height,
+				toWidth: to.width,
+				toHeight: to.height
+			};
+			if (resizeParams.unsharpRadius > 2) resizeParams.unsharpRadius = 2;
 			if (to.width === 0 || to.height === 0) return Promise.reject(/* @__PURE__ */ new Error(`Invalid output size: ${to.width}x${to.height}`));
-			if (opts.unsharpRadius > 2) opts.unsharpRadius = 2;
-			opts.canceled = false;
-			if (opts.cancelToken) opts.cancelToken = opts.cancelToken.then((data) => {
-				opts.canceled = true;
+			const ctx = {
+				cancelToken: requested.cancelToken,
+				canceled: false
+			};
+			if (ctx.cancelToken) ctx.cancelToken = ctx.cancelToken.then((data) => {
+				ctx.canceled = true;
 				throw data;
 			}, (err) => {
-				opts.canceled = true;
+				ctx.canceled = true;
 				throw err;
 			});
-			opts.__destTileBorder = Math.ceil(Math.max(3, 2.5 * opts.unsharpRadius | 0));
 			yield _this6.init();
-			if (opts.canceled) return opts.cancelToken;
+			if (ctx.canceled) return ctx.cancelToken;
 			if (_this6.capabilities.bug_image_bitmap_orientation_region && (isImage(from) || isImageBitmap(from))) {
-				const tmpCanvas = _this6.options.createCanvas(opts.width, opts.height);
+				const tmpCanvas = _this6.createCanvas(resizeParams.width, resizeParams.height);
 				tmpCanvas.getContext("2d").drawImage(from, 0, 0);
 				from = tmpCanvas;
 			}
 			if (_this6.resize_features.cib) {
-				if (resize_filter_info_default.q2f.indexOf(opts.filter) >= 0) return _this6.__resizeViaCreateImageBitmap(from, to, opts);
+				if (is_cib_filter(resizeParams.filter)) return _this6.__resizeViaCreateImageBitmap(from, to, resizeParams, ctx);
 				_this6.debug("cib is enabled, but not supports provided filter, fallback to manual math");
 			}
-			if (!_this6.capabilities.canvas) {
+			if (!_this6.capabilities.canvas && !_this6.capabilities.offscreen_canvas) {
 				const err = /* @__PURE__ */ new Error("Pica: cannot use getImageData on canvas, make sure fingerprinting protection isn't enabled");
 				err.code = "ERR_GET_IMAGE_DATA";
 				throw err;
 			}
-			const stages = createStages(opts.width, opts.height, opts.toWidth, opts.toHeight, _this6.options.tile, opts.__destTileBorder);
-			return _this6.__processStages(stages, from, to, opts);
+			return _this6.__planStagesAndResize(from, to, resizeParams, ctx);
 		})();
 	}
 	resizeBuffer(options) {
@@ -1599,20 +1662,38 @@ var Pica = class Pica {
 		return _asyncToGenerator(function* () {
 			const opts = Object.assign({}, DEFAULT_RESIZE_OPTS, options);
 			if (Object.prototype.hasOwnProperty.call(opts, "quality")) {
-				if (opts.quality < 0 || opts.quality > 3) throw new Error(`Pica: .quality should be [0..3], got ${opts.quality}`);
-				opts.filter = resize_filter_info_default.q2f[opts.quality];
+				const quality = opts.quality;
+				if (typeof quality !== "number" || quality < 0 || quality > 3) throw new Error(`Pica: .quality should be [0..3], got ${quality}`);
+				opts.filter = cib_quality_filter(quality);
 			}
 			yield _this7.init();
-			return _this7.__mathlib.resizeAndUnsharp(opts);
+			if (!_this7.__mathlib) throw new Error("Pica: math library is not initialized");
+			const mathOpts = {
+				src: opts.src,
+				width: opts.width,
+				height: opts.height,
+				toWidth: opts.toWidth,
+				toHeight: opts.toHeight,
+				dest: opts.dest,
+				scaleX: opts.toWidth / opts.width,
+				scaleY: opts.toHeight / opts.height,
+				offsetX: 0,
+				offsetY: 0,
+				filter: opts.filter,
+				unsharpAmount: opts.unsharpAmount,
+				unsharpRadius: opts.unsharpRadius,
+				unsharpThreshold: opts.unsharpThreshold
+			};
+			return _this7.__mathlib.resizeAndUnsharp(mathOpts);
 		})();
 	}
 	toBlob(canvas, mimeType, quality) {
 		return _asyncToGenerator(function* () {
 			mimeType = mimeType || "image/png";
-			if (canvas.toBlob) return new Promise((resolve) => {
+			if ("toBlob" in canvas && canvas.toBlob) return new Promise((resolve) => {
 				canvas.toBlob((blob) => resolve(blob), mimeType, quality);
 			});
-			if (canvas.convertToBlob) return canvas.convertToBlob({
+			if ("convertToBlob" in canvas && canvas.convertToBlob) return canvas.convertToBlob({
 				type: mimeType,
 				quality
 			});
@@ -1623,9 +1704,8 @@ var Pica = class Pica {
 			return new Blob([asBuffer], { type: mimeType });
 		})();
 	}
-	debug() {}
+	debug(..._args) {}
 };
-_defineProperty(Pica, "__workerFactory", null);
 function pica(options) {
 	return new Pica(options);
 }

@@ -398,10 +398,13 @@ https://github.com/nodeca/pica
 		const img32 = new Uint32Array(img.buffer);
 		new Uint32Array(this.__memory.buffer).set(img32);
 		let fn = instance.exports.hsv_v16 || instance.exports._hsv_v16;
+		if (!fn) throw new Error("WASM hsv_v16 function is not available");
 		fn(img_offset, hsv_offset, width, height);
 		fn = instance.exports.blurMono16 || instance.exports._blurMono16;
+		if (!fn) throw new Error("WASM blurMono16 function is not available");
 		fn(hsv_offset, blur_offset, blur_tmp_offset, blur_line_offset, blur_coeffs_offset, width, height, radius);
 		fn = instance.exports.unsharp || instance.exports._unsharp;
+		if (!fn) throw new Error("WASM unsharp function is not available");
 		fn(img_offset, img_offset, hsv_offset, blur_offset, width, height, amount, threshold);
 		img32.set(new Uint32Array(this.__memory.buffer, 0, pixels));
 	}
@@ -411,69 +414,55 @@ https://github.com/nodeca/pica
 		wasm_fn: unsharp,
 		wasm_src: "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"
 	};
-	var resize_filter_info_default = {
-		filter: {
-			box: {
-				win: .5,
-				fn(x) {
-					if (x < 0) x = -x;
-					return x < .5 ? 1 : 0;
-				}
-			},
-			hamming: {
-				win: 1,
-				fn(x) {
-					if (x < 0) x = -x;
-					if (x >= 1) return 0;
-					if (x < 1.1920929e-7) return 1;
-					const xpi = x * Math.PI;
-					return Math.sin(xpi) / xpi * (.54 + .46 * Math.cos(xpi / 1));
-				}
-			},
-			lanczos2: {
-				win: 2,
-				fn(x) {
-					if (x < 0) x = -x;
-					if (x >= 2) return 0;
-					if (x < 1.1920929e-7) return 1;
-					const xpi = x * Math.PI;
-					return Math.sin(xpi) / xpi * Math.sin(xpi / 2) / (xpi / 2);
-				}
-			},
-			lanczos3: {
-				win: 3,
-				fn(x) {
-					if (x < 0) x = -x;
-					if (x >= 3) return 0;
-					if (x < 1.1920929e-7) return 1;
-					const xpi = x * Math.PI;
-					return Math.sin(xpi) / xpi * Math.sin(xpi / 3) / (xpi / 3);
-				}
-			},
-			mks2013: {
-				win: 2.5,
-				fn(x) {
-					if (x < 0) x = -x;
-					if (x >= 2.5) return 0;
-					if (x >= 1.5) return -.125 * (x - 2.5) * (x - 2.5);
-					if (x >= .5) return .25 * (4 * x * x - 11 * x + 7);
-					return 1.0625 - 1.75 * x * x;
-				}
+	var resize_filter_info_default = { filter: {
+		box: {
+			win: .5,
+			fn(x) {
+				if (x < 0) x = -x;
+				return x < .5 ? 1 : 0;
 			}
 		},
-		f2q: {
-			box: 0,
-			hamming: 1,
-			lanczos2: 2,
-			lanczos3: 3
+		hamming: {
+			win: 1,
+			fn(x) {
+				if (x < 0) x = -x;
+				if (x >= 1) return 0;
+				if (x < 1.1920929e-7) return 1;
+				const xpi = x * Math.PI;
+				return Math.sin(xpi) / xpi * (.54 + .46 * Math.cos(xpi / 1));
+			}
 		},
-		q2f: [
-			"box",
-			"hamming",
-			"lanczos2",
-			"lanczos3"
-		]
-	};
+		lanczos2: {
+			win: 2,
+			fn(x) {
+				if (x < 0) x = -x;
+				if (x >= 2) return 0;
+				if (x < 1.1920929e-7) return 1;
+				const xpi = x * Math.PI;
+				return Math.sin(xpi) / xpi * Math.sin(xpi / 2) / (xpi / 2);
+			}
+		},
+		lanczos3: {
+			win: 3,
+			fn(x) {
+				if (x < 0) x = -x;
+				if (x >= 3) return 0;
+				if (x < 1.1920929e-7) return 1;
+				const xpi = x * Math.PI;
+				return Math.sin(xpi) / xpi * Math.sin(xpi / 3) / (xpi / 3);
+			}
+		},
+		mks2013: {
+			win: 2.5,
+			fn(x) {
+				if (x < 0) x = -x;
+				if (x >= 2.5) return 0;
+				if (x >= 1.5) return -.125 * (x - 2.5) * (x - 2.5);
+				if (x >= .5) return .25 * (4 * x * x - 11 * x + 7);
+				return 1.0625 - 1.75 * x * x;
+			}
+		}
+	} };
 	var FIXED_FRAC_BITS = 14;
 	function toFixedPoint(num) {
 		return Math.round(num * ((1 << FIXED_FRAC_BITS) - 1));
@@ -782,6 +771,7 @@ https://github.com/nodeca/pica
 		copyInt16asLE(filtersX, mem, filtersX_offset);
 		copyInt16asLE(filtersY, mem, filtersY_offset);
 		const fn = instance.exports.convolveHV || instance.exports._convolveHV;
+		if (!fn) throw new Error("WASM resize function is not available");
 		if (hasAlpha(src, srcW, srcH)) fn(filtersX_offset, filtersY_offset, tmp_offset, srcW, srcH, destW, destH, 1);
 		else {
 			fn(filtersX_offset, filtersY_offset, tmp_offset, srcW, srcH, destW, destH, 0);
@@ -811,13 +801,13 @@ https://github.com/nodeca/pica
 			this.use(mm_unsharp_mask_default);
 			this.use(mm_resize_default);
 		}
-		resizeAndUnsharp(options, cache) {
-			const result = this.resize(options, cache);
+		resizeAndUnsharp(options) {
+			const result = this.resize(options);
 			if (options.unsharpAmount) this.unsharp_mask(result, options.toWidth, options.toHeight, options.unsharpAmount, options.unsharpRadius, options.unsharpThreshold);
 			return result;
 		}
 	};
-	var ORIENTED_JPEG_BASE64 = "/9j/4QAiRXhpZgAATU0AKgAAAAgAAQESAAMAAAABAAYAAAAAAAD/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/wAALCAACAAMBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABsQAAMBAQADAAAAAAAAAAAAAAECAwQFABEx/9oACAEBAAA/AC06fW6va0ps7PT179E88MiV02arrCEkjGQZiSEnKc5ovxURVHoADz//2Q==";
+	var ORIENTED_JPEG_BASE64 = "/9j/4QAiRXhpZgAATU0AKgAAAAgAAQESAAMAAAABAAYAAAAAAAD/4AAQskZJRgABAQAAAQABAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/wAALCAACAAMBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABsQAAMBAQADAAAAAAAAAAAAAAECAwQFABEx/9oACAEBAAA/AC06fW6va0ps7PT179E88MiV02arrCEkjGQZiSEnKc5ovxURVHoADz//2Q==";
 	var features = {
 		canvas: false,
 		offscreen_canvas: false,
@@ -881,7 +871,7 @@ https://github.com/nodeca/pica
 	}
 	function check_safari_put_image_data_fix() {
 		try {
-			return typeof navigator !== "undefined" && navigator.userAgent && navigator.userAgent.indexOf("Safari") >= 0 && navigator.userAgent.indexOf("Chrome") < 0;
+			return !!(typeof navigator !== "undefined" && navigator.userAgent && navigator.userAgent.indexOf("Safari") >= 0 && navigator.userAgent.indexOf("Chrome") < 0);
 		} catch (__) {
 			return false;
 		}
@@ -1013,48 +1003,69 @@ https://github.com/nodeca/pica
 		return checking;
 	}
 	var workerScope = self;
-	var mathLib;
-	function resize_math(data, tileOpts) {
+	var mathLib = null;
+	function resize_math(data, tileJob) {
 		if (!mathLib) mathLib = new MathLib(data.features);
-		return mathLib.resizeAndUnsharp(tileOpts);
+		return mathLib.resizeAndUnsharp(tileJob);
 	}
-	function resize(data) {
-		const result = resize_math(data, data.opts);
-		workerScope.postMessage({ data: result }, [result.buffer]);
-	}
-	function resize_bitmap(data) {
-		const tileOpts = data.opts;
-		let srcCanvas = new OffscreenCanvas(tileOpts.width, tileOpts.height);
+	function resizeBitmap(data, tileJob) {
+		let srcCanvas = new OffscreenCanvas(tileJob.width, tileJob.height);
 		const srcCtx = srcCanvas.getContext("2d");
-		srcCtx.drawImage(tileOpts.srcBitmap, 0, 0);
-		tileOpts.src = srcCtx.getImageData(0, 0, tileOpts.width, tileOpts.height).data;
+		srcCtx.drawImage(tileJob.src, 0, 0);
+		const src = srcCtx.getImageData(0, 0, tileJob.width, tileJob.height).data;
 		srcCanvas.width = srcCanvas.height = 0;
 		srcCanvas = null;
-		tileOpts.srcBitmap.close();
-		tileOpts.srcBitmap = null;
-		const result = resize_math(data, tileOpts);
-		const canvas = new OffscreenCanvas(tileOpts.toWidth, tileOpts.toHeight);
+		tileJob.src.close();
+		const result = resize_math(data, {
+			src,
+			width: tileJob.width,
+			height: tileJob.height,
+			toWidth: tileJob.toWidth,
+			toHeight: tileJob.toHeight,
+			scaleX: tileJob.scaleX,
+			scaleY: tileJob.scaleY,
+			offsetX: tileJob.offsetX,
+			offsetY: tileJob.offsetY,
+			filter: tileJob.filter,
+			unsharpAmount: tileJob.unsharpAmount,
+			unsharpRadius: tileJob.unsharpRadius,
+			unsharpThreshold: tileJob.unsharpThreshold
+		});
+		const canvas = new OffscreenCanvas(tileJob.toWidth, tileJob.toHeight);
 		const ctx = canvas.getContext("2d");
-		const toImageData = ctx.createImageData(tileOpts.toWidth, tileOpts.toHeight);
+		const toImageData = ctx.createImageData(tileJob.toWidth, tileJob.toHeight);
 		toImageData.data.set(result);
 		ctx.putImageData(toImageData, 0, 0);
 		const bitmap = canvas.transferToImageBitmap();
-		workerScope.postMessage({ bitmap }, [bitmap]);
+		workerScope.postMessage({
+			kind: "bitmap",
+			data: bitmap
+		}, [bitmap]);
 	}
-	var methods = {
-		resize,
-		resize_bitmap,
-		get_supported_features
-	};
-	workerScope.onmessage = function(ev) {
-		const method = ev.data.method || "resize";
-		if (!methods[method]) {
-			workerScope.postMessage({ err: `Unknown worker method: ${method}` });
+	function resize(data) {
+		if (data.job.kind === "bitmap") {
+			resizeBitmap(data, data.job);
 			return;
 		}
-		Promise.resolve().then(() => methods[method](ev.data)).then((result) => {
-			if (method === "get_supported_features") workerScope.postMessage({ data: result });
-		}, (err) => {
+		const result = resize_math(data, data.job);
+		workerScope.postMessage({
+			kind: "array",
+			data: result
+		}, [result.buffer]);
+	}
+	function handleMessage(data) {
+		switch (data.method) {
+			case "get_supported_features": return get_supported_features().then((result) => {
+				workerScope.postMessage({ data: result });
+			});
+			case "resize":
+				resize(data);
+				return Promise.resolve();
+			default: return Promise.reject(/* @__PURE__ */ new Error(`Unknown worker method: ${data.method}`));
+		}
+	}
+	workerScope.onmessage = function(ev) {
+		Promise.resolve().then(() => handleMessage(ev.data)).catch((err) => {
 			workerScope.postMessage({ err });
 		});
 	};
