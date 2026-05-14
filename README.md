@@ -23,13 +23,25 @@ With pica you can:
 additional machinery to process orientation, keep EXIF metadata and so on.
 
 
-Migration from pica v6 to pica v7
----------------------------------
+Migration from pica v9 to pica v10
+----------------------------------
 
-Multiply `unsharpAmount` by 2, divide `unsharpThreshold` by 2, example:
-
- - `pica@6`: `pica.resize(a, b, { unsharpAmount: 80, unsharpThreshold: 2 })`
- - `pica@7`: `pica.resize(a, b, { unsharpAmount: 160, unsharpThreshold: 1 })`
+- If you targeted IE or other legacy browsers — drop them, only modern
+  browsers are supported now.
+- If you used `new` on the default export (`new (require('pica'))()` or
+  `import Pica from 'pica'; new Pica()`) — switch to either the factory call
+  `require('pica')()` / `pica()`, or to the named `Pica` class:
+  `import { Pica } from 'pica'; new Pica()`. The default export is now a
+  factory function only.
+- If you passed `createCanvas` in options — remove it. To override canvas
+  creation, expose a custom `OffscreenCanvas` on the global scope instead.
+- If you used the positional `quality` argument
+  (`pica.resize(from, to, 3)`) — switch to
+  `pica.resize(from, to, { filter: 'lanczos3' })`. The object form
+  `{ quality: 3 }` also works but is deprecated, prefer `filter`.
+- If you relied on multiple `Pica` instances sharing the same worker pool —
+  refactor to create a single instance and reuse it. Implicit sharing is
+  gone.
 
 
 Prior to use
@@ -72,25 +84,36 @@ Use
 ---
 
 ```js
-const pica = require('pica')();
+// ESM (default factory)
+import pica from 'pica';
+const resizer = pica();
+
+// ESM (class)
+import { Pica } from 'pica';
+const resizer = new Pica();
+
+// CommonJS
+const resizer = require('pica')();
 
 // Resize from Canvas/Image to another Canvas
-pica.resize(from, to)
+resizer.resize(from, to)
   .then(result => console.log('resize done!'));
 
 // Resize & convert to blob
-pica.resize(from, to)
-  .then(result => pica.toBlob(result, 'image/jpeg', 0.90))
+resizer.resize(from, to)
+  .then(result => resizer.toBlob(result, 'image/jpeg', 0.90))
   .then(blob => console.log('resized to canvas & created blob!'));
 ```
 
-By default, the distributed build includes the webworker code. If you use
-the split build with `ww` enabled, `workerURL` is required:
+By default, the main entry (`pica`) inlines the webworker code. If you want
+the worker as a separate file (smaller main bundle, easier CSP), use the
+split build — `pica/dist/pica_main.mjs` together with
+`pica/dist/pica_worker.js`. In that case `workerURL` is required:
 
 ```js
-import createPica from 'pica/pica_main';
+import createPica from 'pica/dist/pica_main.mjs';
 
-const pica = createPica({
+const resizer = createPica({
   workerURL: new URL('pica/dist/pica_worker.js', import.meta.url)
 });
 ```
@@ -195,16 +218,16 @@ Result is Promise, resolved with resized rgba buffer.
 
 ### What is "quality"
 
-Pica has presets to adjust speed/quality ratio.
-Simply use `quality` option param:
+`quality` is a legacy preset still accepted for backwards compatibility,
+but deprecated — prefer the `filter` option. Mapping:
 
-- 0 - Box filter, window 0.5px
-- 1 - Hamming filter, window 1.0px
-- 2 - Lanczos filter, window 2.0px
-- 3 - Lanczos filter, window 3.0px
+- 0 - Box filter, window 0.5px (`filter: 'box'`)
+- 1 - Hamming filter, window 1.0px (`filter: 'hamming'`)
+- 2 - Lanczos filter, window 2.0px (`filter: 'lanczos2'`)
+- 3 - Lanczos filter, window 3.0px (`filter: 'lanczos3'`)
 
-In real world you will never need to change default (max)
-quality. All this variations were implemented to better
+In real world you will never need to change default (`mks2013`)
+filter. All this variations were implemented to better
 understand resize math :)
 
 

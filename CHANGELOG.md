@@ -8,23 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unpublished]
 ### Fixed
-- Workagounded bug in Chrome ImageBitmap crops for images with Exif orientation.
+- Worked around bug in Chrome `createImageBitmap` for images with Exif
+  orientation.
+- Fixed Safari agent detection.
 
 ### Added
-- Added splited builds and `workerURL` option.
+- Added split builds (`pica_main` + `pica_worker`) and `workerURL` option.
 - Added ESM builds.
+- Added new feature detection module and a debug page for it.
 
 ### Changed
-- Migrated to classes. Library now exports fabcic `pica(optiona)` as default,
-  and `Pica` class as named property.
+- Migrated to classes. Library now exports factory `pica(options)` as default
+  and `Pica` class as a named export.
 - Removed ancient browsers support (IE < Edge and so on).
-- Moved to Typescript and modern tooling.
+- Moved sources to TypeScript and modern tooling (Vite build,
+  Vitest + Playwright tests).
 - Removed `createCanvas` option. Expose `OffscreenCanvas` to global instead,
   if required.
-- Bundle webworker as string in combined builds. Shoud fix side effects in
-  external bundlers
-- Removed deprecated numeric `quality` argument from `resize(from, to, quality)`.
-  Use `resize(from, to, { quality })` or `filter` option instead.
+- Bundle webworker as string in combined builds. Should fix side effects in
+  external bundlers.
+- Removed deprecated positional `quality` argument from
+  `resize(from, to, quality)`. Use `resize(from, to, { quality })` or `filter`
+  option instead. Numeric `options.quality` is still accepted but deprecated —
+  use `filter`.
 - Removed implicit pool/limiter sharing between multiple `Pica` instances.
   Create a single instance and reuse it.
 
