@@ -429,7 +429,7 @@ export class Pica {
       stageEnv.srcImageBitmap = from
       stageEnv.isImageBitmapReused = true
     } else if (utils.isImage(from)) {
-    // try do decode image in background for faster next operations;
+    // try to decode image in background for faster next operations;
     // if we're using offscreen canvas, cib is called per tile, so not needed here
       if (this.capabilities.create_image_bitmap) {
         this.debug('Decode image via createImageBitmap')

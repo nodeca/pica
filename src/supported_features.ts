@@ -240,7 +240,7 @@ function check_cib_resize_async (): Promise<boolean> {
       canvas.height = SRC_SIZE
     } else if (features.offscreen_canvas || check_offscreen_canvas()) {
       canvas = new OffscreenCanvas(SRC_SIZE, SRC_SIZE)
-      // Crome fails to createImageBitmap() from canvas without drawing
+      // Chrome fails to createImageBitmap() from canvas without drawing
       // anything on it.
       const ctx = canvas.getContext('2d')!
       ctx.clearRect(0, 0, SRC_SIZE, SRC_SIZE)

@@ -43,7 +43,7 @@ export default function unsharp (
 
   const brightness = hsv_v16(img, width, height)
 
-  const blured = new Uint16Array(brightness) // copy, because blur modify src
+  const blured = new Uint16Array(brightness) // copy, because blur modifies src
 
   glur_mono16(blured, width, height, radius)
 

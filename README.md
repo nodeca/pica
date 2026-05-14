@@ -14,11 +14,11 @@ pica - high quality image resize in browser
 With pica you can:
 
 - Reduce upload size for large images, saving upload time.
-- Saves server resources on image processing.
+- Save server resources on image processing.
 - Generate thumbnails in browser.
 - ...
 
-**Note. If you need File/Blob resize (from form's file input), consider use
+**Note. If you need File/Blob resize (from form's file input), consider using
 [image-blob-reduce](https://github.com/nodeca/image-blob-reduce).** It has
 additional machinery to process orientation, keep EXIF metadata and so on.
 
@@ -52,15 +52,15 @@ Here is a short list of problems you can face:
 - Loading image:
   - Due to JS security restrictions, you can process images
     from the same domain or local files only. If you load images from
-    remote domain use proper `Access-Control-Allow-Origin` header.
-  - iOS has a memory limits for canvas elements, that may cause
+    a remote domain, use the proper `Access-Control-Allow-Origin` header.
+  - iOS has memory limits for canvas elements, which may cause
     problems in some cases, [more details](https://github.com/nodeca/pica/wiki/iOS-Memory-Limit).
-  - If your source data is jpeg image, it can be rotated. Consider use
+  - If your source data is a jpeg image, it can be rotated. Consider using
     [image-blob-reduce](https://github.com/nodeca/image-blob-reduce).
 - Saving image:
-  - Some ancient browsers do not support `canvas.toBlob()` method.
-    Use `pica.toBlob()`, it includes required shim.
-  - For jpeg source, it's a good idea to keep `exif` data. Consider use
+  - Some ancient browsers do not support the `canvas.toBlob()` method.
+    Use `pica.toBlob()`, it includes the required shim.
+  - For jpeg source, it's a good idea to keep `exif` data. Consider using
     [image-blob-reduce](https://github.com/nodeca/image-blob-reduce).
 - Quality
   - JS canvas does not support access to info about gamma correction.
@@ -130,10 +130,10 @@ Create resizer instance with given config (optional):
   to restrict peak memory use. Default 1024.
 - __features__ - list of features to use. Default is
   `[ 'js', 'wasm', 'ww' ]`. Can be `[ 'js', 'wasm', 'cib', 'ww' ]`
-  or `[ 'all' ]`. Note, `cib` is buggy in Chrome and not supports default
-  `mks2013` filter.
-- __idle__ - cache timeout, ms. Webworkers create is not fast.
-  This option allow reuse webworkers effectively. Default 2000.
+  or `[ 'all' ]`. Note, `cib` is buggy in Chrome and does not support the
+  default `mks2013` filter.
+- __idle__ - cache timeout, ms. Creating webworkers is not fast,
+  so this option allows reusing them effectively. Default 2000.
 - __workerURL__ - URL for `pica_worker.js` when using split builds
   (`pica_main.js` / `pica_main.mjs`) with `ww` enabled. Full builds
   (`pica.js` / `pica.mjs`) include worker code and do not need this option.
@@ -146,9 +146,9 @@ for use. So:
 
 - `createImageBitmap()` is used for non-blocking image decode (when available,
   without downscale).
-- It's resize feature is blocked by default pica config. Enable it only on your
-  own risk. Result with enabled `cib` will depend on your browser. Result
-  without `cib` will be predictable and good.
+- Its resize feature is blocked in the default pica config. Enable it only at
+  your own risk. The result with `cib` enabled will depend on your browser.
+  The result without `cib` will be predictable and good.
 
 
 ### .resize(from, to, options) -> Promise
@@ -211,7 +211,7 @@ binary data (for example, if you decode jpeg files "manually").
   - __unsharpThreshold__ - 0..255. Default = `0`. Threshold
     for applying unsharp mask.
   - __dest__ - Optional. Output buffer to write data,
-    if you don't wish `pica` to create new one.
+    if you don't wish `pica` to create a new one.
 
 Result is Promise, resolved with resized rgba buffer.
 
@@ -226,19 +226,19 @@ but deprecated — prefer the `filter` option. Mapping:
 - 2 - Lanczos filter, window 2.0px (`filter: 'lanczos2'`)
 - 3 - Lanczos filter, window 3.0px (`filter: 'lanczos3'`)
 
-In real world you will never need to change default (`mks2013`)
-filter. All this variations were implemented to better
+In the real world you will never need to change the default (`mks2013`)
+filter. All these variations were implemented to better
 understand resize math :)
 
 
 ### Unsharp mask
 
-After scale down image can look a bit blured. It's good idea to sharpen it
-a bit. Pica has built-in "unsharp mask" filter (off by default).
-Set `unsharpAmount` to positive number to activate the filter.
+After scale down, an image can look a bit blurred. It's a good idea to
+sharpen it a bit. Pica has a built-in "unsharp mask" filter (off by default).
+Set `unsharpAmount` to a positive number to activate the filter.
 
-Filter's parameters are similar to ones from Photoshop.
-We recommend to start with `unsharpAmount = 160`,
+Filter parameters are similar to ones from Photoshop.
+We recommend starting with `unsharpAmount = 160`,
 `unsharpRadius = 0.6` and `unsharpThreshold = 1`.
 There is [a correspondence between UnsharpMask parameters
 in popular graphics software](https://github.com/nodeca/pica/wiki/Unsharp-mask-params-in-popular-softare).
@@ -260,7 +260,7 @@ We didn't have time to test all possible combinations, but in general:
   then [typed arrays support](http://caniuse.com/#feat=typedarrays) will be enough.
 
 __Note.__ Though you can run this package on `node.js`, browsers
-are the main target platform. On server side we recommend to use
+are the main target platform. On the server side we recommend using
 [sharp](https://github.com/lovell/sharp).
 
 

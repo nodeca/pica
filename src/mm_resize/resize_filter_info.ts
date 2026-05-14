@@ -11,7 +11,7 @@ export interface FilterInfo {
 }
 
 const filter: Record<MathResizeFilter, FilterInfo> = {
-  // Nearest neibor
+  // Nearest neighbor
   box: {
     win: 0.5,
     fn (x: number) {

@@ -78,7 +78,7 @@ export default function resizeFilterGen (
     //
     // Now pack filter to useable form
     //
-    // 1. Trim heading and tailing zero values, and compensate shitf/length
+    // 1. Trim leading and trailing zero values, and compensate shift/length
     // 2. Put all to single array in this format:
     //
     //    [ pos shift, data length, value1, value2, value3, ... ]

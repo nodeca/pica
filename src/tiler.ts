@@ -72,8 +72,8 @@ export default function createRegions (options: TilerOptions): Tile[] {
   const tiles: Tile[] = []
   let tile: Tile
 
-  // we go top-to-down instead of left-to-right to make image displayed from top to
-  // doesn in the browser
+  // we go top-to-bottom instead of left-to-right so the image is displayed
+  // from top to bottom in the browser
   for (innerY = 0; innerY < options.toHeight; innerY += innerTileHeight) {
     for (innerX = 0; innerX < options.toWidth; innerX += innerTileWidth) {
       x = innerX - options.destTileBorder
