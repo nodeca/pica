@@ -1,21 +1,28 @@
 import type { CibResizeQuality, Filter, Limiter, PicaCanvas } from './types'
 
-function objClass (obj: unknown): string { return Object.prototype.toString.call(obj) }
+// Uses constructor.name — safe because all targets are browser built-ins or
+// native Node.js library classes that minifiers don't rename. If this ever
+// breaks after a toolchain change, fall back to Object.prototype.toString:
+//   Object.prototype.toString.call(obj) === '[object HTMLCanvasElement]'  etc.
+function objClass (obj: unknown): string {
+  return (obj as any)?.constructor?.name ?? ''
+}
 
 export function isCanvas (element: unknown): element is PicaCanvas {
   const cname = objClass(element)
 
-  return cname === '[object HTMLCanvasElement]'/* browser */ ||
-         cname === '[object OffscreenCanvas]' ||
-         cname === '[object Canvas]'/* node-canvas */
+  return cname === 'HTMLCanvasElement' ||
+         cname === 'OffscreenCanvas' ||
+         cname === 'Canvas' /* node-canvas */ ||
+         cname === 'CanvasElement' /* @napi-rs/canvas */
 }
 
 export function isImage (element: unknown): element is HTMLImageElement {
-  return objClass(element) === '[object HTMLImageElement]'
+  return objClass(element) === 'HTMLImageElement'
 }
 
 export function isImageBitmap (element: unknown): element is ImageBitmap {
-  return objClass(element) === '[object ImageBitmap]'
+  return objClass(element) === 'ImageBitmap'
 }
 
 export function limiter (concurrency: number): Limiter {
