@@ -137,7 +137,7 @@ async function buildDeclarations () {
   await buildDts('src/pica_main_cjs_proxy.ts', 'dist/pica.cjs.d.ts')
 }
 
-const inlineWorker = await buildInlineWorker({ minify: false })
+// const inlineWorker = await buildInlineWorker({ minify: false })
 const inlineWorkerMin = await buildInlineWorker({ minify: 'terser' })
 
 await rm('dist', { recursive: true, force: true })
@@ -146,14 +146,16 @@ await buildMainUmd({
   name: 'pica',
   jsFile: 'pica.js',
   minify: false,
-  define: { __PICA_WORKER_SRC__: JSON.stringify(inlineWorker) }
+  // define: { __PICA_WORKER_SRC__: JSON.stringify(inlineWorker) }
+  define: { __PICA_WORKER_SRC__: JSON.stringify(inlineWorkerMin) }
 })
 
 await buildMainEsm({
   entry: 'src/pica_main.ts',
   mjsFile: 'pica.mjs',
   minify: false,
-  define: { __PICA_WORKER_SRC__: JSON.stringify(inlineWorker) }
+  // define: { __PICA_WORKER_SRC__: JSON.stringify(inlineWorker) }
+  define: { __PICA_WORKER_SRC__: JSON.stringify(inlineWorkerMin) }
 })
 
 await buildMainUmd({
