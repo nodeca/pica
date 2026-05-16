@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [Unpublished]
+## [10.0.0] - 2026-05-26
 ### Fixed
 - Worked around bug in Chrome `createImageBitmap` for images with Exif
   orientation.
@@ -353,6 +353,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - First release.
 
 
+[10.0.0]: https://github.com/nodeca/pica/compare/9.0.1...10.0.0
 [9.0.1]: https://github.com/nodeca/pica/compare/9.0.0...9.0.1
 [9.0.0]: https://github.com/nodeca/pica/compare/8.0.0...9.0.0
 [8.0.0]: https://github.com/nodeca/pica/compare/7.1.1...8.0.0
