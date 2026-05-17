@@ -1,5 +1,6 @@
 doc/
 node_modules/
+dist/
 v8.log
 fixture-test-*
 .claude

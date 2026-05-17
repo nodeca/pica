@@ -50,7 +50,8 @@
     "gh-pages": "gh-pages -d . -s {demo,dist}/* -f",
     "build": "node support/build/build.mjs",
     "wasm": "docker run --rm -v $(pwd):/src -u $(id -u):$(id -g) emscripten/emsdk:2.0.20 ./support/compile-emsdk.sh",
-    "prepublishOnly": "npm run gh-pages"
+    "prepack": "npm run build",
+    "postpublish": "npm run gh-pages"
   },
   "files": [
     "dist/"
