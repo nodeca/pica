@@ -1,4 +1,4 @@
-import type { MathResizeFilter, MathResizeImage } from './mathlib'
+import type { MathResizeFilter, MathImageBuffer } from './mathlib'
 import type { SupportedFeatures } from './supported_features'
 
 export type PicaFeaturesFlat = ('js' | 'wasm' | 'ww' | 'cib' | 'all')[]
@@ -43,7 +43,7 @@ export interface ResizeOptions extends _ResizeOptionsCommon {
 }
 
 export interface ResizeBufferOptions extends _ResizeOptionsCommon {
-  src: Uint8Array | Uint8ClampedArray
+  src: MathImageBuffer
   width: number
   height: number
   toWidth: number
@@ -76,7 +76,7 @@ export interface TileResizeJobBase extends ResizeParams {
 
 export interface TileResizeArrayJob extends TileResizeJobBase {
   kind: 'array'
-  src: MathResizeImage
+  src: MathImageBuffer
 }
 
 export interface TileResizeBitmapJob extends TileResizeJobBase {

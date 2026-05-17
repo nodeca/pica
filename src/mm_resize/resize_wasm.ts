@@ -1,7 +1,7 @@
 import createFilters from './resize_filter_gen'
-import type { MathResizeOptions, MathWasmContext } from '../mathlib'
+import type { MathResizeOptions, MathWasmContext, MathImageBuffer } from '../mathlib'
 
-function hasAlpha (src: Uint8Array | Uint8ClampedArray, width: number, height: number): boolean {
+function hasAlpha (src: MathImageBuffer, width: number, height: number): boolean {
   let ptr = 3
   const len = (width * height * 4)|0
   while (ptr < len) {
@@ -73,8 +73,8 @@ export default function resize_wasm (this: MathWasmContext, options: MathResizeO
   // Fill memory block with data to process
   //
 
-  const mem = new Uint8Array(this.__memory.buffer)
-  const mem32 = new Uint32Array(this.__memory.buffer)
+  const mem = new Uint8Array(this.__memory!.buffer)
+  const mem32 = new Uint32Array(this.__memory!.buffer)
 
   // 32-bit copy is much faster in chrome
   const src32 = new Uint32Array(src.buffer)
@@ -103,7 +103,7 @@ export default function resize_wasm (this: MathWasmContext, options: MathResizeO
 
   // 32-bit copy is much faster in chrome
   const dest32 = new Uint32Array(dest.buffer)
-  dest32.set(new Uint32Array(this.__memory.buffer, 0, destH * destW))
+  dest32.set(new Uint32Array(this.__memory!.buffer, 0, destH * destW))
 
   return dest
 }

@@ -75,8 +75,8 @@
     "dist/"
   ],
   "dependencies": {
-    "glur": "^1.1.2",
-    "multimath": "^2.0.0"
+    "glur": "^2.0.0",
+    "multimath": "^3.0.0"
   },
   "devDependencies": {
     "@napi-rs/canvas": "^1.0.0",

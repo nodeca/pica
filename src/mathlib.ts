@@ -3,24 +3,20 @@
 // 1. Combine components together
 // 2. Has async init to load wasm modules
 //
-import Multimath from 'multimath'
+import { MultiMath } from 'multimath'
 
 import mm_unsharp_mask from './mm_unsharp_mask'
 import mm_resize from './mm_resize'
-import type {
-  MmFeaturesMap,
-  MmPlugin,
-  MmUnsharpImage,
-  MmUnsharpMask,
-  MmWasmContext
-} from 'multimath'
 
-export type MathFeaturesMap = MmFeaturesMap
+export type MathFeaturesMap = { js: boolean; wasm: boolean }
+export type { MultiMathPlugin as MathPlugin } from 'multimath'
+export type MathImageBuffer = Uint8Array | Uint8ClampedArray
+export type MathWasmContext = MultiMath
+
 export type MathResizeFilter = 'box' | 'hamming' | 'lanczos2' | 'lanczos3' | 'mks2013'
-export type MathResizeImage = Uint8Array | Uint8ClampedArray
 
 export interface MathResizeOptions {
-  src: MathResizeImage
+  src: MathImageBuffer
   width: number
   height: number
   toWidth: number
@@ -39,15 +35,10 @@ export interface MathResizeAndUnsharpOptions extends MathResizeOptions {
   unsharpThreshold: number
 }
 
-export type MathUnsharpImage = MmUnsharpImage
-export type MathUnsharpMask = MmUnsharpMask
-export type MathWasmContext = MmWasmContext
-export type MathPlugin = MmPlugin
-
-export default class MathLib extends Multimath {
+export default class MathLib extends MultiMath {
   declare features: MathFeaturesMap
-  declare resize: (options: MathResizeOptions) => Uint8Array
-  declare unsharp_mask: MathUnsharpMask
+  declare resize: typeof mm_resize.fn
+  declare unsharp_mask: typeof mm_unsharp_mask.fn
 
   constructor (requested_features?: readonly string[]) {
     const __requested_features = requested_features || []

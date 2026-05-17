@@ -1,8 +1,8 @@
-import type { MathWasmContext } from '../mathlib'
+import type { MathWasmContext, MathImageBuffer } from '../mathlib'
 
 export default function unsharp (
   this: MathWasmContext,
-  img: Uint8Array | Uint8ClampedArray,
+  img: MathImageBuffer,
   width: number,
   height: number,
   amount: number,
@@ -40,7 +40,7 @@ export default function unsharp (
 
   // 32-bit copy is much faster in chrome
   const img32 = new Uint32Array(img.buffer)
-  const mem32 = new Uint32Array(this.__memory.buffer)
+  const mem32 = new Uint32Array(this.__memory!.buffer)
   mem32.set(img32)
 
   // HSL
@@ -61,5 +61,5 @@ export default function unsharp (
     blur_offset, width, height, amount, threshold)
 
   // 32-bit copy is much faster in chrome
-  img32.set(new Uint32Array(this.__memory.buffer, 0, pixels))
+  img32.set(new Uint32Array(this.__memory!.buffer, 0, pixels))
 }

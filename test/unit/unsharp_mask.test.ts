@@ -1,10 +1,9 @@
 import assert from 'assert'
-import glur_js from 'glur/mono16'
-import mathlib_raw from 'multimath'
+import { blurMono16 } from 'glur'
+import { MultiMath } from 'multimath'
 
 import mm_unsharp_mask from '../../src/mm_unsharp_mask'
 import type { MathWasmContext } from '../../src/mathlib'
-import type { MmUnsharpMaskInstance } from 'multimath'
 
 function fill (target: Uint16Array, arr: number | number[]): void {
   const values = Array.isArray(arr) ? arr : [arr]
@@ -21,13 +20,13 @@ describe('unsharp_mask', () => {
 
       const orig = sample.slice(0, sample.length)
 
-      glur_js(sample, 100, 100, 2)
+      blurMono16(sample, 100, 100, 2)
 
       assert.deepStrictEqual(sample, orig)
     })
 
     it('wasm', () => {
-      const mlib_wasm = mathlib_raw({ js: false }).use(mm_unsharp_mask)
+      const mlib_wasm = new MultiMath({ js: false }).use(mm_unsharp_mask)
 
       // unsharp_mask wasm module does not provide API for direct glur16 call
       // Here is simple wrapper for testing
@@ -60,7 +59,7 @@ describe('unsharp_mask', () => {
           { exp: Math.exp }
         )
 
-        const mem32 = new Uint16Array(thisobj.__memory.buffer)
+        const mem32 = new Uint16Array(thisobj.__memory!.buffer)
         mem32.set(src)
 
         const fn = (instance.exports.blurMono16 || instance.exports._blurMono16) as Function | undefined
@@ -68,7 +67,7 @@ describe('unsharp_mask', () => {
 
         fn(src_offset, out_offset, tmp_offset, line_offset, coeffs_offset, width, height, radius)
 
-        return new Uint16Array(thisobj.__memory.buffer.slice(out_offset, out_offset + out_byte_cnt))
+        return new Uint16Array(thisobj.__memory!.buffer.slice(out_offset, out_offset + out_byte_cnt))
       }
 
       const sample = new Uint16Array(100 * 100)
@@ -76,7 +75,7 @@ describe('unsharp_mask', () => {
 
       const sample_js = sample.slice(0, sample.length)
 
-      glur_js(sample_js, 100, 100, 2)
+      blurMono16(sample_js, 100, 100, 2)
 
       const sample_wasm = glur16_wasm_invoke(mlib_wasm as MathWasmContext, sample, 100, 100, 2)
 
@@ -94,16 +93,14 @@ describe('unsharp_mask', () => {
     }
 
     it('js should not throw without wasm', () => {
-      const mlib = mathlib_raw({ wasm: false }).use(mm_unsharp_mask) as MmUnsharpMaskInstance
-
+      const mlib = new MultiMath({ wasm: false }).use(mm_unsharp_mask)
       const sample = createSample(100, 100)
       mlib.unsharp_mask(sample, 100, 100, 80, 2, 2)
     })
 
     it('wasm', () => {
-      const mlib_js = mathlib_raw({ wasm: false }).use(mm_unsharp_mask) as MmUnsharpMaskInstance
-      const mlib_wasm = mathlib_raw({ js: false }).use(mm_unsharp_mask) as MmUnsharpMaskInstance
-
+      const mlib_js = new MultiMath({ wasm: false }).use(mm_unsharp_mask)
+      const mlib_wasm = new MultiMath({ js: false }).use(mm_unsharp_mask)
       const sample_js = createSample(100, 100)
       const sample_wasm = createSample(100, 100)
 

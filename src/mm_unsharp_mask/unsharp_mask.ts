@@ -7,9 +7,10 @@
 // Image is converted from RGB to HSV, unsharp mask is applied to the
 // brightness channel and then image is converted back to RGB.
 //
-import glur_mono16 from 'glur/mono16'
+import { blurMono16 } from 'glur'
+import type { MathImageBuffer } from '../mathlib'
 
-function hsv_v16 (img: Uint8Array | Uint8ClampedArray, width: number, height: number): Uint16Array {
+function hsv_v16 (img: MathImageBuffer, width: number, height: number): Uint16Array {
   const size = width * height
   const out = new Uint16Array(size)
   let r, g, b, max
@@ -24,7 +25,7 @@ function hsv_v16 (img: Uint8Array | Uint8ClampedArray, width: number, height: nu
 }
 
 export default function unsharp (
-  img: Uint8Array | Uint8ClampedArray,
+  img: MathImageBuffer,
   width: number,
   height: number,
   amount: number,
@@ -45,7 +46,7 @@ export default function unsharp (
 
   const blured = new Uint16Array(brightness) // copy, because blur modifies src
 
-  glur_mono16(blured, width, height, radius)
+  blurMono16(blured, width, height, radius)
 
   const amountFp = (amount / 100 * 0x1000 + 0.5)|0
   const thresholdFp = threshold << 8

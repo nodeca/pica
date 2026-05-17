@@ -1,8 +1,8 @@
 import createFilters from './resize_filter_gen'
 import { convolveHor, convolveVert, convolveHorWithPre, convolveVertWithPre } from './convolve'
-import type { MathResizeOptions } from '../mathlib'
+import type { MathResizeOptions, MathImageBuffer } from '../mathlib'
 
-function hasAlpha (src: Uint8Array | Uint8ClampedArray, width: number, height: number): boolean {
+function hasAlpha (src: MathImageBuffer, width: number, height: number): boolean {
   let ptr = 3
   const len = (width * height * 4)|0
   while (ptr < len) {

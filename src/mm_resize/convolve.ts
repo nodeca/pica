@@ -6,7 +6,7 @@
 function clampTo8 (i: number): number { return i < 0 ? 0 : (i > 255 ? 255 : i) }
 function clampNegative (i: number): number { return i >= 0 ? i : 0 }
 
-type SrcImage = Uint8Array | Uint8ClampedArray
+import type { MathImageBuffer } from '../mathlib'
 
 // Convolve image data in horizontal direction. Can be used for:
 //
@@ -19,7 +19,7 @@ type SrcImage = Uint8Array | Uint8ClampedArray
 // - output resolution is ~15 bits per channel(for better precision).
 //
 function convolveHor (
-  src: SrcImage,
+  src: MathImageBuffer,
   dest: Uint16Array,
   srcW: number,
   srcH: number,
@@ -143,7 +143,7 @@ function convolveVert (
 // For images without alpha channel this method is slower than `convolveHor()`
 //
 function convolveHorWithPre (
-  src: SrcImage,
+  src: MathImageBuffer,
   dest: Uint16Array,
   srcW: number,
   srcH: number,
