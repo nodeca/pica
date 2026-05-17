@@ -23,6 +23,24 @@
         "default": "./dist/pica.js"
       }
     },
+    "./pica_main": {
+      "import": {
+        "types": "./dist/pica.es.d.ts",
+        "default": "./dist/pica_main.mjs"
+      },
+      "require": {
+        "types": "./dist/pica.cjs.d.ts",
+        "default": "./dist/pica_main.js"
+      }
+    },
+    "./browser": {
+      "import": {
+        "types": "./dist/pica.es.d.ts",
+        "default": "./dist/pica.min.mjs"
+      },
+      "default": "./dist/pica.min.js"
+    },
+    "./pica_worker": "./dist/pica_worker.js",
     "./dist/*": "./dist/*",
     "./package.json": "./package.json"
   },
