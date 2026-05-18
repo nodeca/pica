@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [Unpublished]
+### Added
+- Added package export subpaths for split/browser builds
+  (`pica/pica_main`, `pica/pica_worker`, `pica/browser`).
+
+### Changed
+- Build `dist/` on package creation instead of keeping generated files in the
+  repository.
+- Make inlined worker always minified.
+- Updated `glur` to v2 and `multimath` to v3.
+
+
 ## [10.0.0] - 2026-05-26
 ### Fixed
 - Worked around bug in Chrome `createImageBitmap` for images with Exif
@@ -353,6 +365,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - First release.
 
 
+[Unpublished]: https://github.com/nodeca/pica/compare/10.0.0...HEAD
 [10.0.0]: https://github.com/nodeca/pica/compare/9.0.1...10.0.0
 [9.0.1]: https://github.com/nodeca/pica/compare/9.0.0...9.0.1
 [9.0.0]: https://github.com/nodeca/pica/compare/8.0.0...9.0.0

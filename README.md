@@ -118,6 +118,10 @@ const resizer = createPica({
 });
 ```
 
+> [!NOTE]
+> For a quick look at `dist/` folder contents, see
+> <https://unpkg.com/pica@latest/>.
+
 
 API
 ---
