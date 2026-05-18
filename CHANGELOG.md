@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [Unpublished]
+## [10.0.1] - 2026-05-18
 ### Added
 - Added package export subpaths for split/browser builds
   (`pica/pica_main`, `pica/pica_worker`, `pica/browser`).
@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated `glur` to v2 and `multimath` to v3.
 
 
-## [10.0.0] - 2026-05-26
+## [10.0.0] - 2026-05-16
 ### Fixed
 - Worked around bug in Chrome `createImageBitmap` for images with Exif
   orientation.
