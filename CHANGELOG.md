@@ -365,7 +365,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - First release.
 
 
-[Unpublished]: https://github.com/nodeca/pica/compare/10.0.0...HEAD
+[10.0.1]: https://github.com/nodeca/pica/compare/10.0.0...10.0.1
 [10.0.0]: https://github.com/nodeca/pica/compare/9.0.1...10.0.0
 [9.0.1]: https://github.com/nodeca/pica/compare/9.0.0...9.0.1
 [9.0.0]: https://github.com/nodeca/pica/compare/8.0.0...9.0.0
