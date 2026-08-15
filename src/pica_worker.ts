@@ -46,6 +46,14 @@ function resizeBitmap (data: WorkerResizePayload, tileJob: TileResizeBitmapJob):
   }
 
   const result = resize_math(data, mathOpts)
+
+  // Returning ImageBitmap causes tile border artifacts in Chrome.
+  // This is covered by a regression test. Do not revert this workaround.
+  // https://github.com/nodeca/pica/issues/223
+  // https://github.com/nodeca/pica/issues/258
+  workerScope.postMessage({ kind: 'array', data: result }, [result.buffer])
+
+  /*
   const canvas = new OffscreenCanvas(tileJob.toWidth, tileJob.toHeight)
   const ctx = canvas.getContext('2d', ctxOpts)!
 
@@ -56,6 +64,7 @@ function resizeBitmap (data: WorkerResizePayload, tileJob: TileResizeBitmapJob):
   const bitmap = canvas.transferToImageBitmap()
 
   workerScope.postMessage({ kind: 'bitmap', data: bitmap }, [bitmap])
+  */
 }
 
 function resize (data: WorkerResizePayload): void {
