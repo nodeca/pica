@@ -14,23 +14,19 @@ jobs:
 
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        node-version: [ 24 ]
-
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v6
+    - name: Use Node.js LTS
+      uses: actions/setup-node@v7
       with:
-        node-version: ${{ matrix.node-version }}
+        node-version: lts/*
+        cache: npm
 
-    - name: Install dependencies
-      run: npm install
+    - run: npm ci
 
     - name: Install Playwright browsers
       run: npx playwright install --with-deps chromium
 
-    - name: Run tests
+    - name: Test
       run: npm test
