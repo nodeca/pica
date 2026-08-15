@@ -86,7 +86,6 @@
     "benchmark": "^2.1.0",
     "eslint": "^9",
     "gh-pages": "^6.3.0",
-    "globals": "^15.15.0",
     "neostandard": "^0.13.0",
     "pixelmatch": "^7.2.0",
     "playwright": "^1.59.1",
